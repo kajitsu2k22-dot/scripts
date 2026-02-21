@@ -48,6 +48,11 @@ local L_STRINGS = {
         m_side          = "Panel Side",
         m_left          = "Left",
         m_right         = "Right",
+        m_visibility    = "Show Mode",
+        m_vis_always    = "Always",
+        m_vis_menu      = "Cheat Menu Only",
+        m_vis_shop      = "Shop Only",
+        m_vis_both      = "Menu or Shop",
     },
     ru = {
         title           = "ITEM HELPER",
@@ -80,6 +85,11 @@ local L_STRINGS = {
         m_side          = "Сторона панели",
         m_left          = "Слева",
         m_right         = "Справа",
+        m_visibility    = "Режим показа",
+        m_vis_always    = "Всегда",
+        m_vis_menu      = "Только меню чита",
+        m_vis_shop      = "Только магазин",
+        m_vis_both      = "Меню или магазин",
     },
     cn = {
         title           = "物品助手",
@@ -112,6 +122,11 @@ local L_STRINGS = {
         m_side          = "面板位置",
         m_left          = "左",
         m_right         = "右",
+        m_visibility    = "显示模式",
+        m_vis_always    = "始终显示",
+        m_vis_menu      = "仅作弊菜单",
+        m_vis_shop      = "仅商店",
+        m_vis_both      = "菜单或商店",
     },
 }
 
@@ -532,6 +547,205 @@ local HERO_TAGS = {
 }
 
 --------------------------------------------------------------------------------
+-- HERO ROLE SYSTEM (for hero-aware item scoring)
+-- role: "carry", "mid", "offlane", "support", "hardsupport"
+-- style: "phys" = physical DPS, "magic" = caster, "hybrid", "utility"
+-- Items tagged with excluded_roles get heavy penalty when you play that role.
+-- Items tagged with preferred_styles get bonus when hero matches.
+--------------------------------------------------------------------------------
+local HERO_ROLES = {
+    -- ══════════ Carry (Pos 1) ══════════
+    npc_dota_hero_antimage           = {role="carry",  style="phys"},
+    npc_dota_hero_phantom_assassin   = {role="carry",  style="phys"},
+    npc_dota_hero_juggernaut         = {role="carry",  style="phys"},
+    npc_dota_hero_faceless_void      = {role="carry",  style="phys"},
+    npc_dota_hero_terrorblade        = {role="carry",  style="phys"},
+    npc_dota_hero_spectre            = {role="carry",  style="phys"},
+    npc_dota_hero_phantom_lancer     = {role="carry",  style="phys"},
+    npc_dota_hero_medusa             = {role="carry",  style="phys"},
+    npc_dota_hero_troll_warlord      = {role="carry",  style="phys"},
+    npc_dota_hero_ursa               = {role="carry",  style="phys"},
+    npc_dota_hero_sven               = {role="carry",  style="phys"},
+    npc_dota_hero_life_stealer       = {role="carry",  style="phys"},
+    npc_dota_hero_slark              = {role="carry",  style="phys"},
+    npc_dota_hero_monkey_king        = {role="carry",  style="phys"},
+    npc_dota_hero_chaos_knight       = {role="carry",  style="phys"},
+    npc_dota_hero_luna               = {role="carry",  style="phys"},
+    npc_dota_hero_drow_ranger        = {role="carry",  style="phys"},
+    npc_dota_hero_morphling          = {role="carry",  style="hybrid"},
+    npc_dota_hero_naga_siren         = {role="carry",  style="phys"},
+    npc_dota_hero_weaver             = {role="carry",  style="phys"},
+    npc_dota_hero_riki               = {role="carry",  style="phys"},
+    npc_dota_hero_clinkz             = {role="carry",  style="phys"},
+    npc_dota_hero_sniper             = {role="carry",  style="phys"},
+    npc_dota_hero_templar_assassin   = {role="carry",  style="phys"},
+    npc_dota_hero_bloodseeker        = {role="carry",  style="phys"},
+    npc_dota_hero_lycan              = {role="carry",  style="phys"},
+    npc_dota_hero_huskar             = {role="carry",  style="phys"},
+    npc_dota_hero_alchemist          = {role="carry",  style="phys"},
+    npc_dota_hero_skeleton_king      = {role="carry",  style="phys"},
+    npc_dota_hero_arc_warden         = {role="carry",  style="phys"},
+    npc_dota_hero_lone_druid         = {role="carry",  style="phys"},
+    npc_dota_hero_gyrocopter         = {role="carry",  style="hybrid"},
+    npc_dota_hero_nevermore          = {role="carry",  style="hybrid"},
+    npc_dota_hero_razor              = {role="carry",  style="hybrid"},
+    npc_dota_hero_viper              = {role="carry",  style="hybrid"},
+    npc_dota_hero_meepo              = {role="carry",  style="hybrid"},
+    npc_dota_hero_broodmother        = {role="carry",  style="phys"},
+    npc_dota_hero_kez                = {role="carry",  style="phys"},
+    -- ══════════ Mid (Pos 2) ══════════
+    npc_dota_hero_invoker            = {role="mid",    style="magic"},
+    npc_dota_hero_storm_spirit       = {role="mid",    style="magic"},
+    npc_dota_hero_ember_spirit       = {role="mid",    style="magic"},
+    npc_dota_hero_lina               = {role="mid",    style="magic"},
+    npc_dota_hero_zuus               = {role="mid",    style="magic"},
+    npc_dota_hero_tinker             = {role="mid",    style="magic"},
+    npc_dota_hero_queenofpain        = {role="mid",    style="magic"},
+    npc_dota_hero_puck               = {role="mid",    style="magic"},
+    npc_dota_hero_void_spirit        = {role="mid",    style="magic"},
+    npc_dota_hero_leshrac            = {role="mid",    style="magic"},
+    npc_dota_hero_death_prophet      = {role="mid",    style="magic"},
+    npc_dota_hero_obsidian_destroyer = {role="mid",    style="magic"},
+    npc_dota_hero_skywrath_mage      = {role="mid",    style="magic"},
+    npc_dota_hero_muerta             = {role="mid",    style="hybrid"},
+    npc_dota_hero_windrunner         = {role="mid",    style="hybrid"},
+    -- ══════════ Offlane (Pos 3) ══════════
+    npc_dota_hero_axe                = {role="offlane",style="utility"},
+    npc_dota_hero_tidehunter         = {role="offlane",style="utility"},
+    npc_dota_hero_bristleback        = {role="offlane",style="phys"},
+    npc_dota_hero_centaur            = {role="offlane",style="utility"},
+    npc_dota_hero_mars               = {role="offlane",style="utility"},
+    npc_dota_hero_legion_commander   = {role="offlane",style="phys"},
+    npc_dota_hero_doom_bringer       = {role="offlane",style="utility"},
+    npc_dota_hero_sand_king          = {role="offlane",style="magic"},
+    npc_dota_hero_slardar            = {role="offlane",style="utility"},
+    npc_dota_hero_magnataur          = {role="offlane",style="utility"},
+    npc_dota_hero_night_stalker      = {role="offlane",style="phys"},
+    npc_dota_hero_primal_beast       = {role="offlane",style="utility"},
+    npc_dota_hero_dragon_knight      = {role="offlane",style="hybrid"},
+    npc_dota_hero_abyssal_underlord  = {role="offlane",style="utility"},
+    npc_dota_hero_batrider           = {role="offlane",style="magic"},
+    npc_dota_hero_brewmaster         = {role="offlane",style="utility"},
+    npc_dota_hero_spirit_breaker     = {role="offlane",style="utility"},
+    npc_dota_hero_dark_seer          = {role="offlane",style="utility"},
+    npc_dota_hero_necrolyte          = {role="offlane",style="magic"},
+    npc_dota_hero_undying            = {role="offlane",style="utility"},
+    npc_dota_hero_pangolier          = {role="offlane",style="hybrid"},
+    npc_dota_hero_earth_spirit       = {role="offlane",style="utility"},
+    npc_dota_hero_pudge              = {role="offlane",style="utility"},
+    npc_dota_hero_rattletrap         = {role="offlane",style="utility"},
+    npc_dota_hero_shredder           = {role="offlane",style="magic"},
+    npc_dota_hero_elder_titan        = {role="offlane",style="utility"},
+    npc_dota_hero_phoenix            = {role="offlane",style="magic"},
+    npc_dota_hero_ringmaster         = {role="offlane",style="magic"},
+    npc_dota_hero_largo              = {role="offlane",style="magic"},
+    npc_dota_hero_kunkka             = {role="offlane",style="hybrid"},
+    npc_dota_hero_tiny               = {role="offlane",style="hybrid"},
+    npc_dota_hero_beastmaster        = {role="offlane",style="utility"},
+    -- ══════════ Support (Pos 4) ══════════
+    npc_dota_hero_earthshaker        = {role="support",style="utility"},
+    npc_dota_hero_tusk               = {role="support",style="utility"},
+    npc_dota_hero_bounty_hunter      = {role="support",style="utility"},
+    npc_dota_hero_nyx_assassin       = {role="support",style="utility"},
+    npc_dota_hero_rubick             = {role="support",style="magic"},
+    npc_dota_hero_mirana             = {role="support",style="magic"},
+    npc_dota_hero_dark_willow        = {role="support",style="magic"},
+    npc_dota_hero_hoodwink           = {role="support",style="magic"},
+    npc_dota_hero_grimstroke         = {role="support",style="magic"},
+    npc_dota_hero_snapfire           = {role="support",style="utility"},
+    npc_dota_hero_marci              = {role="support",style="utility"},
+    npc_dota_hero_vengefulspirit     = {role="support",style="utility"},
+    npc_dota_hero_pugna              = {role="support",style="magic"},
+    npc_dota_hero_disruptor          = {role="support",style="magic"},
+    npc_dota_hero_shadow_demon       = {role="support",style="magic"},
+    npc_dota_hero_furion             = {role="support",style="hybrid"},
+    npc_dota_hero_techies            = {role="support",style="magic"},
+    npc_dota_hero_jakiro             = {role="support",style="magic"},
+    npc_dota_hero_silencer           = {role="support",style="magic"},
+    npc_dota_hero_venomancer         = {role="support",style="magic"},
+    npc_dota_hero_visage             = {role="support",style="hybrid"},
+    -- ══════════ Hard Support (Pos 5) ══════════
+    npc_dota_hero_crystal_maiden     = {role="hardsupport",style="magic"},
+    npc_dota_hero_dazzle             = {role="hardsupport",style="utility"},
+    npc_dota_hero_oracle             = {role="hardsupport",style="utility"},
+    npc_dota_hero_omniknight         = {role="hardsupport",style="utility"},
+    npc_dota_hero_abaddon            = {role="hardsupport",style="utility"},
+    npc_dota_hero_chen               = {role="hardsupport",style="utility"},
+    npc_dota_hero_enchantress        = {role="hardsupport",style="utility"},
+    npc_dota_hero_wisp               = {role="hardsupport",style="utility"},
+    npc_dota_hero_witch_doctor       = {role="hardsupport",style="magic"},
+    npc_dota_hero_warlock            = {role="hardsupport",style="magic"},
+    npc_dota_hero_winter_wyvern      = {role="hardsupport",style="magic"},
+    npc_dota_hero_lich               = {role="hardsupport",style="magic"},
+    npc_dota_hero_lion               = {role="hardsupport",style="magic"},
+    npc_dota_hero_shadow_shaman      = {role="hardsupport",style="magic"},
+    npc_dota_hero_bane               = {role="hardsupport",style="utility"},
+    npc_dota_hero_enigma             = {role="hardsupport",style="utility"},
+    npc_dota_hero_keeper_of_the_light = {role="hardsupport",style="magic"},
+    npc_dota_hero_ogre_magi          = {role="hardsupport",style="utility"},
+    npc_dota_hero_treant             = {role="hardsupport",style="utility"},
+    npc_dota_hero_dawnbreaker        = {role="hardsupport",style="utility"},
+    npc_dota_hero_ancient_apparition = {role="hardsupport",style="magic"},
+    npc_dota_hero_holy_locket        = {role="hardsupport",style="utility"},
+}
+
+-- Items that are BAD for certain roles (heavy score penalty).
+-- carry/mid with "phys" style shouldn't buy support/utility items that waste a slot.
+-- support/hardsupport shouldn't buy expensive DPS items.
+local ITEM_ROLE_PENALTY = {
+    -- Support/utility items bad for phys carries (slot waste)
+    item_pavise          = {bad_roles={"carry"}, bad_styles={"phys"}},
+    item_mekansm         = {bad_roles={"carry","mid"}},
+    item_guardian_greaves = {bad_roles={"carry","mid"}},
+    item_holy_locket     = {bad_roles={"carry","mid"}},
+    item_glimmer_cape    = {bad_roles={"carry"}},
+    item_force_staff     = {bad_roles={"carry"}, bad_styles={"phys"}},
+    item_medallion_of_courage = {bad_roles={"carry","mid"}},
+    item_solar_crest     = {bad_roles={"carry"}, bad_styles={"phys"}},
+    item_rod_of_atos     = {bad_roles={"carry"}, bad_styles={"phys"}},
+    item_veil_of_discord = {bad_roles={"carry"}, bad_styles={"phys"}},
+    item_arcane_boots    = {bad_roles={"carry"}, bad_styles={"phys"}},
+    item_pipe            = {bad_roles={"carry"}, bad_styles={"phys"}},
+    item_crimson_guard   = {bad_roles={"carry","mid"}, bad_styles={"magic"}},
+    item_spirit_vessel   = {bad_roles={"carry"}, bad_styles={"phys"}},
+    item_cyclone         = {bad_roles={"carry"}, bad_styles={"phys"}},
+    item_ghost           = {bad_roles={"carry"}, bad_styles={"phys"}},
+    item_lotus_orb       = {bad_roles={"carry"}, bad_styles={"phys"}},
+    item_blade_mail      = {bad_styles={"magic"}},
+    -- Expensive DPS items bad for hard supports
+    item_daedalus        = {bad_roles={"hardsupport","support"}},
+    item_butterfly       = {bad_roles={"hardsupport","support"}},
+    item_satanic         = {bad_roles={"hardsupport","support"}},
+    item_battlefury      = {bad_roles={"hardsupport","support"}, bad_styles={"magic"}},
+    item_desolator       = {bad_roles={"hardsupport","support"}},
+    item_mjollnir        = {bad_roles={"hardsupport"}},
+    item_skadi           = {bad_roles={"hardsupport"}},
+    item_abyssal_blade   = {bad_roles={"hardsupport","support"}},
+    item_nullifier       = {bad_roles={"hardsupport","support"}},
+    item_bloodthorn      = {bad_roles={"hardsupport"}},
+    item_silver_edge     = {bad_roles={"hardsupport"}},
+    item_diffusal_blade  = {bad_roles={"hardsupport"}, bad_styles={"magic"}},
+    item_monkey_king_bar = {bad_roles={"hardsupport","support"}},
+    item_radiance        = {bad_roles={"hardsupport","support"}},
+    item_refresher       = {bad_roles={"carry"}, bad_styles={"phys"}},
+    item_hand_of_midas   = {bad_roles={"hardsupport","support"}},
+    item_harpoon         = {bad_roles={"hardsupport","support"}},
+    item_heart           = {bad_roles={"hardsupport","support"}},
+    item_overwhelming_blink = {bad_roles={"hardsupport","support"}},
+    item_swift_blink     = {bad_roles={"hardsupport","support"}, bad_styles={"magic"}},
+    item_arcane_blink    = {bad_roles={"carry"}, bad_styles={"phys"}},
+    item_dagon           = {bad_roles={"carry"}, bad_styles={"phys"}},
+    item_ethereal_blade  = {bad_roles={"carry"}, bad_styles={"phys"}},
+    item_vanguard        = {bad_roles={"carry"}, bad_styles={"magic"}},
+    item_bloodstone      = {bad_roles={"carry"}, bad_styles={"phys"}},
+    item_octarine_core   = {bad_roles={"carry"}, bad_styles={"phys"}},
+    item_kaya_and_sange  = {bad_styles={"phys"}},
+    item_yasha_and_kaya  = {bad_styles={"phys"}},
+    item_witch_blade     = {bad_roles={"hardsupport"}},
+    item_phylactery      = {bad_roles={"carry"}, bad_styles={"phys"}},
+}
+
+--------------------------------------------------------------------------------
 -- GAME-PHASE DETECTION
 --------------------------------------------------------------------------------
 local PHASE_EARLY = 1
@@ -736,6 +950,7 @@ function script.OnScriptsLoaded()
     UI.offY       = visTab:Slider("Offset Y", -600, 600, 0, "%d")
     UI.opacity    = visTab:Slider("Opacity %", 20, 100, 85, "%d")
     UI.panelSide  = visTab:Combo("Panel Side", {"Left", "Right"}, 0)
+    UI.visMode    = featTab:Combo("Show Mode", {"Always", "Cheat Menu Only", "Shop Only", "Menu or Shop"}, 0)
 end
 
 --------------------------------------------------------------------------------
@@ -940,20 +1155,30 @@ local function analyzeEnemyTeam()
         end
     end
 
-    -- Enemies
+    -- Enemies (filter out illusions, clones, tempest doubles; deduplicate by name)
     S.enemyHeroes = {}
     S.enemyTags = {}
     local heroes = Heroes.GetAll()
     if not heroes then return end
 
+    local seenNames = {}
     for _, hero in ipairs(heroes) do
         local team = safeStatic(Entity, "GetTeamNum", hero)
         if team and team ~= myTeam then
-            local name = safeStatic(NPC, "GetUnitName", hero) or ""
-            local alive = safeStatic(Entity, "IsAlive", hero)
-            local level = safeStatic(NPC, "GetCurrentLevel", hero) or 0
+            -- Skip illusions, clones (MK ult), tempest doubles (Arc Warden)
+            local isIllusion = safeStatic(NPC, "IsIllusion", hero)
+            if isIllusion then goto continue end
+            local isClone = safeStatic(NPC, "IsClone", hero)
+            if isClone then goto continue end
+            local isTempest = safeStatic(NPC, "IsTempestDouble", hero)
+            if isTempest then goto continue end
 
-            if name ~= "" then
+            local name = safeStatic(NPC, "GetUnitName", hero) or ""
+            if name ~= "" and not seenNames[name] then
+                seenNames[name] = true
+                local alive = safeStatic(Entity, "IsAlive", hero)
+                local level = safeStatic(NPC, "GetCurrentLevel", hero) or 0
+
                 table.insert(S.enemyHeroes, {
                     name  = name,
                     alive = alive ~= false,
@@ -968,6 +1193,7 @@ local function analyzeEnemyTeam()
                 end
             end
         end
+        ::continue::
     end
 
     -- Sort threat counts
@@ -979,6 +1205,15 @@ local function analyzeEnemyTeam()
         if a.count ~= b.count then return a.count > b.count end
         return a.tag < b.tag
     end)
+
+    -- Resolve my hero role/style for hero-aware scoring
+    local myRole = nil
+    local myStyle = nil
+    local myRoleInfo = HERO_ROLES[S.myHeroName]
+    if myRoleInfo then
+        myRole = myRoleInfo.role
+        myStyle = myRoleInfo.style
+    end
 
     -- Score items
     local function scoreItem(itemDef)
@@ -1014,6 +1249,28 @@ local function analyzeEnemyTeam()
         -- Cost efficiency bonus
         if score > 0 and S.myGold >= itemDef.cost then
             score = score + 2
+        end
+        -- Hero-aware role/style penalty: penalize items bad for my hero
+        if score > 0 and (myRole or myStyle) then
+            local penalty = ITEM_ROLE_PENALTY[itemDef.name]
+            if penalty then
+                local penalized = false
+                -- Check role mismatch
+                if penalty.bad_roles and myRole then
+                    for _, br in ipairs(penalty.bad_roles) do
+                        if br == myRole then penalized = true; break end
+                    end
+                end
+                -- Check style mismatch
+                if not penalized and penalty.bad_styles and myStyle then
+                    for _, bs in ipairs(penalty.bad_styles) do
+                        if bs == myStyle then penalized = true; break end
+                    end
+                end
+                if penalized then
+                    score = math.max(1, math.floor(score * 0.15))
+                end
+            end
         end
         return score
     end
@@ -1126,19 +1383,66 @@ local function syncThemeColors()
 end
 
 --------------------------------------------------------------------------------
--- PANORAMA
+-- PANORAMA / VISIBILITY
 --------------------------------------------------------------------------------
-local _panelOpenCache = false
-local _panelOpenLast  = 0
+local _shopCache       = false
+local _shopCacheT      = 0
+local _shopPanel       = nil
+local _panelSearchDone = false
 
-local function isGamePanelOpen()
+-- Find shop panel (id=shop, type=DOTAHUDShop)
+local function findShopPanel()
+    if _panelSearchDone then return _shopPanel end
+    _panelSearchDone = true
+    -- Direct search by ID
+    local ok, p = pcall(Panorama.GetPanelByName, "shop", false)
+    if ok and p then _shopPanel = p; return p end
+    -- Fallback: traverse from HUD root
+    local ok2, hud = pcall(Panorama.GetPanelByName, "Hud", false)
+    if ok2 and hud then
+        local ok3, sp = pcall(hud.FindChildTraverse, hud, "shop")
+        if ok3 and sp then _shopPanel = sp; return sp end
+    end
+    return nil
+end
+
+local function isShopOpen()
     local now = gt()
-    if now - _panelOpenLast < 0.3 then return _panelOpenCache end
-    _panelOpenLast = now
-    local ok, captured = pcall(Input.IsInputCaptured)
-    if ok and captured then _panelOpenCache = true; return true end
-    _panelOpenCache = false
+    if now - _shopCacheT < 0.15 then return _shopCache end
+    _shopCacheT = now
+
+    -- Shop panel has CSS class "ShopOpen" when open, "ShopClosing" when closed
+    local sp = findShopPanel()
+    if sp then
+        local ok, has = pcall(sp.HasClass, sp, "ShopOpen")
+        if ok then
+            _shopCache = (has == true)
+            return _shopCache
+        end
+    end
+
+    _shopCache = false
     return false
+end
+
+local function isCheatMenuOpen()
+    local ok, v = pcall(Menu.Opened)
+    return ok and v == true
+end
+
+-- visMode: 0=Always, 1=Cheat Menu Only, 2=Shop Only, 3=Menu or Shop
+local function shouldShowPanel()
+    local mode = sg(UI.visMode, 0)
+    if mode == 0 then
+        return true
+    elseif mode == 1 then
+        return isCheatMenuOpen()
+    elseif mode == 2 then
+        return isShopOpen()
+    elseif mode == 3 then
+        return isCheatMenuOpen() or isShopOpen()
+    end
+    return true
 end
 
 --------------------------------------------------------------------------------
@@ -1434,7 +1738,7 @@ end
 -- DRAW: MAIN PANEL
 --------------------------------------------------------------------------------
 local function drawPanel()
-    if isGamePanelOpen() then return end
+    if not shouldShowPanel() then return end
     syncThemeColors()
 
     local sw, sh = screenSz()
@@ -1545,6 +1849,11 @@ function script.OnGameEnd()
     S.dt = 0.016
     S.pulseTime = 0
     S.totalNetWorth = 0
+    -- Reset shop detection state
+    _shopCache = false
+    _shopCacheT = 0
+    _shopPanel = nil
+    _panelSearchDone = false
 end
 
 return script
