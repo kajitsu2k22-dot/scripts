@@ -1,198 +1,377 @@
---[[
-    CosmicMenu - Космическое меню для UCZone API v2.0
-    
-    Создает потрясающий космический фон при открытии меню чита с множеством визуальных эффектов.
-    
-    🌌 Основные возможности:
-    • Фоновые частицы с реакцией на курсор
-    • Мерцающие звезды и падающие звезды
-    • Туманности с вращением
-    • Северное сияние
-    • Спиральная галактика
-    • Червоточины с пульсацией
-    • Настраиваемое размытие фона
-    • Плавные анимации
-    
-    ⚙️ Настройки:
-    • Main Settings - основные параметры фона
-    • Particles - настройка частиц и их размера
-    • Cursor - управление притяжением к курсору
-    • Effects - включение/выключение визуальных эффектов
-    • Colors - настройка цветовой схемы
-    
-    🎨 Эффекты работают везде: в игре, в главном меню, в лобби
-    • Автоматически появляются при открытии меню чита
-    • Оптимизированы для плавной работы
-    • Настраиваемая интенсивность каждого эффекта
-    
-    Автор: Euphoria
-    Версия: 1.0
-]]
+local L_STRINGS = {
+    en = {
+        tabs = {
+            main = "Main",
+            particles = "Particles",
+            cursor = "Cursor",
+            effects = "Effects",
+            colors = "Colors",
+            advanced = "Advanced Effects"
+        },
+        main_enabled = "Enabled",
+        main_enabled_tip = "Enable or disable cosmic background effects",
+        main_darkness = "Background Darkness",
+        main_darkness_tip = "Adjusts dark overlay intensity",
+        particles_count = "Particle Count",
+        particles_count_tip = "Background particle amount",
+        particles_glow = "Particle Glow",
+        particles_glow_tip = "Adds bloom around particles",
+        particles_size = "Particle Size",
+        particles_size_tip = "Size of base particles",
+        cursor_attraction = "Cursor Attraction",
+        cursor_attraction_tip = "Particles react to cursor position",
+        cursor_radius = "Attraction Radius",
+        cursor_radius_tip = "Area around cursor affecting particles",
+        cursor_force = "Attraction Force",
+        cursor_force_tip = "Strength of particle pull",
+        cursor_smoothness = "Animation Smoothness",
+        cursor_smoothness_tip = "Interpolation factor for particle movement",
+        blur_switch = "Background Blur",
+        blur_switch_tip = "Applies layered blur to menu background",
+        blur_intensity = "Blur Intensity",
+        blur_intensity_tip = "Controls blur strength",
+        nebula_switch = "Nebula Clouds",
+        nebula_switch_tip = "Enable rotating nebula layers",
+        nebula_count = "Cloud Count",
+        nebula_count_tip = "Number of nebula clusters",
+        stars_switch = "Twinkling Stars",
+        stars_switch_tip = "Enable animated star field",
+        stars_count = "Star Count",
+        stars_count_tip = "Number of background stars",
+        shooting_switch = "Shooting Stars",
+        shooting_tip = "Enable shooting stars with tails",
+        shooting_freq = "Shooting Star Frequency",
+        shooting_freq_tip = "Spawn rate of shooting stars",
+        aurora_switch = "Aurora Borealis",
+        aurora_switch_tip = "Draws aurora waves at top",
+        aurora_intensity = "Aurora Intensity",
+        aurora_intensity_tip = "Brightness of aurora",
+        galaxy_switch = "Galaxy Spiral",
+        galaxy_switch_tip = "Paint spiral galaxy center",
+        galaxy_arms = "Spiral Arms",
+        galaxy_arms_tip = "Number of galaxy arms",
+        wormholes_switch = "Wormholes",
+        wormholes_switch_tip = "Spinning wormhole portals",
+        wormholes_count = "Wormhole Count",
+        wormholes_count_tip = "How many wormholes to draw",
+        primary_color = "Primary Color",
+        secondary_color = "Secondary Color"
+    },
+    cn = {
+        tabs = {
+            main = "主设置",
+            particles = "粒子",
+            cursor = "鼠标",
+            effects = "效果",
+            colors = "颜色",
+            advanced = "高级效果"
+        },
+        main_enabled = "启用",
+        main_enabled_tip = "开启或关闭宇宙背景",
+        main_darkness = "背景暗度",
+        main_darkness_tip = "控制暗色遮罩强度",
+        particles_count = "粒子数量",
+        particles_count_tip = "背景粒子数量",
+        particles_glow = "粒子光晕",
+        particles_glow_tip = "为粒子添加柔和光晕",
+        particles_size = "粒子大小",
+        particles_size_tip = "基础粒子尺寸",
+        cursor_attraction = "鼠标吸附",
+        cursor_attraction_tip = "粒子跟随鼠标",
+        cursor_radius = "吸附半径",
+        cursor_radius_tip = "鼠标影响范围",
+        cursor_force = "吸附强度",
+        cursor_force_tip = "粒子被吸引的力度",
+        cursor_smoothness = "动画平滑",
+        cursor_smoothness_tip = "粒子运动的平滑程度",
+        blur_switch = "背景模糊",
+        blur_switch_tip = "为背景添加模糊层",
+        blur_intensity = "模糊强度",
+        blur_intensity_tip = "模糊的强弱",
+        nebula_switch = "星云",
+        nebula_switch_tip = "启用旋转星云",
+        nebula_count = "星云数量",
+        nebula_count_tip = "绘制的星云数量",
+        stars_switch = "闪烁星星",
+        stars_switch_tip = "启用闪烁星空",
+        stars_count = "星星数量",
+        stars_count_tip = "背景星星数量",
+        shooting_switch = "流星",
+        shooting_tip = "启用带尾巴的流星",
+        shooting_freq = "流星频率",
+        shooting_freq_tip = "流星出现频率",
+        aurora_switch = "极光",
+        aurora_switch_tip = "绘制天空极光",
+        aurora_intensity = "极光亮度",
+        aurora_intensity_tip = "极光强度",
+        galaxy_switch = "螺旋星系",
+        galaxy_switch_tip = "绘制中心星系",
+        galaxy_arms = "星系臂",
+        galaxy_arms_tip = "星系臂数量",
+        wormholes_switch = "虫洞",
+        wormholes_switch_tip = "显示旋转虫洞",
+        wormholes_count = "虫洞数量",
+        wormholes_count_tip = "绘制的虫洞数量",
+        primary_color = "主色",
+        secondary_color = "次色"
+    }
+}
+
+local LANG = "en"
+local _langWidget = nil
+local _langLastCheck = 0
+local LANG_UPDATE_INTERVAL = 2.0
+
+local DEFAULT_PRIMARY_COLOR = Color(100, 200, 255, 200)
+local DEFAULT_SECONDARY_COLOR = Color(255, 100, 200, 200)
+
+local function currentStrings()
+    return L_STRINGS[LANG] or L_STRINGS.en
+end
+
+local function TabsLabel(key)
+    local dict = currentStrings()
+    local tabs = dict.tabs or L_STRINGS.en.tabs
+    return (tabs and tabs[key]) or L_STRINGS.en.tabs[key] or key
+end
+
+local function L(key)
+    local dict = currentStrings()
+    return dict[key] or L_STRINGS.en[key] or key
+end
+
+local function UpdateLanguage(force)
+    local now = (GlobalVars and GlobalVars.GetRealTime and GlobalVars.GetRealTime()) or os.clock()
+    if not force and now - _langLastCheck < LANG_UPDATE_INTERVAL then return end
+    _langLastCheck = now
+
+    if not _langWidget then
+        local ok, widget = pcall(Menu.Find, "SettingsHidden", "", "", "", "Main", "Language")
+        if ok and widget then _langWidget = widget end
+    end
+
+    if _langWidget and _langWidget.Get then
+        local ok, value = pcall(function()
+            return _langWidget:Get()
+        end)
+        if ok and value ~= nil then
+            if value == 2 or value == "cn" then
+                LANG = "cn"
+            else
+                LANG = "en"
+            end
+        end
+    end
+end
 
 local script = {}
 
 local time = 0
-local lastTime = 0
-local particles = {}
-local shieldPulse = 0
-local mouseTrail = {}
-local constellations = {}
 local bgParticles = {}  -- Фоновые частицы
 local stars = {}  -- Мерцающие звезды
 local nebulaClouds = {}  -- Туманности
 local shootingStars = {}  -- Падающие звезды
 local wormholes = {}  -- Червоточины
 
+local function ensureCount(list, targetCount, factory)
+    while #list < targetCount do
+        list[#list + 1] = factory()
+    end
+    while #list > targetCount do
+        list[#list] = nil
+    end
+end
+
+local function getFallbackColor(widget, defaultColor)
+    if widget and widget.Get then
+        return widget:Get()
+    end
+    return defaultColor
+end
+
+local function createSwitch(group, label, defaultValue, tooltip)
+    local widget = group:Switch(label, defaultValue)
+    if tooltip then widget:ToolTip(tooltip) end
+    return widget
+end
+
+local function createSliderInt(group, label, minValue, maxValue, defaultValue, fmt, tooltip)
+    local widget = group:Slider(label, minValue, maxValue, defaultValue, fmt)
+    if tooltip then widget:ToolTip(tooltip) end
+    return widget
+end
+
+local function createSliderFloat(group, label, minValue, maxValue, defaultValue, fmt, tooltip)
+    local widget = group:Slider(label, minValue, maxValue, defaultValue, fmt)
+    if tooltip then widget:ToolTip(tooltip) end
+    return widget
+end
+
+local function getPrimaryColor()
+    return getFallbackColor(script.shieldColor, DEFAULT_PRIMARY_COLOR)
+end
+
+local function getSecondaryColor()
+    return getFallbackColor(script.shieldColor2, DEFAULT_SECONDARY_COLOR)
+end
+
+local function createBgParticle()
+    return {
+        x = math.random(0, 1920),
+        y = math.random(0, 1080),
+        size = math.random(1, 4),
+        speed = math.random(20, 100) / 100,
+        angle = math.random() * math.pi * 2,
+        brightness = math.random(30, 100) / 100,
+        colorIdx = math.random(1, 2)
+    }
+end
+
+local function createStar()
+    return {
+        x = math.random(0, 1920),
+        y = math.random(0, 1080),
+        size = math.random(1, 3),
+        twinkleSpeed = math.random(1, 5),
+        twinklePhase = math.random() * math.pi * 2,
+        brightness = math.random(50, 100) / 100
+    }
+end
+
+local function createCloud()
+    return {
+        x = math.random(-200, 1920),
+        y = math.random(-200, 1080),
+        size = math.random(200, 500),
+        rotation = math.random() * math.pi * 2,
+        rotationSpeed = (math.random() - 0.5) * 0.1,
+        color = {
+            r = math.random(50, 150),
+            g = math.random(50, 150),
+            b = math.random(100, 200)
+        },
+        alpha = math.random(10, 30)
+    }
+end
+
+local function createWormhole()
+    return {
+        x = math.random(200, 1720),
+        y = math.random(200, 880),
+        size = math.random(50, 100),
+        rotation = 0,
+        rotationSpeed = (math.random() - 0.5) * 2,
+        pulse = 0
+    }
+end
+
+local function getCursorScreenPos()
+    if Input and Input.GetCursorPos then
+        local x, y = Input.GetCursorPos()
+        if x and y then
+            return Vec2(x, y)
+        end
+    end
+    if Engine and Engine.GetCursorPos then
+        local pos = Engine.GetCursorPos()
+        if pos then return pos end
+    end
+    if Input and Input.GetWorldCursorPos then
+        local world = Input.GetWorldCursorPos()
+        if world then
+            local screen = Render.WorldToScreen(world)
+            if screen and screen.x and screen.y then
+                return Vec2(screen.x, screen.y)
+            end
+        end
+    end
+    return nil
+end
+
 -- Шрифт будет создан позже при необходимости
 
 -- Создание меню
 script.OnScriptsLoaded = function()
-    -- Пробуем создать меню в General
+    UpdateLanguage(true)
+
     local tab = Menu.Create("General", "Main", "CosmicMenu")
     if tab and tab.Icon then tab:Icon("✨") end
-    
-    -- Создаем группы для настроек
-    local mainGroup = tab:Create("Main"):Create("Main Settings")
-    local particleGroup = tab:Create("Particles"):Create("Particle Settings")
-    local cursorGroup = tab:Create("Cursor"):Create("Cursor Settings")
-    local effectsGroup = tab:Create("Effects"):Create("Visual Effects")
-    local colorGroup = tab:Create("Colors"):Create("Color Settings")
-    
-    script.enabled = mainGroup:Switch("Enabled", true)
-    
-    -- Переменные для совместимости, но не отображаются в меню
-    script.shieldEnabled = {Get = function() return false end}
-    script.particlesEnabled = {Get = function() return false end}
-    script.mouseTrailEnabled = {Get = function() return false end}
-    script.constellationsEnabled = {Get = function() return false end}
-    
-    -- Основные настройки (Background Effects всегда включен)
+
+    local mainTab = tab:Create(TabsLabel("main"))
+    local particleTab = tab:Create(TabsLabel("particles"))
+    local cursorTab = tab:Create(TabsLabel("cursor"))
+    local effectsTab = tab:Create(TabsLabel("effects"))
+    local colorTab = tab:Create(TabsLabel("colors"))
+
+    local mainGroup = mainTab:Create(TabsLabel("main"))
+    local particleGroup = particleTab:Create(TabsLabel("particles"))
+    local cursorGroup = cursorTab:Create(TabsLabel("cursor"))
+    local effectsGroup = effectsTab:Create(TabsLabel("effects"))
+    local advancedEffects = effectsTab:Create(TabsLabel("advanced"))
+    local colorGroup = colorTab:Create(TabsLabel("colors"))
+
+    script.enabled = createSwitch(mainGroup, L("main_enabled"), true, L("main_enabled_tip"))
     script.backgroundEffects = {Get = function() return true end}
-    script.backgroundOpacity = mainGroup:Slider("Background Darkness", 0, 100, 30, "%d")
-    
-    -- Настройки частиц
-    script.bgParticleCount = particleGroup:Slider("Particle Count", 50, 200, 100, "%d")
-    script.particleGlow = particleGroup:Switch("Particle Glow", true)
-    script.shieldRadius = particleGroup:Slider("Particle Size", 1, 5, 2, "%d")
-    
-    -- Настройки взаимодействия с курсором
-    script.cursorAttraction = cursorGroup:Switch("Cursor Attraction", true)
-    script.attractionRadius = cursorGroup:Slider("Attraction Radius", 50, 300, 150, "%d")
-    script.attractionForce = cursorGroup:Slider("Attraction Force", 0.1, 5.0, 2.0, "%.1f")
-    script.smoothness = cursorGroup:Slider("Animation Smoothness", 1, 10, 5, "%d")
-    
-    -- Визуальные эффекты
-    script.backgroundBlur = effectsGroup:Switch("Background Blur", false)
-    script.blurIntensity = effectsGroup:Slider("Blur Intensity", 0, 20, 10, "%d")
-    script.nebulaClouds = effectsGroup:Switch("Nebula Clouds", true)
-    script.cloudCount = effectsGroup:Slider("Cloud Count", 3, 10, 5, "%d")
-    script.stars = effectsGroup:Switch("Twinkling Stars", true)
-    script.starCount = effectsGroup:Slider("Star Count", 100, 500, 200, "%d")
-    
-    -- Новые космические эффекты
-    script.shootingStars = effectsGroup:Switch("Shooting Stars", true)
-    script.shootingStarFreq = effectsGroup:Slider("Shooting Star Frequency", 1, 10, 5, "%d")
-    script.auroraBorealis = effectsGroup:Switch("Aurora Borealis", true)
-    script.auroraIntensity = effectsGroup:Slider("Aurora Intensity", 0, 100, 50, "%d")
-    script.galaxySpiral = effectsGroup:Switch("Galaxy Spiral", false)
-    script.spiralArms = effectsGroup:Slider("Spiral Arms", 2, 6, 4, "%d")
-    script.wormholes = effectsGroup:Switch("Wormholes", false)
-    script.wormholeCount = effectsGroup:Slider("Wormhole Count", 1, 3, 2, "%d")
-    
-    -- Цветовые настройки
-    script.shieldColor = colorGroup:ColorPicker("Primary Color", Color(100, 200, 255, 200))
-    script.shieldColor2 = colorGroup:ColorPicker("Secondary Color", Color(255, 100, 200, 200))
+    script.backgroundOpacity = createSliderInt(mainGroup, L("main_darkness"), 0, 100, 30, "%d", L("main_darkness_tip"))
+
+    script.bgParticleCount = createSliderInt(particleGroup, L("particles_count"), 50, 200, 100, "%d", L("particles_count_tip"))
+    script.particleGlow = createSwitch(particleGroup, L("particles_glow"), true, L("particles_glow_tip"))
+    script.shieldRadius = createSliderInt(particleGroup, L("particles_size"), 1, 5, 2, "%d", L("particles_size_tip"))
+
+    script.cursorAttraction = createSwitch(cursorGroup, L("cursor_attraction"), true, L("cursor_attraction_tip"))
+    script.attractionRadius = createSliderInt(cursorGroup, L("cursor_radius"), 50, 300, 150, "%d", L("cursor_radius_tip"))
+    script.attractionForce = createSliderFloat(cursorGroup, L("cursor_force"), 0.1, 5.0, 2.0, "%.1f", L("cursor_force_tip"))
+    script.smoothness = createSliderInt(cursorGroup, L("cursor_smoothness"), 1, 10, 5, "%d", L("cursor_smoothness_tip"))
+
+    script.backgroundBlur = createSwitch(effectsGroup, L("blur_switch"), false, L("blur_switch_tip"))
+    script.blurIntensity = createSliderInt(effectsGroup, L("blur_intensity"), 0, 20, 10, "%d", L("blur_intensity_tip"))
+    script.nebulaClouds = createSwitch(effectsGroup, L("nebula_switch"), true, L("nebula_switch_tip"))
+    script.cloudCount = createSliderInt(effectsGroup, L("nebula_count"), 3, 10, 5, "%d", L("nebula_count_tip"))
+    script.stars = createSwitch(effectsGroup, L("stars_switch"), true, L("stars_switch_tip"))
+    script.starCount = createSliderInt(effectsGroup, L("stars_count"), 100, 500, 200, "%d", L("stars_count_tip"))
+
+    script.shootingStars = createSwitch(advancedEffects, L("shooting_switch"), true, L("shooting_tip"))
+    script.shootingStarFreq = createSliderInt(advancedEffects, L("shooting_freq"), 1, 10, 5, "%d", L("shooting_freq_tip"))
+    script.auroraBorealis = createSwitch(advancedEffects, L("aurora_switch"), true, L("aurora_switch_tip"))
+    script.auroraIntensity = createSliderInt(advancedEffects, L("aurora_intensity"), 0, 100, 50, "%d", L("aurora_intensity_tip"))
+    script.galaxySpiral = createSwitch(advancedEffects, L("galaxy_switch"), false, L("galaxy_switch_tip"))
+    script.spiralArms = createSliderInt(advancedEffects, L("galaxy_arms"), 2, 6, 4, "%d", L("galaxy_arms_tip"))
+    script.wormholes = createSwitch(advancedEffects, L("wormholes_switch"), false, L("wormholes_switch_tip"))
+    script.wormholeCount = createSliderInt(advancedEffects, L("wormholes_count"), 1, 3, 2, "%d", L("wormholes_count_tip"))
+
+    script.shieldColor = colorGroup:ColorPicker(L("primary_color"), DEFAULT_PRIMARY_COLOR)
+    script.shieldColor2 = colorGroup:ColorPicker(L("secondary_color"), DEFAULT_SECONDARY_COLOR)
 end
 
 -- Основная логика и отрисовка
 script.OnFrame = function()
+    if not script.enabled or not script.enabled.Get then return end
     if not script.enabled:Get() then return end
 
-    local dt = 0.016  -- ~60 FPS
+    local frameTime = GlobalVars and GlobalVars.GetFrameTime and GlobalVars.GetFrameTime() or 0.016
+    local dt = math.min(frameTime, 0.05)
     time = time + dt * 0.1  -- Замедляем время в 10 раз
-    
+    UpdateLanguage(false)
+
     -- Обновляем количество частиц при необходимости
-    local targetParticleCount = script.bgParticleCount:Get()
-    while #bgParticles < targetParticleCount do
-        bgParticles[#bgParticles + 1] = {
-            x = math.random(0, 1920),
-            y = math.random(0, 1080),
-            size = math.random(1, 4),
-            speed = math.random(20, 100) / 100,
-            angle = math.random() * math.pi * 2,
-            brightness = math.random(30, 100) / 100,
-            colorIdx = math.random(1, 2)
-        }
-    end
-    while #bgParticles > targetParticleCount do
-        table.remove(bgParticles)
-    end
-    
+    ensureCount(bgParticles, script.bgParticleCount:Get(), createBgParticle)
+
     -- Обновляем количество звезд при необходимости
-    local targetStarCount = script.starCount:Get()
-    while #stars < targetStarCount do
-        stars[#stars + 1] = {
-            x = math.random(0, 1920),
-            y = math.random(0, 1080),
-            size = math.random(1, 3),
-            twinkleSpeed = math.random(1, 5),
-            twinklePhase = math.random() * math.pi * 2,
-            brightness = math.random(50, 100) / 100
-        }
-    end
-    while #stars > targetStarCount do
-        table.remove(stars)
-    end
-    
+    ensureCount(stars, script.starCount:Get(), createStar)
+
     -- Обновляем количество туманностей при необходимости
-    local targetCloudCount = script.cloudCount:Get()
-    while #nebulaClouds < targetCloudCount do
-        nebulaClouds[#nebulaClouds + 1] = {
-            x = math.random(-200, 1920),
-            y = math.random(-200, 1080),
-            size = math.random(200, 500),
-            rotation = math.random() * math.pi * 2,
-            rotationSpeed = (math.random() - 0.5) * 0.1,
-            color = {
-                r = math.random(50, 150),
-                g = math.random(50, 150),
-                b = math.random(100, 200)
-            },
-            alpha = math.random(10, 30)
-        }
-    end
-    while #nebulaClouds > targetCloudCount do
-        table.remove(nebulaClouds)
-    end
-    
+    ensureCount(nebulaClouds, script.cloudCount:Get(), createCloud)
+
     -- Обновляем количество червоточин при необходимости
-    local targetWormholeCount = script.wormholeCount:Get()
-    while #wormholes < targetWormholeCount do
-        wormholes[#wormholes + 1] = {
-            x = math.random(200, 1720),
-            y = math.random(200, 880),
-            size = math.random(50, 100),
-            rotation = 0,
-            rotationSpeed = (math.random() - 0.5) * 2,
-            pulse = 0
-        }
-    end
-    while #wormholes > targetWormholeCount do
-        table.remove(wormholes)
-    end
-    
+    ensureCount(wormholes, script.wormholeCount:Get(), createWormhole)
+
     -- Получаем позицию курсора
-    local cursorPos = nil
-    local mousePos = Input.GetWorldCursorPos()
-    if mousePos then
-        -- Конвертируем мировые координаты в экранные
-        cursorPos = Render.WorldToScreen(mousePos)
-    end
-    
+    local cursorPos = getCursorScreenPos()
+
     -- Обновление фоновых частиц с реакцией на курсор
     for i, particle in ipairs(bgParticles) do
         -- Реакция на курсор
-        if script.cursorAttraction:Get() and cursorPos then
+        if script.cursorAttraction:Get() and cursorPos and cursorPos.x and cursorPos.y then
             local dx = cursorPos.x - particle.x
             local dy = cursorPos.y - particle.y
             local dist = math.sqrt(dx * dx + dy * dy)
@@ -316,236 +495,16 @@ function IsMenuOpen()
     return ok and v == true
 end
 
--- Отрисовка космического щита
-function DrawCosmicShield(screenPos)
-    local radius = script.shieldRadius:Get()
-    local segments = script.shieldSegments:Get()
-    local thickness = script.shieldThickness:Get()
-    local color1 = script.shieldColor:Get()
-    local color2 = script.shieldColor2:Get()
-
-    -- Основной щит с пульсацией
-    for i = 0, segments do
-        local angle1 = (math.pi * 2 / segments) * i
-        local angle2 = (math.pi * 2 / segments) * (i + 1)
-
-        local pulseRadius = radius
-    if script.shieldPulse and script.shieldPulse:Get() then
-        pulseRadius = radius + shieldPulse * 20
-    end
-    
-    local x1 = screenPos.x + math.cos(angle1 + time) * pulseRadius
-        local y1 = screenPos.y + math.sin(angle1 + time) * pulseRadius
-        local x2 = screenPos.x + math.cos(angle2 + time) * pulseRadius
-        local y2 = screenPos.y + math.sin(angle2 + time) * pulseRadius
-
-        -- Градиентный цвет
-        local t = i / segments
-        local r = math.floor(color1.r * (1 - t) + color2.r * t)
-        local g = math.floor(color1.g * (1 - t) + color2.g * t)
-        local b = math.floor(color1.b * (1 - t) + color2.b * t)
-        local a = math.floor(color1.a * (0.5 + shieldPulse * 0.5))
-
-        Render.Line(Vec2(x1, y1), Vec2(x2, y2), Color(r, g, b, a), thickness)
-
-        -- Внутренние кольца
-        if i % 2 == 0 then
-            local innerRadius = radius * 0.7 + math.sin(time * 3 + i) * 10
-            local ix1 = screenPos.x + math.cos(angle1 * 2 - time * 2) * innerRadius
-            local iy1 = screenPos.y + math.sin(angle1 * 2 - time * 2) * innerRadius
-            local ix2 = screenPos.x + math.cos(angle2 * 2 - time * 2) * innerRadius
-            local iy2 = screenPos.y + math.sin(angle2 * 2 - time * 2) * innerRadius
-
-            Render.Line(Vec2(ix1, iy1), Vec2(ix2, iy2), Color(r, g, b, math.floor(a * 0.5)), 1)
-        end
-    end
-
-    -- Энергетические кольца
-    if script.energyRings and script.energyRings:Get() then
-        for r = 1, script.ringCount:Get() do
-            local ringRadius = radius + r * 15 + math.sin(time * 2 + r) * 5
-            local ringAlpha = math.floor(100 * (1 - r / script.ringCount:Get()) * (0.5 + shieldPulse * 0.5))
-            
-            for i = 0, 360, 30 do
-                local angle = math.rad(i)
-                local x = screenPos.x + math.cos(angle) * ringRadius
-                local y = screenPos.y + math.sin(angle) * ringRadius
-                
-                local size = 2 + math.sin(time * 4 + i + r) * 1
-                -- Используем смешанный цвет из color1 и color2
-                local mixedColor = Color(
-                    math.floor((color1.r + color2.r) / 2),
-                    math.floor((color1.g + color2.g) / 2),
-                    math.floor((color1.b + color2.b) / 2),
-                    ringAlpha
-                )
-                Render.FilledCircle(Vec2(x, y), size, mixedColor, 4)
-            end
-        end
-    end
-    -- Энергетические спицы с пульсацией
-    for i = 0, segments - 1 do
-        if i % 2 == 0 then
-            local angle = (math.pi * 2 / segments) * i + time * 0.5
-            local innerRadius = radius * 0.3
-            local outerRadius = radius
-            
-            if script.shieldPulse and script.shieldPulse:Get() then
-                outerRadius = radius + shieldPulse * 30
-            end
-            
-            local x1 = screenPos.x + math.cos(angle) * innerRadius
-            local y1 = screenPos.y + math.sin(angle) * innerRadius
-            local x2 = screenPos.x + math.cos(angle) * outerRadius
-            local y2 = screenPos.y + math.sin(angle) * outerRadius
-
-            Render.Line(Vec2(x1, y1), Vec2(x2, y2), Color(255, 255, 255, 100), 1)
-        end
-    end
-end
-
--- Отрисовка поля частиц
-function DrawParticleField(screenPos)
-    local pSize = script.particleSize:Get()
-    local c1 = script.shieldColor:Get()
-    local c2 = script.shieldColor2:Get()
-
-    for i, particle in ipairs(particles) do
-        local pColor = particle.colorIdx == 1 and c1 or c2
-        local x = screenPos.x + math.cos(particle.angle) * particle.distance + particle.offsetX
-        local y = screenPos.y + math.sin(particle.angle) * particle.distance + particle.offsetY
-
-        -- Свечение частицы
-        local glowIntensity = script.glowIntensity and script.glowIntensity:Get() or 50
-        if script.particleGlow and script.particleGlow:Get() then
-            local glowSize = particle.size * pSize * (2 + glowIntensity / 50)
-            local glowAlpha = math.floor(30 * (glowIntensity / 100))
-            Render.FilledCircle(Vec2(x, y), glowSize, Color(pColor.r, pColor.g, pColor.b, glowAlpha), 16)
-        end
-
-        -- Основная частица
-        Render.FilledCircle(Vec2(x, y), particle.size * pSize, pColor, 8)
-
-        -- Соединительные линии между близкими частицами
-        for j = i + 1, #particles do
-            local other = particles[j]
-            local oColor = other.colorIdx == 1 and c1 or c2
-            local ox = screenPos.x + math.cos(other.angle) * other.distance + other.offsetX
-            local oy = screenPos.y + math.sin(other.angle) * other.distance + other.offsetY
-
-            local dist = math.sqrt((x - ox) ^ 2 + (y - oy) ^ 2)
-            if dist < 100 then
-                local alpha = math.floor((100 - dist) / 100 * 50)
-                Render.Line(Vec2(x, y), Vec2(ox, oy), Color(255, 255, 255, alpha), 1)
-            end
-        end
-    end
-end
-
--- Отрисовка следа мыши
-function DrawMouseTrail()
-    for i = 1, #mouseTrail - 1 do
-        local trail = mouseTrail[i]
-        local nextTrail = mouseTrail[i + 1]
-
-        if trail.alpha > 0 and nextTrail.alpha > 0 then
-            local pos1 = Render.WorldToScreen(trail.pos)
-            local pos2 = Render.WorldToScreen(nextTrail.pos)
-
-            if pos1 and pos2 then
-                local width = (i / #mouseTrail) * 3
-                local alpha = math.floor(trail.alpha * 0.7)
-
-                Render.Line(pos1, pos2, Color(100, 200, 255, alpha), width)
-
-                -- Свечение в точках
-                if i % 3 == 0 then
-                    Render.FilledCircle(pos1, width * 2, Color(255, 255, 255, math.floor(trail.alpha * 0.3)), 8)
-                end
-            end
-        end
-    end
-end
-
--- Отрисовка созвездий (отключена из-за отсутствия GetScreenSize в API)
-function DrawConstellations()
-    -- local screenSize = Engine.GetScreenSize()
-    -- Метод не существует в данной версии API
-end
-
--- Кастомная полоса здоровья
-function DrawCustomHealthBar(screenPos, hero)
-    local health = Entity.GetHealth(hero)
-    local maxHealth = Entity.GetMaxHealth(hero)
-    if maxHealth <= 0 then return end
-    local healthPercent = health / maxHealth
-
-    local barWidth = 100
-    local barHeight = 8
-    local x = screenPos.x - barWidth / 2
-    local y = screenPos.y - 60
-
-    -- Фон
-    Render.FilledRect(Vec2(x - 2, y - 2), Vec2(x + barWidth + 2, y + barHeight + 2), Color(20, 20, 30, 180), 3)
-
-    -- Градиентная полоса здоровья
-    local rC = math.min(255, math.floor(255 * (1 - healthPercent) + 100))
-    local gC = math.min(255, math.floor(255 * healthPercent))
-    local healthColor = Color(rC, gC, 50, 220)
-
-    local fillWidth = barWidth * healthPercent
-    if fillWidth > 0 then
-        Render.FilledRect(Vec2(x, y), Vec2(x + fillWidth, y + barHeight), healthColor, 2)
-    end
-
-    -- Текст здоровья (отключен из-за проблем с шрифтами)
-    -- local healthText = string.format("%d / %d", health, maxHealth)
-    -- local font = Render.CreateFont("Default", 14, Enum.FontWeight.NORMAL)
-    -- local textSize = Render.GetTextSize(font, healthText)
-
-    -- Тень
-    -- Render.TextShadow(font, Vec2(screenPos.x - textSize.x / 2, y - 18), healthText,
-    --     Color(255, 255, 255, 255), Color(0, 0, 0, 150))
-    -- Основной текст
-    -- Render.Text(font, Vec2(screenPos.x - textSize.x / 2, y - 18), healthText,
-    --     Color(255, 255, 255, 255))
-end
-
--- Отрисовка имени героя с эффектом (отключена из-за проблем с шрифтами)
-function DrawHeroName(screenPos, hero)
-    -- local heroName = hero:GetUnitName()
-    -- if not heroName then return end
-    -- local name = heroName:gsub("npc_dota_hero_", ""):gsub("_", " ")
-    -- name = name:gsub("(%a)([%w_']*)", function(first, rest) return first:upper() .. rest:lower() end)
-
-    -- local font = Render.CreateFont("Default", 14, Enum.FontWeight.NORMAL)
-    -- local textSize = Render.GetTextSize(font, name)
-    -- local tx = screenPos.x - textSize.x / 2
-    -- local ty = screenPos.y + 40
-
-    -- -- Эффект свечения
-    -- for i = 1, 3 do
-    --     local glowAlpha = math.floor(50 / i)
-    --     Render.Text(font, Vec2(tx + i, ty + i), name,
-    --         Color(100, 200, 255, glowAlpha))
-    -- end
-
-    -- -- Тень
-    -- Render.TextShadow(font, Vec2(tx, ty), name,
-    --     Color(255, 255, 255, 255), Color(0, 0, 0, 200))
-    -- -- Основной текст
-    -- Render.Text(font, Vec2(tx, ty), name,
-    --     Color(255, 255, 255, 255))
-end
-
 -- Отрисовка фоновых эффектов
 function DrawBackgroundEffects()
     -- Проверяем существование необходимых переменных
-    if not script.backgroundOpacity or not script.shieldColor or not script.shieldColor2 then
+    if not script.backgroundOpacity then
         return
     end
     
     local opacity = script.backgroundOpacity:Get()
+    local primaryColor = getPrimaryColor()
+    local secondaryColor = getSecondaryColor()
     
     -- Затемнение фона с размытием
     local screenSize = Vec2(1920, 1080)  -- Стандартное разрешение
@@ -726,8 +685,8 @@ function DrawBackgroundEffects()
     end
     
     -- Отрисовка фоновых частиц
-    local c1 = script.shieldColor:Get()
-    local c2 = script.shieldColor2:Get()
+    local c1 = primaryColor
+    local c2 = secondaryColor
     local particleSize = script.shieldRadius and script.shieldRadius:Get() or 2
     
     if bgParticles then
