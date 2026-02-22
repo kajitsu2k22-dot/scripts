@@ -1,10 +1,20 @@
 local script = {}
 
 --------------------------------------------------------------------------------
--- ITEM HELPER v2.0 — Помощник по сборке предметов
+-- ITEM HELPER v3.1 — Помощник по сборке предметов
 -- Анализирует вражеский пик, фазу игры и предлагает оптимальные предметы
 -- Локализация: RU / EN / CN
 -- author: Euphoria
+-- Updated: 2026-02-22
+-- Changes v3.0:
+--   - Net worth analysis (team gold comparison via item values)
+--   - Hero counter item suggestions
+--   - Game tempo detection (ahead/even/behind)
+--   - Updated neutral items database (2026 patch)
+--   - Improved text visibility (larger font, better contrast)
+-- Changes v3.1:
+--   - Fixed item icon loading (Gleipnir, Scythe of Vyse)
+--   - Fixed Net Worth calculation (ITEM_COSTS database)
 --------------------------------------------------------------------------------
 
 --------------------------------------------------------------------------------
@@ -177,6 +187,7 @@ local L_REASONS = {
         item_bloodthorn       = "Silence + True Strike + crit",
         item_rod_of_atos      = "Root vs mobile heroes",
         item_orchid           = "Silence vs casters",
+        item_sheepstick       = "Hex — strongest disable",
         item_scythe_of_vyse   = "Hex — strongest disable",
         item_ethereal_blade   = "Disarm + magic damage amp",
         item_refresher        = "Double ultimate in fights",
@@ -188,6 +199,7 @@ local L_REASONS = {
         item_guardian_greaves  = "Greaves: aura + dispel + heal",
         item_medallion_of_courage = "Armor reduction for fast kills",
         item_silver_edge      = "Break disables passives (Bristle, PA)",
+        item_gungir           = "AoE root + lightning vs mobile/illusions",
         item_gungungir        = "AoE root + lightning vs mobile/illusions",
         item_harpoon          = "Pull to enemy for initiation",
         item_disperser        = "Strong self-dispel + enemy slow",
@@ -256,6 +268,7 @@ local L_REASONS = {
         item_bloodthorn       = "Молчание + True Strike + крит",
         item_rod_of_atos      = "Рут vs мобильных героев",
         item_orchid           = "Молчание vs кастеров",
+        item_sheepstick       = "Хекс — сильнейший дизейбл",
         item_scythe_of_vyse   = "Хекс — сильнейший дизейбл",
         item_ethereal_blade   = "Обезоружение + маг. усиление",
         item_refresher        = "Двойной ультимейт в драке",
@@ -267,6 +280,7 @@ local L_REASONS = {
         item_guardian_greaves  = "Грейвзы: аура + диспел + хил",
         item_medallion_of_courage = "Снижение брони для быстрых убийств",
         item_silver_edge      = "Break отключает пассивки (Bristle, PA)",
+        item_gungir           = "AoE рут + молнии vs иллюзий",
         item_gungungir        = "AoE рут + молнии vs иллюзий",
         item_harpoon          = "Притягивание к врагу",
         item_disperser        = "Сильный диспел + замедление врагов",
@@ -371,6 +385,280 @@ local L_REASONS = {
     },
 }
 
+-- Neutral item reasons per language (Updated 2026)
+local L_NEUTRAL_REASONS = {
+    en = {
+        -- Tier 1
+        item_occult_bracelet    = "Mana + INT for spell casters",
+        item_kobold_cup         = "Gold generation + luck for farm",
+        item_chipped_vest       = "Reflect vs phys damage",
+        item_polliwog_charm     = "Heal + mana sustain",
+        item_dormant_curio      = "Stats + vision control",
+        item_duelist_gloves     = "Lifesteal + AGI for sustain",
+        item_weighted_dice      = "Luck + crit chance",
+        item_ash_legion_shield  = "Block + armor vs phys",
+        -- Tier 2
+        item_essence_ring       = "Active HP + mana sustain",
+        item_mana_draught       = "Mana sustain for casters",
+        item_poor_mans_shield   = "Block vs right-clicks",
+        item_searing_signet     = "Burn + magic amp",
+        item_pogo_stick         = "Mobility + initiation",
+        item_defiant_shell      = "Armor + save vs burst",
+        -- Tier 3
+        item_serrated_shiv      = "Armor reduction + bleed",
+        item_gunpowder_gauntlets= "Burst damage + attack speed",
+        item_whisper_of_the_dread= "Silence + magic burst",
+        item_jidi_pollen_bag    = "Slow + heal + mana",
+        item_psychic_headband   = "INT + mana + CDR",
+        item_unrelenting_eye    = "Vision + true strike",
+        -- Tier 4
+        item_crippling_crossbow = "Slow + armor reduction",
+        item_giant_maul         = "Burst + stun",
+        item_rattlecage         = "Armor + reflect + fear",
+        item_idol_of_screeauk   = "Save + dispel + magic resist",
+        item_flayers_bota       = "Mobility + AGI + attack speed",
+        item_metamorphic_mandible= "Stats + armor + HP",
+        -- Tier 5
+        item_desolator_2        = "Armor reduction for phys DPS",
+        item_fallen_sky         = "Initiation + stun",
+        item_demonicon          = "Summons for push",
+        item_minotaur_horn      = "Stun + tankiness",
+        item_spider_legs        = "Mobility + slow",
+        item_riftshadow_prism   = "Magic amp + INT + mana",
+        item_dezun_bloodrite    = "Heal + magic burst + anti-heal",
+        item_divine_regalia     = "Stats + save + ultimate",
+        -- Legacy items (for backwards compatibility)
+        item_fairy_trinket      = "Sustain for supports",
+        item_iron_talon         = "Farm acceleration for melee",
+        item_mysterious_hat     = "Mana + magic burst for casters",
+        item_ocean_heart        = "HP + mana sustain",
+        item_ring_of_aquila     = "Armor + aura for agi heroes",
+        item_keen_optic         = "Attack speed + vision",
+        item_ninja_gear         = "Invis for initiation",
+        item_possessed_mask     = "Lifesteal for sustain",
+        item_prophet_twigs      = "Stats + tree vision",
+        item_royal_jelly        = "HP + mana + ward",
+        item_safety_bubble      = "Save vs burst damage",
+        item_thief_cloth        = "Evasion + move speed",
+        item_trusty_shovel      = "Gold + potential items",
+        item_wicked_pocket_knife = "Armor reduction on attack",
+        item_ceremonial_robe    = "HP + mana + magic resist",
+        item_clever_apparatus   = "Mana + armor + cooldown",
+        item_dragon_scale       = "Armor + burn aura",
+        item_essence_booster    = "HP + mana sustain",
+        item_flicker            = "Dispel + mobility",
+        item_golem_gauntlets    = "HP + armor + slow",
+        item_havoc_hammer       = "Armor reduction + initiation",
+        item_imp_claw           = "Burst damage on attack",
+        item_mind_breaker       = "Mana burn + int",
+        item_orb_of_destruction = "Armor reduction + slow",
+        item_quicksilver_amulet = "Attack speed + mobility",
+        item_repair_kit         = "Armor + heal + save",
+        item_spell_prism        = "CD reduction + magic amp",
+        item_ballista           = "True strike + knockback",
+        item_book_of_shadows    = "Save + invis + dispel",
+        item_cloak_of_flames    = "Burn aura + armor",
+        item_giants_ring        = "HP + aura radius",
+        item_glimmerdark_shield = "Save + magic resist",
+        item_harlequins_crest   = "Armor + attack speed + evasion",
+        item_paladin_sword      = "Heal + lifesteal",
+        item_panic_button       = "Save vs burst",
+        item_timeless_relic     = "Magic amp + CD reduction",
+        item_titan_sliver       = "HP + debuff reduction",
+        item_ascetics_cap       = "HP + magic resist",
+        item_bullwhip           = "Slow + mobility",
+        item_carapace_of_qaldin = "Armor + reflect",
+        item_demon_shredder     = "Cleave + attack speed",
+        item_frozen_emblem      = "Armor + slow aura",
+        item_illusionsts_cape   = "Illusion count + stats",
+        item_pirate_hat         = "Gold + attack speed",
+        item_princes_knife      = "Armor reduction + slow",
+        item_psycho_mask        = "Lifesteal + fear",
+        item_spy_gadget         = "Invis + vision",
+        item_stormcrafter       = "Magic burst + mobility",
+        item_the_leveller       = "Armor reduction + farm",
+        item_twin_soul          = "Save + heal on death",
+        item_apex               = "Attack speed + armor + agi",
+        item_book_of_the_dead   = "Strong summons for push",
+        item_excalibur          = "Damage + heal active",
+        item_force_field        = "Team save vs burst",
+        item_fusion_rune        = "Magic amp + spell burst",
+        item_mirror_shield      = "Reflect vs magic",
+        item_parasma            = "Magic burst + int",
+        item_seer_stone         = "Vision + magic amp",
+    },
+    ru = {
+        -- Tier 1
+        item_occult_bracelet    = "Мана + INT для кастеров",
+        item_kobold_cup         = "Золото + удача для фарма",
+        item_chipped_vest       = "Отражение vs физ. урона",
+        item_polliwog_charm     = "Хил + мана сустейн",
+        item_dormant_curio      = "Статы + видение",
+        item_duelist_gloves     = "Вампиризм + AGI для сустейна",
+        item_weighted_dice      = "Удача + крит шанс",
+        item_ash_legion_shield  = "Блок + броня vs физ",
+        -- Tier 2
+        item_essence_ring       = "Активный HP + мана сустейн",
+        item_mana_draught       = "Мана сустейн для кастеров",
+        item_poor_mans_shield   = "Блок vs правых кликов",
+        item_searing_signet     = "Горение + усиление магии",
+        item_pogo_stick         = "Мобильность + инициация",
+        item_defiant_shell      = "Броня + сейв vs бёрста",
+        -- Tier 3
+        item_serrated_shiv      = "Снижение брони + кровотечение",
+        item_gunpowder_gauntlets= "Бёрст урон + скорость атаки",
+        item_whisper_of_the_dread= "Молчание + маг. урон",
+        item_jidi_pollen_bag    = "Замедление + хил + мана",
+        item_psychic_headband   = "INT + мана + КД",
+        item_unrelenting_eye    = "Видение + верный удар",
+        -- Tier 4
+        item_crippling_crossbow = "Замедление + снижение брони",
+        item_giant_maul         = "Бёрст + стан",
+        item_rattlecage         = "Броня + отражение + страх",
+        item_idol_of_screeauk   = "Сейв + диспел + маг. резист",
+        item_flayers_bota       = "Мобильность + AGI + скорость атаки",
+        item_metamorphic_mandible= "Статы + броня + HP",
+        -- Tier 5
+        item_desolator_2        = "Снижение брони для физ. урона",
+        item_fallen_sky         = "Инициация + стан",
+        item_demonicon          = "Саммоны для пуша",
+        item_minotaur_horn      = "Стан + танковость",
+        item_spider_legs        = "Мобильность + замедление",
+        item_riftshadow_prism   = "Усиление магии + INT + мана",
+        item_dezun_bloodrite    = "Хил + маг. бёрст + анти-хил",
+        item_divine_regalia     = "Статы + сейв + ультимейт",
+        -- Legacy items
+        item_fairy_trinket      = "Сустейн для саппортов",
+        item_iron_talon         = "Ускорение фарма для ближников",
+        item_mysterious_hat     = "Мана + маг. урон для кастеров",
+        item_ocean_heart        = "HP + мана сустейн",
+        item_ring_of_aquila     = "Броня + аура для agi героев",
+        item_keen_optic         = "Скорость атаки + видение",
+        item_ninja_gear         = "Инвиз для инициации",
+        item_possessed_mask     = "Вампиризм для сустейна",
+        item_prophet_twigs      = "Статы + видение деревьев",
+        item_royal_jelly        = "HP + мана + вард",
+        item_safety_bubble      = "Спасение vs бёрста",
+        item_thief_cloth        = "Уклонение + скорость",
+        item_trusty_shovel      = "Золото + возможные предметы",
+        item_wicked_pocket_knife = "Снижение брони при атаке",
+        item_ceremonial_robe    = "HP + мана + маг. резист",
+        item_clever_apparatus   = "Мана + броня + КД",
+        item_dragon_scale       = "Броня + аура урона",
+        item_essence_booster    = "HP + мана сустейн",
+        item_flicker            = "Диспел + мобильность",
+        item_golem_gauntlets    = "HP + броня + замедление",
+        item_havoc_hammer       = "Снижение брони + инициация",
+        item_imp_claw           = "Бёрст урон при атаке",
+        item_mind_breaker       = "Сжигание маны + int",
+        item_orb_of_destruction = "Снижение брони + замедление",
+        item_quicksilver_amulet = "Скорость атаки + мобильность",
+        item_repair_kit         = "Броня + хил + сейв",
+        item_spell_prism        = "Сокращение КД + усиление магии",
+        item_ballista           = "True strike + отталкивание",
+        item_book_of_shadows    = "Сейв + инвиз + диспел",
+        item_cloak_of_flames    = "Аура урона + броня",
+        item_demonicon          = "Саммоны для пуша",
+        item_giants_ring        = "HP + радиус ауры",
+        item_glimmerdark_shield = "Сейв + маг. резист",
+        item_harlequins_crest   = "Броня + скорость атаки + уклонение",
+        item_paladin_sword      = "Хил + вампиризм",
+        item_panic_button       = "Спасение vs бёрста",
+        item_spider_legs        = "Мобильность + замедление",
+        item_timeless_relic     = "Усиление магии + сокращение КД",
+        item_titan_sliver       = "HP + снижение дебаффов",
+        item_ascetics_cap       = "HP + маг. резист",
+        item_bullwhip           = "Замедление + мобильность",
+        item_carapace_of_qaldin = "Броня + отражение",
+        item_demon_shredder     = "Клив + скорость атаки",
+        item_frozen_emblem      = "Броня + аура замедления",
+        item_illusionsts_cape   = "Количество иллюзий + статы",
+        item_minotaur_horn      = "Стан + танковость",
+        item_pirate_hat         = "Золото + скорость атаки",
+        item_princes_knife      = "Снижение брони + замедление",
+        item_psycho_mask        = "Вампиризм + страх",
+        item_spy_gadget         = "Инвиз + видение",
+        item_stormcrafter       = "Маг. бёрст + мобильность",
+        item_the_leveller       = "Снижение брони + фарм",
+        item_twin_soul          = "Сейв + хил при смерти",
+        item_apex               = "Скорость атаки + броня + agi",
+        item_book_of_the_dead   = "Сильные саммоны для пуша",
+        item_excalibur          = "Урон + активный хил",
+        item_force_field        = "Командный сейв vs бёрста",
+        item_fusion_rune        = "Усиление магии + бёрст",
+        item_mirror_shield      = "Отражение vs магии",
+        item_parasma            = "Маг. бёрст + int",
+        item_seer_stone         = "Видение + усиление магии",
+    },
+    cn = {
+        item_fairy_trinket      = "辅助续航",
+        item_iron_talon         = "近战打钱加速",
+        item_mysterious_hat     = "法力+法术爆发",
+        item_ocean_heart        = "生命+法力续航",
+        item_poor_mans_shield   = "格挡物理攻击",
+        item_ring_of_aquila     = "护甲+敏捷光环",
+        item_chipped_vest       = "反弹物理伤害",
+        item_essence_ring       = "主动生命+法力回复",
+        item_keen_optic         = "攻速+视野",
+        item_ninja_gear         = "隐身先手",
+        item_possessed_mask     = "吸血续航",
+        item_prophet_twigs      = "属性+树木视野",
+        item_royal_jelly        = "生命+法力+守卫",
+        item_safety_bubble      = "防止爆发伤害",
+        item_thief_cloth        = "闪避+移速",
+        item_trusty_shovel      = "金币+潜在物品",
+        item_wicked_pocket_knife = "攻击减甲",
+        item_ceremonial_robe    = "生命+法力+魔抗",
+        item_clever_apparatus   = "法力+护甲+冷却",
+        item_dragon_scale       = "护甲+灼烧光环",
+        item_essence_booster    = "生命+法力续航",
+        item_fallen_sky         = "先手+眩晕",
+        item_flicker            = "驱散+机动",
+        item_golem_gauntlets    = "生命+护甲+减速",
+        item_havoc_hammer       = "减甲+先手",
+        item_imp_claw           = "攻击爆发伤害",
+        item_mind_breaker       = "烧蓝+智力",
+        item_orb_of_destruction = "减甲+减速",
+        item_quicksilver_amulet = "攻速+机动",
+        item_repair_kit         = "护甲+治疗+保护",
+        item_spell_prism        = "冷却缩减+法术增幅",
+        item_ballista           = "必中+击退",
+        item_book_of_shadows    = "保护+隐身+驱散",
+        item_cloak_of_flames    = "灼烧光环+护甲",
+        item_demonicon          = "召唤物推进",
+        item_giants_ring        = "生命+光环范围",
+        item_glimmerdark_shield = "保护+魔抗",
+        item_harlequins_crest   = "护甲+攻速+闪避",
+        item_paladin_sword      = "治疗+吸血",
+        item_panic_button       = "防止爆发",
+        item_spider_legs        = "机动+减速",
+        item_timeless_relic     = "法术增幅+冷却缩减",
+        item_titan_sliver       = "生命+减益减免",
+        item_ascetics_cap       = "生命+魔抗",
+        item_bullwhip           = "减速+机动",
+        item_carapace_of_qaldin = "护甲+反弹",
+        item_demon_shredder     = "分裂+攻速",
+        item_frozen_emblem      = "护甲+减速光环",
+        item_illusionsts_cape   = "幻象数量+属性",
+        item_minotaur_horn      = "眩晕+肉度",
+        item_pirate_hat         = "金币+攻速",
+        item_princes_knife      = "减甲+减速",
+        item_psycho_mask        = "吸血+恐惧",
+        item_spy_gadget         = "隐身+视野",
+        item_stormcrafter       = "法术爆发+机动",
+        item_the_leveller       = "减甲+打钱",
+        item_twin_soul          = "死亡时保护+治疗",
+        item_apex               = "攻速+护甲+敏捷",
+        item_book_of_the_dead   = "强力召唤物推进",
+        item_excalibur          = "伤害+主动治疗",
+        item_force_field        = "团队防爆发",
+        item_fusion_rune        = "法术增幅+爆发",
+        item_mirror_shield      = "反弹魔法",
+        item_parasma            = "法术爆发+智力",
+        item_seer_stone         = "视野+法术增幅",
+    },
+}
+
 local function updateLang()
     local now = 0
     pcall(function() now = GameRules.GetGameTime() end)
@@ -399,7 +687,11 @@ end
 
 local function LR(itemName)
     local tbl = L_REASONS[LANG] or L_REASONS.en
-    return tbl[itemName] or L_REASONS.en[itemName] or ""
+    local reason = tbl[itemName] or L_REASONS.en[itemName] or ""
+    if reason ~= "" then return reason end
+    -- Fallback to neutral item reasons
+    local neutralTbl = L_NEUTRAL_REASONS[LANG] or L_NEUTRAL_REASONS.en
+    return neutralTbl[itemName] or L_NEUTRAL_REASONS.en[itemName] or ""
 end
 
 --------------------------------------------------------------------------------
@@ -686,7 +978,6 @@ local HERO_ROLES = {
     npc_dota_hero_treant             = {role="hardsupport",style="utility"},
     npc_dota_hero_dawnbreaker        = {role="hardsupport",style="utility"},
     npc_dota_hero_ancient_apparition = {role="hardsupport",style="magic"},
-    npc_dota_hero_holy_locket        = {role="hardsupport",style="utility"},
 }
 
 -- Items that are BAD for certain roles (heavy score penalty).
@@ -744,6 +1035,254 @@ local ITEM_ROLE_PENALTY = {
     item_witch_blade     = {bad_roles={"hardsupport"}},
     item_phylactery      = {bad_roles={"carry"}, bad_styles={"phys"}},
 }
+
+--------------------------------------------------------------------------------
+-- HERO COUNTER ITEMS (предметы против конкретных героев)
+--------------------------------------------------------------------------------
+local HERO_COUNTERS = {
+    -- Anti-escape / Anti-invis
+    npc_dota_hero_spectre = {
+        items = {"item_spirit_vessel", "item_heavens_halberd", "item_nullifier", "item_radiance"},
+        reason = "Anti-heal + disarm vs low HP"
+    },
+    npc_dota_hero_medusa = {
+        items = {"item_nullifier", "item_silver_edge", "item_abyssal_blade"},
+        reason = "Break + disable vs mana shield"
+    },
+    npc_dota_hero_bristleback = {
+        items = {"item_silver_edge", "item_abyssal_blade", "item_heavens_halberd"},
+        reason = "Break passive + disarm"
+    },
+    npc_dota_hero_phantom_assassin = {
+        items = {"item_monkey_king_bar", "item_heavens_halberd", "item_spirit_vessel"},
+        reason = "True strike + disarm + anti-heal"
+    },
+    npc_dota_hero_juggernaut = {
+        items = {"item_heavens_halberd", "item_abyssal_blade", "item_spirit_vessel"},
+        reason = "Disarm vs omnislash + anti-heal"
+    },
+    npc_dota_hero_faceless_void = {
+        items = {"item_aeon_disk", "item_sphere", "item_heavens_halberd"},
+        reason = "Save from chrono + disarm"
+    },
+    npc_dota_hero_terrorblade = {
+        items = {"item_spirit_vessel", "item_heavens_halberd", "item_nullifier"},
+        reason = "Anti-heal + disarm vs illusions"
+    },
+    npc_dota_hero_slark = {
+        items = {"item_heavens_halberd", "item_nullifier", "item_spirit_vessel"},
+        reason = "Disarm + anti-heal vs agility steal"
+    },
+    npc_dota_hero_weaver = {
+        items = {"item_nullifier", "item_spirit_vessel", "item_heavens_halberd"},
+        reason = "Prevent escape + anti-heal"
+    },
+    npc_dota_hero_antimage = {
+        items = {"item_nullifier", "item_heavens_halberd", "item_spirit_vessel"},
+        reason = "Prevent blink escape + anti-heal"
+    },
+    -- Anti-blink / Anti-initiation
+    npc_dota_hero_magnataur = {
+        items = {"item_sphere", "item_aeon_disk", "item_heavens_halberd"},
+        reason = "Block RP + disarm after"
+    },
+    npc_dota_hero_tidehunter = {
+        items = {"item_sphere", "item_aeon_disk", "item_heavens_halberd"},
+        reason = "Block ravage + disarm"
+    },
+    npc_dota_hero_enigma = {
+        items = {"item_sphere", "item_aeon_disk", "item_nullifier"},
+        reason = "Block black hole + purge"
+    },
+    npc_dota_hero_legion_commander = {
+        items = {"item_sphere", "item_heavens_halberd", "item_spirit_vessel"},
+        reason = "Block duel + disarm"
+    },
+    npc_dota_hero_axe = {
+        items = {"item_heavens_halberd", "item_spirit_vessel", "item_blade_mail"},
+        reason = "Disarm + anti-heal vs counter helix"
+    },
+    -- Anti-summon / Anti-illusions
+    npc_dota_hero_phantom_lancer = {
+        items = {"item_mjollnir", "item_radiance", "item_abyssal_blade"},
+        reason = "AOE clear + bash vs illusions"
+    },
+    npc_dota_hero_naga_siren = {
+        items = {"item_mjollnir", "item_radiance", "item_nullifier"},
+        reason = "AOE vs illusions + purge"
+    },
+    npc_dota_hero_chaos_knight = {
+        items = {"item_mjollnir", "item_heavens_halberd", "item_abyssal_blade"},
+        reason = "AOE + disarm vs illusions"
+    },
+    npc_dota_hero_lycan = {
+        items = {"item_mjollnir", "item_heavens_halberd", "item_assault"},
+        reason = "AOE + armor vs wolves"
+    },
+    npc_dota_hero_broodmother = {
+        items = {"item_mjollnir", "item_radiance", "item_nullifier"},
+        reason = "AOE clear + purge spiders"
+    },
+    npc_dota_hero_furion = {
+        items = {"item_mjollnir", "item_radiance", "item_assault"},
+        reason = "AOE vs treants"
+    },
+    npc_dota_hero_warlock = {
+        items = {"item_spirit_vessel", "item_mjollnir", "item_heavens_halberd"},
+        reason = "Anti-heal + AOE vs golem"
+    },
+    npc_dota_hero_beastmaster = {
+        items = {"item_mjollnir", "item_heavens_halberd", "item_assault"},
+        reason = "AOE + armor vs hawk + boar"
+    },
+    -- Anti-magic burst
+    npc_dota_hero_lina = {
+        items = {"item_pipe", "item_black_king_bar", "item_sphere"},
+        reason = "Magic defense + spell block"
+    },
+    npc_dota_hero_zuus = {
+        items = {"item_pipe", "item_black_king_bar", "item_sphere"},
+        reason = "Magic defense vs global ult"
+    },
+    npc_dota_hero_invoker = {
+        items = {"item_black_king_bar", "item_sphere", "item_nullifier"},
+        reason = "Magic immunity + purge"
+    },
+    npc_dota_hero_lion = {
+        items = {"item_sphere", "item_aeon_disk", "item_black_king_bar"},
+        reason = "Block hex + finger"
+    },
+    npc_dota_hero_shadow_shaman = {
+        items = {"item_sphere", "item_aeon_disk", "item_black_king_bar"},
+        reason = "Block hex + shackles"
+    },
+    npc_dota_hero_skywrath_mage = {
+        items = {"item_pipe", "item_black_king_bar", "item_sphere"},
+        reason = "Magic defense vs ult"
+    },
+    -- Anti-sustain
+    npc_dota_hero_dragon_knight = {
+        items = {"item_spirit_vessel", "item_heavens_halberd", "item_assault"},
+        reason = "Anti-heal + armor reduction"
+    },
+    npc_dota_hero_alchemist = {
+        items = {"item_spirit_vessel", "item_heavens_halberd", "item_nullifier"},
+        reason = "Anti-heal + disarm"
+    },
+    npc_dota_hero_huskar = {
+        items = {"item_spirit_vessel", "item_heavens_halberd", "item_nullifier"},
+        reason = "Anti-heal + disarm"
+    },
+    npc_dota_hero_necrolyte = {
+        items = {"item_spirit_vessel", "item_heavens_halberd", "item_nullifier"},
+        reason = "Anti-heal + purge"
+    },
+    npc_dota_hero_omniknight = {
+        items = {"item_spirit_vessel", "item_nullifier", "item_silver_edge"},
+        reason = "Anti-heal + break"
+    },
+    npc_dota_hero_chen = {
+        items = {"item_spirit_vessel", "item_mjollnir", "item_nullifier"},
+        reason = "Anti-heal + AOE vs creeps"
+    },
+    npc_dota_hero_dazzle = {
+        items = {"item_spirit_vessel", "item_nullifier", "item_silver_edge"},
+        reason = "Anti-heal + break vs save"
+    },
+    npc_dota_hero_witch_doctor = {
+        items = {"item_spirit_vessel", "item_black_king_bar", "item_sphere"},
+        reason = "Anti-heal + magic immunity"
+    },
+    -- Anti-carry late game
+    npc_dota_hero_sven = {
+        items = {"item_heavens_halberd", "item_assault", "item_spirit_vessel"},
+        reason = "Disarm + armor vs god strength"
+    },
+    npc_dota_hero_troll_warlord = {
+        items = {"item_heavens_halberd", "item_spirit_vessel", "item_nullifier"},
+        reason = "Disarm + anti-heal"
+    },
+    npc_dota_hero_ursa = {
+        items = {"item_heavens_halberd", "item_spirit_vessel", "item_blade_mail"},
+        reason = "Disarm + reflect fury swipes"
+    },
+    npc_dota_hero_luna = {
+        items = {"item_heavens_halberd", "item_assault", "item_black_king_bar"},
+        reason = "Disarm + armor vs glaives"
+    },
+    npc_dota_hero_sniper = {
+        items = {"item_blink", "item_black_king_bar", "item_nullifier"},
+        reason = "Gap close + magic immunity"
+    },
+    npc_dota_hero_drow_ranger = {
+        items = {"item_blink", "item_black_king_bar", "item_heavens_halberd"},
+        reason = "Gap close + disarm"
+    },
+}
+
+--------------------------------------------------------------------------------
+-- ITEM DATABASE (partial for net worth calculation)
+--------------------------------------------------------------------------------
+local ITEM_COSTS = {
+    -- Boots
+    item_boots = 500, item_phase_boots = 1500, item_power_treads = 1400,
+    item_arcane_boots = 1300, item_travel_boots = 2500, item_travel_boots_2 = 2000,
+    item_boots_of_bearing = 4125,
+    -- Basic items
+    item_magic_wand = 450, item_magic_stick = 200, item_bracer = 505,
+    item_wraith_band = 505, item_null_talisman = 505, item_belt_of_strength = 450,
+    item_boots_of_elves = 450, item_robe = 450, item_circlet = 155, item_crown = 450,
+    item_ogre_axe = 1000, item_blade_of_alacrity = 1000, item_staff_of_wizardry = 1000,
+    -- Weapons
+    item_broadsword = 1000, item_claymore = 1350, item_mithril_hammer = 1600,
+    item_blades_of_attack = 450, item_quarterstaff = 875, item_javelin = 900,
+    item_blight_stone = 300, item_orb_of_venom = 275,
+    -- Armor
+    item_chainmail = 550, item_platemail = 1400, item_helm_of_iron_will = 975,
+    item_ring_of_protection = 175, item_buckler = 200, item_vanguard = 1700,
+    item_crimson_guard = 3600, item_assault = 5125, item_shivas_guard = 5175,
+    -- Accessories
+    item_blink = 2250, item_force_staff = 2200, item_ultimate_scepter = 4200,
+    item_aghanims_shard = 1400, item_black_king_bar = 4050, item_sphere = 4600,
+    item_aeon_disk = 3000, item_lotus_orb = 3850, item_linkens = 4600,
+    -- Damage
+    item_daedalus = 5150, item_demon_edge = 2200, item_eagle = 2800, item_reaver = 2800,
+    item_mystic_staff = 2700, item_hyperstone = 2000, item_talisman_of_evasion = 1300,
+    item_relic = 3800, item_sacred_relic = 3800,
+    -- Specific items
+    item_mjollnir = 5600, item_radiance = 5150, item_heart = 5000, item_tarrasque = 5000,
+    item_butterfly = 4975, item_satanic = 5050, item_skadi = 5300, item_eye_of_skadi = 5300,
+    item_abyssal_blade = 6250, item_nullifier = 4725, item_bloodthorn = 6800,
+    item_silver_edge = 5450, item_diffusal_blade = 2500, item_diffusal_blade_2 = 2500,
+    item_sheepstick = 5675, item_scythe_of_vyse = 5675, item_gungir = 5500, item_gleipnir = 5500,
+    item_pipe = 3475, item_crimson_guard = 3600, item_heavens_halberd = 3550,
+    item_solar_crest = 2625, item_manta = 4600, item_disperser = 5300,
+    item_cyclone = 2725, item_euls = 2725, item_wind_waker = 5150,
+    item_desolator = 3500, item_monkey_king_bar = 4975, item_spirit_vessel = 2980,
+    item_urnd = 2980, item_guardian_greaves = 4950, item_refresher = 5000,
+    item_refresher_orb = 5000, item_overwhelming_blink = 6800, item_swift_blink = 6800,
+    item_arcane_blink = 6800, item_hurricane_pike = 4450, item_orchid = 3475,
+    item_orchid_malevolence = 3475, item_ethereal_blade = 4650, item_rod_of_atos = 2750,
+    item_pavise = 1100, item_holy_locket = 2350, item_witch_blade = 2600,
+    item_veil_of_discord = 1525, item_kaya_and_sange = 4100, item_sange_and_yasha = 4100,
+    item_yasha_and_kaya = 4100, item_invis_sword = 3000, item_shadow_blade = 3000,
+    item_bloodstone = 4600, item_octarine_core = 5275, item_phylactery = 2400,
+    item_hand_of_midas = 2200, item_harpoon = 4700, item_dagon = 2850,
+    item_necronomicon = 2400, item_medallion = 1025, item_solar = 2625,
+    item_vladmir = 2450, item_vladmirs_offering = 2450, item_mekansm = 1775,
+    item_tranquil_boots = 925, item_glimmer = 1950, item_glimmer_cape = 1950,
+    item_aether_lens = 2275, item_drum = 1650, item_headdress = 600,
+    item_buckler = 200, item_ring_of_basilius = 425, item_basilius = 425,
+}
+
+-- Function to get item cost from database
+local function GetItemCost(itemName)
+    if not itemName then return 0 end
+    -- Try our cost database first
+    local cost = ITEM_COSTS[itemName]
+    if cost then return cost end
+    return 0
+end
 
 --------------------------------------------------------------------------------
 -- GAME-PHASE DETECTION
@@ -811,7 +1350,7 @@ local ITEM_DB = {
      triggers={"illusions","summons","invis"}},
     {name="item_maelstrom",      display="Maelstrom",        cost=2700,   phase={1,2},     tags={"vs_illusions","attack_speed","farm"},
      triggers={"illusions","summons"}},
-    {name="item_gungungir",      display="Gleipnir",         cost=5500,   phase={2,3},     tags={"root","vs_illusions","attack_speed","phys_dps"},
+    {name="item_gungir",         display="Gleipnir",         cost=5500,   phase={2,3},     tags={"root","vs_illusions","attack_speed","phys_dps"},
      triggers={"mobility","illusions","invis"}},
     -- Mobility
     {name="item_blink",          display="Blink Dagger",     cost=2250,   phase={1,2,3},   tags={"mobility","initiation"}},
@@ -857,7 +1396,7 @@ local ITEM_DB = {
      triggers={"mobility","invis"}},
     {name="item_orchid",         display="Orchid Malevolence",cost=3475,   phase={2},       tags={"silence","mana","attack_speed"},
      triggers={"magic_burst","mobility","versatile"}},
-    {name="item_scythe_of_vyse", display="Scythe of Vyse",  cost=5675,   phase={3},       tags={"hex","disable","mana","int"},
+    {name="item_sheepstick",     display="Scythe of Vyse",    cost=5675,   phase={3},       tags={"hex","disable","mana","int"},
      triggers={"carry","magic_immune","mobility"}},
     {name="item_ethereal_blade", display="Ethereal Blade",   cost=4650,   phase={2,3},     tags={"vs_phys","magic_amp","save","agi"}},
     {name="item_refresher",      display="Refresher Orb",    cost=5000,   phase={3},       tags={"refresh","ultimate"}},
@@ -885,6 +1424,52 @@ local ITEM_DB = {
     {name="item_octarine_core",  display="Octarine Core",    cost=5275,   phase={3},       tags={"cd_reduction","hp","mana","int"}},
     {name="item_phylactery",     display="Phylactery",       cost=2400,   phase={1,2},     tags={"magic_burst","hp","int"}},
     {name="item_hand_of_midas",  display="Hand of Midas",    cost=2200,   phase={1},       tags={"farm","attack_speed"}},
+}
+
+--------------------------------------------------------------------------------
+-- NEUTRAL ITEMS DATABASE (Updated for current patch - 2026)
+-- Source: assets/data/neutral_items.json
+--------------------------------------------------------------------------------
+local NEUTRAL_DB = {
+    -- Tier 1 (5:00+)
+    {name="item_occult_bracelet",    display="Occult Bracelet",    tier=1, tags={"mana","int","magic_burst"}},
+    {name="item_kobold_cup",         display="Kobold Cup",         tier=1, tags={"gold","farm","luck"}},
+    {name="item_chipped_vest",       display="Chipped Vest",       tier=1, tags={"armor","reflect","vs_phys"}},
+    {name="item_polliwog_charm",     display="Polliwog Charm",     tier=1, tags={"heal","mana","sustain"}},
+    {name="item_dormant_curio",      display="Dormant Curio",      tier=1, tags={"stats","vision"}},
+    {name="item_duelist_gloves",     display="Duelist Gloves",     tier=1, tags={"lifesteal","phys_dps","agi"}},
+    {name="item_weighted_dice",      display="Weighted Dice",      tier=1, tags={"luck","gold","crit"}},
+    {name="item_ash_legion_shield",  display="Ash Legion Shield",  tier=1, tags={"block","armor","vs_phys"}},
+    -- Tier 2 (15:00+)
+    {name="item_essence_ring",       display="Essence Ring",       tier=2, tags={"hp","mana","sustain"}},
+    {name="item_mana_draught",       display="Mana Draught",       tier=2, tags={"mana","sustain","int"}},
+    {name="item_poor_mans_shield",   display="Poor Man's Shield",  tier=2, tags={"block","vs_phys","agi"}},
+    {name="item_searing_signet",     display="Searing Signet",     tier=2, tags={"burn","magic_amp","int"}},
+    {name="item_pogo_stick",         display="Pogo Stick",         tier=2, tags={"mobility","initiation"}},
+    {name="item_defiant_shell",      display="Defiant Shell",      tier=2, tags={"armor","save","vs_phys"}},
+    -- Tier 3 (25:00+)
+    {name="item_serrated_shiv",      display="Serrated Shiv",      tier=3, tags={"armor_reduce","phys_dps","bleed"}},
+    {name="item_gunpowder_gauntlets",display="Gunpowder Gauntlets",tier=3, tags={"phys_burst","attack_speed","aoe"}},
+    {name="item_whisper_of_the_dread", display="Whisper of the Dread", tier=3, tags={"silence","magic_burst","int"}},
+    {name="item_jidi_pollen_bag",    display="Jidi Pollen Bag",    tier=3, tags={"slow","heal","mana"}},
+    {name="item_psychic_headband",   display="Psychic Headband",   tier=3, tags={"int","mana","cd_reduction"}},
+    {name="item_unrelenting_eye",    display="Unrelenting Eye",    tier=3, tags={"vision","attack_speed","true_strike"}},
+    -- Tier 4 (35:00+)
+    {name="item_crippling_crossbow", display="Crippling Crossbow", tier=4, tags={"slow","phys_dps","armor_reduce"}},
+    {name="item_giant_maul",         display="Giant Maul",         tier=4, tags={"phys_burst","stun","str"}},
+    {name="item_rattlecage",         display="Rattlecage",         tier=4, tags={"armor","reflect","fear"}},
+    {name="item_idol_of_screeauk",   display="Idol of Scree'auk",  tier=4, tags={"save","dispel","magic_resist"}},
+    {name="item_flayers_bota",       display="Flayer's Bota",      tier=4, tags={"mobility","agi","attack_speed"}},
+    {name="item_metamorphic_mandible", display="Metamorphic Mandible", tier=4, tags={"stats","armor","hp"}},
+    -- Tier 5 (60:00+)
+    {name="item_desolator_2",        display="Desolator 2",        tier=5, tags={"armor_reduce","phys_dps"}},
+    {name="item_fallen_sky",         display="Fallen Sky",         tier=5, tags={"initiation","stun","phys_burst"}},
+    {name="item_demonicon",          display="Demonicon",          tier=5, tags={"summons","push","magic_burst"}},
+    {name="item_minotaur_horn",      display="Minotaur Horn",      tier=5, tags={"stun","tanky","initiation"}},
+    {name="item_spider_legs",        display="Spider Legs",        tier=5, tags={"mobility","slow","initiation"}},
+    {name="item_riftshadow_prism",   display="Riftshadow Prism",   tier=5, tags={"magic_amp","int","mana"}},
+    {name="item_dezun_bloodrite",    display="Dezun Bloodrite",    tier=5, tags={"heal","magic_burst","anti_heal"}},
+    {name="item_divine_regalia",     display="Divine Regalia",     tier=5, tags={"stats","save","ultimate"}},
 }
 
 --------------------------------------------------------------------------------
@@ -937,13 +1522,17 @@ function script.OnScriptsLoaded()
     tab:Icon("\u{f085}")
     local mainTab = tab:Create("Settings")
     local featTab = mainTab:Create("Features")
-    UI.enabled     = featTab:Switch("Enable Helper", true, "\u{f00c}")
-    UI.showPanel   = featTab:Switch("Show Panel", true)
-    UI.autoAnalyze = featTab:Switch("Auto Analyze", true)
-    UI.maxItems    = featTab:Slider("Max Suggestions", 3, 10, 6, "%d")
-    UI.showReasons = featTab:Switch("Show Reasons", true)
-    UI.showThreats = featTab:Switch("Show Threat Analysis", true)
-    UI.showOwned   = featTab:Switch("Highlight Owned", true)
+    UI.enabled       = featTab:Switch("Enable Helper", true, "\u{f00c}")
+    UI.showPanel     = featTab:Switch("Show Panel", true)
+    UI.autoAnalyze   = featTab:Switch("Auto Analyze", true)
+    UI.maxItems      = featTab:Slider("Max Suggestions", 3, 10, 6, "%d")
+    UI.showReasons   = featTab:Switch("Show Reasons", true)
+    UI.showThreats   = featTab:Switch("Show Threat Analysis", true)
+    UI.showOwned     = featTab:Switch("Highlight Owned", true)
+    UI.showNeutrals  = featTab:Switch("Show Neutral Items", true)
+    UI.trackEnemyItems = featTab:Switch("Track Enemy Items", true)
+    UI.showHeroCounters = featTab:Switch("Show Hero Counters", true)
+    UI.showNetWorth   = featTab:Switch("Show Net Worth Analysis", true)
     local visTab = mainTab:Create("Visual")
     UI.scale      = visTab:Slider("Panel Scale %", 60, 150, 100, "%d")
     UI.offX       = visTab:Slider("Offset X", -800, 800, 0, "%d")
@@ -957,22 +1546,33 @@ end
 -- STATE
 --------------------------------------------------------------------------------
 local S = {
-    enemyHeroes   = {},
-    enemyTags     = {},
-    threatCounts  = {},
-    suggestions   = {},
-    ownedItems    = {},
-    myGold        = 0,
-    myHeroName    = "",
-    gamePhase     = PHASE_EARLY,
-    lastAnalysis  = 0,
-    heroIcons     = {},
-    itemIcons     = {},
-    lastFrame     = 0,
-    dt            = 0.016,
-    pulseTime     = 0,
-    initialized   = false,
-    totalNetWorth = 0,
+    enemyHeroes     = {},
+    enemyTags       = {},
+    threatCounts    = {},
+    suggestions     = {},
+    neutralSuggestions = {},
+    ownedItems      = {},
+    enemyItems      = {},      -- Items owned by enemies
+    enemyItemCounts = {},      -- Count of specific items among enemies
+    myGold          = 0,
+    myHeroName      = "",
+    gamePhase       = PHASE_EARLY,
+    neutralTier     = 0,       -- Current neutral tier available
+    lastAnalysis    = 0,
+    heroIcons       = {},
+    itemIcons       = {},
+    lastFrame       = 0,
+    dt              = 0.016,
+    pulseTime       = 0,
+    initialized     = false,
+    totalNetWorth   = 0,
+    -- Net worth analysis
+    myTeamNetWorth  = 0,
+    enemyTeamNetWorth = 0,
+    netWorthDiff    = 0,       -- Positive = we're leading
+    gameTempo       = "even",  -- "ahead", "even", "behind"
+    -- Hero counter suggestions
+    heroCounterSuggestions = {},
 }
 
 --------------------------------------------------------------------------------
@@ -1077,7 +1677,13 @@ end
 local function itemIcon(name)
     local v = S.itemIcons[name]
     if v then return v ~= false and v or nil end
-    return cacheImg(S.itemIcons, name, "panorama/images/items/" .. name:gsub("item_", "") .. "_png.vtex_c")
+    
+    -- Remove item_ prefix for icon path
+    local iconName = name:gsub("item_", "")
+    local path = "panorama/images/items/" .. iconName .. "_png.vtex_c"
+    
+    -- Try to load icon
+    return cacheImg(S.itemIcons, name, path)
 end
 
 --------------------------------------------------------------------------------
@@ -1096,12 +1702,37 @@ local function dText(sz, txt, x, y, c)
     Render.Text(f, sz, tostring(txt), V(F(x), F(y)), c)
 end
 
+--------------------------------------------------------------------------------
+-- TEXT SIZE CACHE
+--------------------------------------------------------------------------------
+local textSizeCache = {}
+local TEXT_CACHE_MAX_SIZE = 500  -- Limit cache size to prevent memory bloat
+
 local function tSz(sz, txt)
+    local key = sz .. "_" .. tostring(txt)
+    local cached = textSizeCache[key]
+    if cached then return cached end
+    
     local f = getFont(sz)
-    if not f then return {x = sz * #tostring(txt) * 0.55, y = sz} end
-    local ok, r = pcall(Render.TextSize, f, sz, tostring(txt))
-    if ok and r then return r end
-    return {x = sz * #tostring(txt) * 0.55, y = sz}
+    local result
+    if not f then 
+        result = {x = sz * #tostring(txt) * 0.55, y = sz}
+    else
+        local ok, r = pcall(Render.TextSize, f, sz, tostring(txt))
+        if ok and r then result = r
+        else result = {x = sz * #tostring(txt) * 0.55, y = sz} end
+    end
+    
+    -- Limit cache size
+    if #textSizeCache < TEXT_CACHE_MAX_SIZE then
+        textSizeCache[key] = result
+    end
+    
+    return result
+end
+
+local function clearTextCache()
+    textSizeCache = {}
 end
 
 local function dLine(x1, y1, x2, y2, c, t)
@@ -1137,6 +1768,92 @@ local function analyzeEnemyTeam()
     elseif gameTime < 1800 then S.gamePhase = PHASE_MID
     else S.gamePhase = PHASE_LATE end
 
+    -- Determine neutral tier based on game time (updated for current patch)
+    if gameTime < 300 then S.neutralTier = 0       -- No neutrals yet
+    elseif gameTime < 900 then S.neutralTier = 1   -- Tier 1: 5-15 min
+    elseif gameTime < 1500 then S.neutralTier = 2  -- Tier 2: 15-25 min
+    elseif gameTime < 2100 then S.neutralTier = 3  -- Tier 3: 25-35 min
+    elseif gameTime < 3600 then S.neutralTier = 4  -- Tier 4: 35-60 min
+    else S.neutralTier = 5 end                     -- Tier 5: 60+ min
+
+    -- Net worth analysis (via item values + gold)
+    if sg(UI.showNetWorth, true) then
+        local myTeamNW = 0
+        local enemyTeamNW = 0
+        local debugInfo = ""
+        local heroCount = 0
+        
+        local heroes = Heroes.GetAll()
+        if not heroes or #heroes == 0 then
+            Log.Write("[ItemHelper] No heroes found")
+            return
+        end
+        
+        for _, hero in ipairs(heroes) do
+            if hero and Entity.IsEntity(hero) then
+                heroCount = heroCount + 1
+                local team = safeStatic(Entity, "GetTeamNum", hero)
+                local unitName = safeStatic(NPC, "GetUnitName", hero) or "unknown"
+                local totalGold = 0
+                
+                -- Method 1: Try to get gold from Player
+                local playerID = safeStatic(Hero, "GetPlayerID", hero)
+                if playerID and playerID >= 0 then
+                    local player = Players.Get(playerID)
+                    if player then
+                        local gold = safeStatic(Player, "GetGold", player)
+                        if gold and gold > 0 then
+                            totalGold = totalGold + gold
+                        end
+                    end
+                end
+                
+                -- Method 2: Calculate from item values using our database
+                local itemValue = 0
+                local itemCount = 0
+                for i = 0, 8 do
+                    local item = safeStatic(NPC, "GetItemByIndex", hero, i)
+                    if item then
+                        local itemName = safeStatic(Ability, "GetName", item)
+                        local cost = GetItemCost(itemName)
+                        if cost > 0 then
+                            itemValue = itemValue + cost
+                            itemCount = itemCount + 1
+                        end
+                    end
+                end
+                -- Neutral item (slot 16)
+                local neutralItem = safeStatic(NPC, "GetItemByIndex", hero, 16)
+                if neutralItem then
+                    itemValue = itemValue + 1000
+                    itemCount = itemCount + 1
+                end
+                
+                totalGold = totalGold + itemValue
+                
+                if team == myTeam then
+                    myTeamNW = myTeamNW + totalGold
+                else
+                    enemyTeamNW = enemyTeamNW + totalGold
+                end
+                
+                if totalGold > 0 then
+                    debugInfo = debugInfo .. unitName .. "(T" .. team .. ")=G" .. (totalGold - itemValue) .. "+I" .. itemValue .. "[" .. itemCount .. "items] "
+                end
+            end
+        end
+        
+        S.myTeamNetWorth = myTeamNW
+        S.enemyTeamNetWorth = enemyTeamNW
+        S.netWorthDiff = myTeamNW - enemyTeamNW
+
+        -- Determine game tempo
+        local diffPercent = enemyTeamNW > 0 and (S.netWorthDiff / enemyTeamNW) or 0
+        if diffPercent > 0.15 then S.gameTempo = "ahead"
+        elseif diffPercent < -0.15 then S.gameTempo = "behind"
+        else S.gameTempo = "even" end
+    end
+
     -- My gold & hero name
     local myPlayer = safeStatic(Heroes, "GetPlayerID", me)
     if myPlayer then
@@ -1145,7 +1862,7 @@ local function analyzeEnemyTeam()
     end
     S.myHeroName = safeStatic(NPC, "GetUnitName", me) or ""
 
-    -- Own items
+    -- Own items (including neutral slot)
     S.ownedItems = {}
     for i = 0, 8 do
         local item = safeStatic(NPC, "GetItemByIndex", me, i)
@@ -1154,10 +1871,18 @@ local function analyzeEnemyTeam()
             if iName then S.ownedItems[iName] = true end
         end
     end
+    -- Check neutral slot (slot 16)
+    local neutralItem = safeStatic(NPC, "GetItemByIndex", me, 16)
+    if neutralItem then
+        local nName = safeStatic(Ability, "GetName", neutralItem)
+        if nName then S.ownedItems[nName] = true end
+    end
 
     -- Enemies (filter out illusions, clones, tempest doubles; deduplicate by name)
     S.enemyHeroes = {}
     S.enemyTags = {}
+    S.enemyItems = {}
+    S.enemyItemCounts = {}
     local heroes = Heroes.GetAll()
     if not heroes then return end
 
@@ -1179,11 +1904,38 @@ local function analyzeEnemyTeam()
                 local alive = safeStatic(Entity, "IsAlive", hero)
                 local level = safeStatic(NPC, "GetCurrentLevel", hero) or 0
 
-                table.insert(S.enemyHeroes, {
+                local enemyData = {
                     name  = name,
                     alive = alive ~= false,
                     level = level,
-                })
+                    items = {},
+                }
+
+                -- Track enemy items if enabled
+                if sg(UI.trackEnemyItems, true) then
+                    for i = 0, 8 do
+                        local item = safeStatic(NPC, "GetItemByIndex", hero, i)
+                        if item then
+                            local iName = safeStatic(Ability, "GetName", item)
+                            if iName then
+                                enemyData.items[iName] = true
+                                S.enemyItems[iName] = (S.enemyItems[iName] or 0) + 1
+                                S.enemyItemCounts[iName] = (S.enemyItemCounts[iName] or 0) + 1
+                            end
+                        end
+                    end
+                    -- Check neutral slot
+                    local neutralItem = safeStatic(NPC, "GetItemByIndex", hero, 16)
+                    if neutralItem then
+                        local nName = safeStatic(Ability, "GetName", neutralItem)
+                        if nName then
+                            enemyData.items[nName] = true
+                            S.enemyItems[nName] = (S.enemyItems[nName] or 0) + 1
+                        end
+                    end
+                end
+
+                table.insert(S.enemyHeroes, enemyData)
 
                 local tags = HERO_TAGS[name]
                 if tags then
@@ -1205,6 +1957,40 @@ local function analyzeEnemyTeam()
         if a.count ~= b.count then return a.count > b.count end
         return a.tag < b.tag
     end)
+
+    -- Hero counter suggestions
+    S.heroCounterSuggestions = {}
+    if sg(UI.showHeroCounters, true) then
+        local counterScore = {}
+        for _, enemy in ipairs(S.enemyHeroes) do
+            local counterData = HERO_COUNTERS[enemy.name]
+            if counterData then
+                for _, itemName in ipairs(counterData.items) do
+                    if not S.ownedItems[itemName] then
+                        counterScore[itemName] = (counterScore[itemName] or 0) + 1
+                    end
+                end
+            end
+        end
+        -- Convert to sorted table
+        for itemName, score in pairs(counterScore) do
+            local counterData = nil
+            -- Find reason from HERO_COUNTERS
+            for _, enemy in ipairs(S.enemyHeroes) do
+                local cd = HERO_COUNTERS[enemy.name]
+                if cd and tableContains(cd.items, itemName) then
+                    counterData = cd
+                    break
+                end
+            end
+            table.insert(S.heroCounterSuggestions, {
+                item = itemName,
+                score = score,
+                reason = counterData and counterData.reason or "Counter pick"
+            })
+        end
+        table.sort(S.heroCounterSuggestions, function(a, b) return a.score > b.score end)
+    end
 
     -- Resolve my hero role/style for hero-aware scoring
     local myRole = nil
@@ -1272,6 +2058,62 @@ local function analyzeEnemyTeam()
                 end
             end
         end
+        -- Enemy item counter scoring
+        if sg(UI.trackEnemyItems, true) then
+            -- BKB on enemies -> suggest Nullifier/Abyssal
+            if S.enemyItemCounts["item_black_king_bar"] and S.enemyItemCounts["item_black_king_bar"] > 0 then
+                if itemDef.name == "item_nullifier" or itemDef.name == "item_abyssal_blade" then
+                    score = score + S.enemyItemCounts["item_black_king_bar"] * 8
+                end
+            end
+            -- Linken/Aeon Disk on enemies -> suggest second disable or pop item
+            if S.enemyItemCounts["item_sphere"] and S.enemyItemCounts["item_sphere"] > 0 then
+                if itemDef.tags and tableContains(itemDef.tags, "disable") then
+                    score = score + S.enemyItemCounts["item_sphere"] * 4
+                end
+            end
+            if S.enemyItemCounts["item_aeon_disk"] and S.enemyItemCounts["item_aeon_disk"] > 0 then
+                if itemDef.name == "item_nullifier" then
+                    score = score + S.enemyItemCounts["item_aeon_disk"] * 6
+                end
+            end
+            -- Ghost Scepter on enemies -> suggest Ethereal/Nullifier
+            if S.enemyItemCounts["item_ghost"] and S.enemyItemCounts["item_ghost"] > 0 then
+                if itemDef.name == "item_ethereal_blade" or itemDef.name == "item_nullifier" then
+                    score = score + S.enemyItemCounts["item_ghost"] * 5
+                end
+            end
+            -- Glimmer Cape on enemies -> suggest Dust/Nullifier
+            if S.enemyItemCounts["item_glimmer_cape"] and S.enemyItemCounts["item_glimmer_cape"] > 0 then
+                if itemDef.name == "item_dust" or itemDef.name == "item_nullifier" then
+                    score = score + S.enemyItemCounts["item_glimmer_cape"] * 4
+                end
+            end
+            -- Blade Mail on enemies -> suggest lifesteal/ranged counter
+            if S.enemyItemCounts["item_blade_mail"] and S.enemyItemCounts["item_blade_mail"] > 0 then
+                if itemDef.tags and (tableContains(itemDef.tags, "lifesteal") or tableContains(itemDef.tags, "vs_phys")) then
+                    score = score + S.enemyItemCounts["item_blade_mail"] * 3
+                end
+            end
+        end
+        -- Game Tempo scoring (net worth analysis)
+        if sg(UI.showNetWorth, true) and S.gameTempo ~= "even" then
+            if S.gameTempo == "ahead" then
+                -- Leading: suggest luxury items
+                if itemDef.cost >= 4000 and tableContains(itemDef.tags, "phys_dps") then
+                    score = score + 3
+                end
+            elseif S.gameTempo == "behind" then
+                -- Losing: suggest cheaper defensive items
+                if itemDef.cost < 3000 and (tableContains(itemDef.tags, "vs_phys") or tableContains(itemDef.tags, "vs_magic") or tableContains(itemDef.tags, "save")) then
+                    score = score + 4
+                end
+                -- Penalty for expensive items when behind
+                if itemDef.cost >= 5000 then
+                    score = math.max(1, math.floor(score * 0.5))
+                end
+            end
+        end
         return score
     end
 
@@ -1290,6 +2132,74 @@ local function analyzeEnemyTeam()
         if not addedNames[entry.item.name] then
             addedNames[entry.item.name] = true
             table.insert(S.suggestions, {item = entry.item, score = entry.score})
+        end
+    end
+
+    -- Score neutral items
+    if sg(UI.showNeutrals, true) and S.neutralTier > 0 then
+        local function scoreNeutralItem(itemDef)
+            if itemDef.tier > S.neutralTier then return 0 end
+            if S.ownedItems[itemDef.name] then return -1 end
+            local score = 0
+            -- Trigger-based scoring
+            if itemDef.tags then
+                for _, tag in ipairs(itemDef.tags) do
+                    local cnt = S.enemyTags[tag] or 0
+                    if cnt > 0 then score = score + cnt * 2 end
+                end
+            end
+            -- Counter-rule scoring for neutrals
+            for _, rule in ipairs(COUNTER_RULES) do
+                local ruleMatch = 0
+                for _, rTag in ipairs(rule.tags) do
+                    if S.enemyTags[rTag] and S.enemyTags[rTag] > 0 then
+                        ruleMatch = ruleMatch + 1
+                    end
+                end
+                if ruleMatch >= #rule.tags then
+                    local itemMatch = countMatches(itemDef.tags, rule.suggest)
+                    if itemMatch > 0 then
+                        score = score + itemMatch * rule.weight * 0.5
+                    end
+                end
+            end
+            -- Prefer higher tier items if available
+            score = score + (itemDef.tier * 2)
+            -- Role/style penalty for neutrals
+            if score > 0 and (myRole or myStyle) then
+                local penalty = ITEM_ROLE_PENALTY[itemDef.name]
+                if penalty then
+                    local penalized = false
+                    if penalty.bad_roles and myRole then
+                        for _, br in ipairs(penalty.bad_roles) do
+                            if br == myRole then penalized = true; break end
+                        end
+                    end
+                    if not penalized and penalty.bad_styles and myStyle then
+                        for _, bs in ipairs(penalty.bad_styles) do
+                            if bs == myStyle then penalized = true; break end
+                        end
+                    end
+                    if penalized then
+                        score = math.max(1, math.floor(score * 0.3))
+                    end
+                end
+            end
+            return score
+        end
+
+        local neutralScored = {}
+        for _, itemDef in ipairs(NEUTRAL_DB) do
+            local s = scoreNeutralItem(itemDef)
+            if s > 0 then table.insert(neutralScored, {item = itemDef, score = s}) end
+        end
+        table.sort(neutralScored, function(a, b) return a.score > b.score end)
+
+        S.neutralSuggestions = {}
+        local maxNeutrals = 3
+        for _, entry in ipairs(neutralScored) do
+            if #S.neutralSuggestions >= maxNeutrals then break end
+            table.insert(S.neutralSuggestions, {item = entry.item, score = entry.score})
         end
     end
 end
@@ -1542,6 +2452,139 @@ local function drawEnemySection(x, y, w, alpha)
 end
 
 --------------------------------------------------------------------------------
+-- DRAW: NET WORTH BAR
+--------------------------------------------------------------------------------
+local function drawNetWorthBar(x, y, w, alpha)
+    if not sg(UI.showNetWorth, true) then return 0 end
+    -- Always show if enabled, even with 0 values (for debugging)
+    
+    local curY = y
+    local totalNW = S.myTeamNetWorth + S.enemyTeamNetWorth
+    
+    -- Title
+    dText(9, "NET WORTH", x + 4, curY, col(150, 150, 150, F(alpha * 0.7)))
+    curY = curY + 14
+    
+    -- If no data yet, show placeholder
+    if totalNW == 0 then
+        dText(8, "Waiting for data...", x + 4, curY + 2, col(100, 100, 100, F(alpha * 0.5)))
+        return 24
+    end
+
+    local myPercent = S.myTeamNetWorth / totalNW
+    local diff = S.netWorthDiff
+
+    -- Bar
+    local barH = 8
+    local barW = w - 8
+    local myW = F(barW * myPercent)
+
+    -- Background
+    dRect(x + 4, curY, barW, barH, col(30, 30, 40, F(alpha * 0.5)), 2)
+
+    -- Our team (green)
+    if myW > 0 then
+        dRect(x + 4, curY, myW, barH, col(60, 180, 80, F(alpha * 0.7)), 2)
+    end
+
+    -- Enemy team (red)
+    local enemyW = barW - myW
+    if enemyW > 0 then
+        dRect(x + 4 + myW, curY, enemyW, barH, col(180, 60, 60, F(alpha * 0.7)), 2)
+    end
+
+    -- Diff text
+    local diffTxt = diff >= 0 and "+" .. F(diff) or F(diff)
+    local diffColor = diff >= 0 and {80, 200, 80} or {200, 80, 80}
+    local diffSz = tSz(8, diffTxt)
+    dText(8, diffTxt, x + 4 + F(barW / 2) - F(diffSz.x / 2), curY - 1, col(diffColor[1], diffColor[2], diffColor[3], F(alpha * 0.9)))
+
+    -- Tempo badge
+    local tempoColors = {
+        ahead = {80, 200, 80},
+        even = {150, 150, 150},
+        behind = {200, 80, 80}
+    }
+    local tempoTxt = S.gameTempo:upper()
+    local tempoSz = tSz(7, tempoTxt)
+    local tc = tempoColors[S.gameTempo] or {150, 150, 150}
+    dRect(x + w - tempoSz.x - 10, curY - 1, tempoSz.x + 6, 12, col(tc[1], tc[2], tc[3], F(alpha * 0.15)), 2)
+    dText(7, tempoTxt, x + w - tempoSz.x - 7, curY, col(tc[1], tc[2], tc[3], F(alpha * 0.8)))
+
+    curY = curY + barH + 10
+    return curY - y
+end
+
+--------------------------------------------------------------------------------
+-- DRAW: HERO COUNTERS SECTION
+--------------------------------------------------------------------------------
+local function drawHeroCounters(x, y, w, alpha)
+    if not sg(UI.showHeroCounters, true) then return 0 end
+    if #S.heroCounterSuggestions == 0 then return 0 end
+
+    local curY = y
+    dText(10, "HERO COUNTERS", x + 4, curY, col(255, 100, 100, F(alpha * 0.9)))
+    curY = curY + 16
+
+    -- Draw compact counter items
+    local maxCounters = 5
+    for i, counter in ipairs(S.heroCounterSuggestions) do
+        if i > maxCounters then break end
+
+        local item = counter.item
+        local owned = S.ownedItems[item]
+        local canAfford = S.myGold >= (Item.GetCost and Item.GetCost(item) or 0)
+
+        -- Find item display name
+        local displayName = item:gsub("item_", ""):gsub("_", " ")
+        for _, itemDef in ipairs(ITEM_DB) do
+            if itemDef.name == item then
+                displayName = itemDef.display
+                break
+            end
+        end
+
+        local h = 20
+        local bgA = F(alpha * 0.25)
+        if owned then
+            dRect(x, curY, w, h, col(18, 35, 25, bgA), 4)
+        else
+            dRect(x, curY, w, h, col(16, 18, 30, bgA), 4)
+        end
+
+        -- Counter indicator line (red)
+        dRect(x, curY + 3, 2, h - 6, col(255, 80, 80, F(alpha * 0.7)), 1)
+
+        -- Item icon
+        local iconSz = 18
+        local iconX = x + 6
+        local iconY = curY + 2
+        local iImg = itemIcon(item)
+        dRect(iconX, iconY, iconSz, iconSz, col(22, 25, 40, F(alpha * 0.4)), 3)
+        if iImg then
+            dImg(iImg, iconX, iconY, iconSz, iconSz, col(255, 255, 255, F(alpha * (owned and 0.4 or 1))), 3)
+        else
+            local firstChar = displayName:sub(1, 1)
+            dText(9, firstChar, iconX + 5, iconY + 3, colA(TC.dim, alpha * 0.5))
+        end
+
+        -- Item name
+        local nameC = owned and col(80, 200, 120, F(alpha * 0.7)) or colA(TC.text, alpha)
+        dText(9, displayName, x + 28, curY + 3, nameC)
+
+        -- Counter score badge
+        local scoreTxt = "x" .. counter.score
+        local scoreSz = tSz(7, scoreTxt)
+        dRect(x + w - scoreSz.x - 8, curY + 4, scoreSz.x + 4, 12, col(255, 80, 80, F(alpha * 0.2)), 2)
+        dText(7, scoreTxt, x + w - scoreSz.x - 6, curY + 5, col(255, 100, 100, F(alpha * 0.8)))
+
+        curY = curY + h + 2
+    end
+
+    return curY - y
+end
+
+--------------------------------------------------------------------------------
 -- DRAW: ITEM SUGGESTION CARD
 --------------------------------------------------------------------------------
 local function drawItemCard(x, y, w, suggestion, idx, alpha)
@@ -1554,7 +2597,7 @@ local function drawItemCard(x, y, w, suggestion, idx, alpha)
     local textAreaW = w - (nameX - x) - 6
     local h = 20
 
-    -- Reason text wrapping
+    -- Reason text wrapping - Improved visibility with larger font
     local reasonLines = {}
     if sg(UI.showReasons, true) then
         local reason = LR(item.name)
@@ -1564,7 +2607,7 @@ local function drawItemCard(x, y, w, suggestion, idx, alpha)
             local line = ""
             for _, word in ipairs(words) do
                 local test = line == "" and word or (line .. " " .. word)
-                local testW = tSz(9, test)
+                local testW = tSz(10, test)
                 if testW.x > textAreaW and line ~= "" then
                     table.insert(reasonLines, line)
                     line = word
@@ -1573,7 +2616,7 @@ local function drawItemCard(x, y, w, suggestion, idx, alpha)
                 end
             end
             if line ~= "" then table.insert(reasonLines, line) end
-            h = h + #reasonLines * 12 + 2
+            h = h + #reasonLines * 13 + 2
         end
     end
 
@@ -1616,6 +2659,10 @@ local function drawItemCard(x, y, w, suggestion, idx, alpha)
     dRect(iconX, iconY, iconSz, iconSz, col(22, 25, 40, F(alpha * 0.5)), 4)
     if iImg then
         dImg(iImg, iconX, iconY, iconSz, iconSz, col(255, 255, 255, F(alpha * (owned and 0.4 or 1))), 4)
+    else
+        -- Show first letter if icon not loaded
+        local firstChar = item.display:sub(1, 1)
+        dText(10, firstChar, iconX + 8, iconY + 6, colA(TC.dim, alpha * 0.5))
     end
 
     -- Item name
@@ -1631,11 +2678,11 @@ local function drawItemCard(x, y, w, suggestion, idx, alpha)
     local costSz = tSz(9, costTxt)
     dText(9, costTxt, x + w - costSz.x - 6, y + 5, costC)
 
-    -- Reason text (multi-line)
-    local curTextY = y + 19
+    -- Reason text (multi-line) - Improved visibility
+    local curTextY = y + 20
     for _, rLine in ipairs(reasonLines) do
-        dText(9, rLine, nameX, curTextY, colA(TC.dim, alpha * 0.7))
-        curTextY = curTextY + 12
+        dText(10, rLine, nameX, curTextY, colA(TC.text, alpha * 0.85))
+        curTextY = curTextY + 13
     end
 
     -- Trigger tags
@@ -1680,6 +2727,80 @@ local function drawSuggestions(x, y, w, alpha)
         local cardH = drawItemCard(x, curY, w, sug, i, alpha)
         curY = curY + cardH + 3
     end
+    return curY - y
+end
+
+--------------------------------------------------------------------------------
+-- DRAW: NEUTRAL ITEMS SECTION
+--------------------------------------------------------------------------------
+local NEUTRAL_TIER_COLORS = {
+    [1] = {120, 200, 120},  -- Green
+    [2] = {100, 180, 255},  -- Blue
+    [3] = {200, 120, 255},  -- Purple
+    [4] = {255, 180, 80},   -- Orange
+    [5] = {255, 100, 100},  -- Red
+}
+
+local function drawNeutralSection(x, y, w, alpha)
+    if not sg(UI.showNeutrals, true) then return 0 end
+    if S.neutralTier == 0 then return 0 end
+    if #S.neutralSuggestions == 0 then return 0 end
+
+    local curY = y
+    local tierC = NEUTRAL_TIER_COLORS[S.neutralTier] or {150, 150, 150}
+    
+    -- Section header with tier indicator
+    dRect(x + 4, curY, w - 8, 1, colA(TC.dim, alpha * 0.15), 0)
+    curY = curY + 6
+    
+    local tierText = "NEUTRAL T" .. S.neutralTier
+    dText(10, tierText, x + 4, curY, col(tierC[1], tierC[2], tierC[3], F(alpha * 0.9)))
+    curY = curY + 16
+
+    -- Neutral item cards (compact version)
+    for i, sug in ipairs(S.neutralSuggestions) do
+        local item = sug.item
+        local owned = S.ownedItems[item.name]
+        local tierItemC = NEUTRAL_TIER_COLORS[item.tier] or {150, 150, 150}
+        
+        local h = 22
+        local bgA = F(alpha * 0.25)
+        if owned then
+            dRect(x, curY, w, h, col(18, 35, 25, bgA), 4)
+        else
+            dRect(x, curY, w, h, col(16, 18, 30, bgA), 4)
+        end
+
+        -- Tier indicator line
+        dRect(x, curY + 3, 2, h - 6, col(tierItemC[1], tierItemC[2], tierItemC[3], F(alpha * 0.6)), 1)
+
+        -- Item icon
+        local iconSz = 18
+        local iconX = x + 6
+        local iconY = curY + 2
+        local iImg = itemIcon(item.name)
+        dRect(iconX, iconY, iconSz, iconSz, col(22, 25, 40, F(alpha * 0.4)), 3)
+        if iImg then
+            dImg(iImg, iconX, iconY, iconSz, iconSz, col(255, 255, 255, F(alpha * (owned and 0.4 or 1))), 3)
+        else
+            -- Show first letter if icon not loaded
+            local firstChar = item.display:sub(1, 1)
+            dText(9, firstChar, iconX + 5, iconY + 3, colA(TC.dim, alpha * 0.5))
+        end
+
+        -- Item name
+        local nameC = owned and col(80, 200, 120, F(alpha * 0.7)) or colA(TC.text, alpha)
+        dText(9, item.display, x + 28, curY + 3, nameC)
+
+        -- Tier badge
+        local tierBadge = "T" .. item.tier
+        local tierBadgeSz = tSz(7, tierBadge)
+        dRect(x + w - tierBadgeSz.x - 10, curY + 5, tierBadgeSz.x + 6, 12, col(tierItemC[1], tierItemC[2], tierItemC[3], F(alpha * 0.15)), 2)
+        dText(7, tierBadge, x + w - tierBadgeSz.x - 7, curY + 6, col(tierItemC[1], tierItemC[2], tierItemC[3], F(alpha * 0.7)))
+
+        curY = curY + h + 2
+    end
+
     return curY - y
 end
 
@@ -1758,8 +2879,21 @@ local function drawPanel()
         enemyH = enemyH + 14 + tagRows * 17 + 19
     end
     contentH = contentH + enemyH + 6
+    -- Add net worth bar height
+    if sg(UI.showNetWorth, true) then
+        contentH = contentH + 36
+    end
+    -- Add hero counters height
+    if sg(UI.showHeroCounters, true) and #S.heroCounterSuggestions > 0 then
+        contentH = contentH + 18 + math.min(#S.heroCounterSuggestions, 5) * 22
+    end
     local numSugs = math.min(#S.suggestions, sg(UI.maxItems, 6))
-    contentH = contentH + 18 + numSugs * 52 + 40
+    contentH = contentH + 18 + numSugs * 52
+    -- Add neutral items section height
+    if sg(UI.showNeutrals, true) and S.neutralTier > 0 and #S.neutralSuggestions > 0 then
+        contentH = contentH + 24 + #S.neutralSuggestions * 24
+    end
+    contentH = contentH + 40  -- Footer
 
     local ph = F(contentH * scale)
     local px, py
@@ -1785,8 +2919,20 @@ local function drawPanel()
     curY = curY + hH + 4
     local eH = drawEnemySection(px + CFG.PAD, curY, innerW, alpha)
     curY = curY + eH
+    -- Draw net worth bar
+    if sg(UI.showNetWorth, true) then
+        local nwH = drawNetWorthBar(px + CFG.PAD, curY, innerW, alpha)
+        curY = curY + nwH
+    end
+    -- Draw hero counters
+    if sg(UI.showHeroCounters, true) then
+        local hcH = drawHeroCounters(px + CFG.PAD, curY, innerW, alpha)
+        curY = curY + hcH
+    end
     local sH = drawSuggestions(px + CFG.PAD, curY, innerW, alpha)
     curY = curY + sH
+    local nH = drawNeutralSection(px + CFG.PAD, curY, innerW, alpha)
+    curY = curY + nH
     drawFooter(px + CFG.PAD, curY, innerW, alpha)
 end
 
@@ -1838,10 +2984,14 @@ function script.OnGameEnd()
     S.enemyTags = {}
     S.threatCounts = {}
     S.suggestions = {}
+    S.neutralSuggestions = {}
     S.ownedItems = {}
+    S.enemyItems = {}
+    S.enemyItemCounts = {}
     S.myGold = 0
     S.myHeroName = ""
     S.gamePhase = PHASE_EARLY
+    S.neutralTier = 0
     S.lastAnalysis = 0
     S.heroIcons = {}
     S.itemIcons = {}
@@ -1849,11 +2999,20 @@ function script.OnGameEnd()
     S.dt = 0.016
     S.pulseTime = 0
     S.totalNetWorth = 0
+    -- Reset net worth analysis
+    S.myTeamNetWorth = 0
+    S.enemyTeamNetWorth = 0
+    S.netWorthDiff = 0
+    S.gameTempo = "even"
+    -- Reset hero counters
+    S.heroCounterSuggestions = {}
     -- Reset shop detection state
     _shopCache = false
     _shopCacheT = 0
     _shopPanel = nil
     _panelSearchDone = false
+    -- Clear text size cache
+    clearTextCache()
 end
 
 return script
