@@ -1,168 +1,5 @@
-local L_STRINGS = {
-    en = {
-        tabs = {
-            main = "Main",
-            particles = "Particles",
-            cursor = "Cursor",
-            effects = "Effects",
-            colors = "Colors",
-            advanced = "Advanced Effects"
-        },
-        main_enabled = "Enabled",
-        main_enabled_tip = "Enable or disable cosmic background effects",
-        main_darkness = "Background Darkness",
-        main_darkness_tip = "Adjusts dark overlay intensity",
-        particles_count = "Particle Count",
-        particles_count_tip = "Background particle amount",
-        particles_glow = "Particle Glow",
-        particles_glow_tip = "Adds bloom around particles",
-        particles_size = "Particle Size",
-        particles_size_tip = "Size of base particles",
-        cursor_attraction = "Cursor Attraction",
-        cursor_attraction_tip = "Particles react to cursor position",
-        cursor_radius = "Attraction Radius",
-        cursor_radius_tip = "Area around cursor affecting particles",
-        cursor_force = "Attraction Force",
-        cursor_force_tip = "Strength of particle pull",
-        cursor_smoothness = "Animation Smoothness",
-        cursor_smoothness_tip = "Interpolation factor for particle movement",
-        blur_switch = "Background Blur",
-        blur_switch_tip = "Applies layered blur to menu background",
-        blur_intensity = "Blur Intensity",
-        blur_intensity_tip = "Controls blur strength",
-        nebula_switch = "Nebula Clouds",
-        nebula_switch_tip = "Enable rotating nebula layers",
-        nebula_count = "Cloud Count",
-        nebula_count_tip = "Number of nebula clusters",
-        stars_switch = "Twinkling Stars",
-        stars_switch_tip = "Enable animated star field",
-        stars_count = "Star Count",
-        stars_count_tip = "Number of background stars",
-        shooting_switch = "Shooting Stars",
-        shooting_tip = "Enable shooting stars with tails",
-        shooting_freq = "Shooting Star Frequency",
-        shooting_freq_tip = "Spawn rate of shooting stars",
-        aurora_switch = "Aurora Borealis",
-        aurora_switch_tip = "Draws aurora waves at top",
-        aurora_intensity = "Aurora Intensity",
-        aurora_intensity_tip = "Brightness of aurora",
-        galaxy_switch = "Galaxy Spiral",
-        galaxy_switch_tip = "Paint spiral galaxy center",
-        galaxy_arms = "Spiral Arms",
-        galaxy_arms_tip = "Number of galaxy arms",
-        wormholes_switch = "Wormholes",
-        wormholes_switch_tip = "Spinning wormhole portals",
-        wormholes_count = "Wormhole Count",
-        wormholes_count_tip = "How many wormholes to draw",
-        primary_color = "Primary Color",
-        secondary_color = "Secondary Color"
-    },
-    cn = {
-        tabs = {
-            main = "主设置",
-            particles = "粒子",
-            cursor = "鼠标",
-            effects = "效果",
-            colors = "颜色",
-            advanced = "高级效果"
-        },
-        main_enabled = "启用",
-        main_enabled_tip = "开启或关闭宇宙背景",
-        main_darkness = "背景暗度",
-        main_darkness_tip = "控制暗色遮罩强度",
-        particles_count = "粒子数量",
-        particles_count_tip = "背景粒子数量",
-        particles_glow = "粒子光晕",
-        particles_glow_tip = "为粒子添加柔和光晕",
-        particles_size = "粒子大小",
-        particles_size_tip = "基础粒子尺寸",
-        cursor_attraction = "鼠标吸附",
-        cursor_attraction_tip = "粒子跟随鼠标",
-        cursor_radius = "吸附半径",
-        cursor_radius_tip = "鼠标影响范围",
-        cursor_force = "吸附强度",
-        cursor_force_tip = "粒子被吸引的力度",
-        cursor_smoothness = "动画平滑",
-        cursor_smoothness_tip = "粒子运动的平滑程度",
-        blur_switch = "背景模糊",
-        blur_switch_tip = "为背景添加模糊层",
-        blur_intensity = "模糊强度",
-        blur_intensity_tip = "模糊的强弱",
-        nebula_switch = "星云",
-        nebula_switch_tip = "启用旋转星云",
-        nebula_count = "星云数量",
-        nebula_count_tip = "绘制的星云数量",
-        stars_switch = "闪烁星星",
-        stars_switch_tip = "启用闪烁星空",
-        stars_count = "星星数量",
-        stars_count_tip = "背景星星数量",
-        shooting_switch = "流星",
-        shooting_tip = "启用带尾巴的流星",
-        shooting_freq = "流星频率",
-        shooting_freq_tip = "流星出现频率",
-        aurora_switch = "极光",
-        aurora_switch_tip = "绘制天空极光",
-        aurora_intensity = "极光亮度",
-        aurora_intensity_tip = "极光强度",
-        galaxy_switch = "螺旋星系",
-        galaxy_switch_tip = "绘制中心星系",
-        galaxy_arms = "星系臂",
-        galaxy_arms_tip = "星系臂数量",
-        wormholes_switch = "虫洞",
-        wormholes_switch_tip = "显示旋转虫洞",
-        wormholes_count = "虫洞数量",
-        wormholes_count_tip = "绘制的虫洞数量",
-        primary_color = "主色",
-        secondary_color = "次色"
-    }
-}
-
-local LANG = "en"
-local _langWidget = nil
-local _langLastCheck = 0
-local LANG_UPDATE_INTERVAL = 2.0
-
 local DEFAULT_PRIMARY_COLOR = Color(100, 200, 255, 200)
 local DEFAULT_SECONDARY_COLOR = Color(255, 100, 200, 200)
-
-local function currentStrings()
-    return L_STRINGS[LANG] or L_STRINGS.en
-end
-
-local function TabsLabel(key)
-    local dict = currentStrings()
-    local tabs = dict.tabs or L_STRINGS.en.tabs
-    return (tabs and tabs[key]) or L_STRINGS.en.tabs[key] or key
-end
-
-local function L(key)
-    local dict = currentStrings()
-    return dict[key] or L_STRINGS.en[key] or key
-end
-
-local function UpdateLanguage(force)
-    local now = (GlobalVars and GlobalVars.GetRealTime and GlobalVars.GetRealTime()) or os.clock()
-    if not force and now - _langLastCheck < LANG_UPDATE_INTERVAL then return end
-    _langLastCheck = now
-
-    if not _langWidget then
-        local ok, widget = pcall(Menu.Find, "SettingsHidden", "", "", "", "Main", "Language")
-        if ok and widget then _langWidget = widget end
-    end
-
-    if _langWidget and _langWidget.Get then
-        local ok, value = pcall(function()
-            return _langWidget:Get()
-        end)
-        if ok and value ~= nil then
-            if value == 2 or value == "cn" then
-                LANG = "cn"
-            else
-                LANG = "en"
-            end
-        end
-    end
-end
 
 local script = {}
 
@@ -187,24 +24,6 @@ local function getFallbackColor(widget, defaultColor)
         return widget:Get()
     end
     return defaultColor
-end
-
-local function createSwitch(group, label, defaultValue, tooltip)
-    local widget = group:Switch(label, defaultValue)
-    if tooltip then widget:ToolTip(tooltip) end
-    return widget
-end
-
-local function createSliderInt(group, label, minValue, maxValue, defaultValue, fmt, tooltip)
-    local widget = group:Slider(label, minValue, maxValue, defaultValue, fmt)
-    if tooltip then widget:ToolTip(tooltip) end
-    return widget
-end
-
-local function createSliderFloat(group, label, minValue, maxValue, defaultValue, fmt, tooltip)
-    local widget = group:Slider(label, minValue, maxValue, defaultValue, fmt)
-    if tooltip then widget:ToolTip(tooltip) end
-    return widget
 end
 
 local function getPrimaryColor()
@@ -265,82 +84,80 @@ local function createWormhole()
     }
 end
 
-local function getCursorScreenPos()
-    if Input and Input.GetCursorPos then
-        local x, y = Input.GetCursorPos()
-        if x and y then
-            return Vec2(x, y)
-        end
-    end
-    if Engine and Engine.GetCursorPos then
-        local pos = Engine.GetCursorPos()
-        if pos then return pos end
-    end
-    if Input and Input.GetWorldCursorPos then
-        local world = Input.GetWorldCursorPos()
-        if world then
-            local screen = Render.WorldToScreen(world)
-            if screen and screen.x and screen.y then
-                return Vec2(screen.x, screen.y)
-            end
-        end
-    end
-    return nil
-end
-
 -- Шрифт будет создан позже при необходимости
 
 -- Создание меню
 script.OnScriptsLoaded = function()
-    UpdateLanguage(true)
+    -- Создаём группы
+    local mainGroup = Menu.Create("General", "Main", "CosmicMenu", "Settings", "Main")
+    local particleGroup = Menu.Create("General", "Main", "CosmicMenu", "Settings", "Particles")
+    local effectsGroup = Menu.Create("General", "Main", "CosmicMenu", "Settings", "Effects")
+    local advancedEffects = Menu.Create("General", "Main", "CosmicMenu", "Settings", "Advanced")
+    local colorGroup = Menu.Create("General", "Main", "CosmicMenu", "Settings", "Colors")
 
-    local tab = Menu.Create("General", "Main", "CosmicMenu")
-    if tab and tab.Icon then tab:Icon("✨") end
+    -- Получаем доступ к CSecondTab "CosmicMenu" через Parent для добавления иконки
+    -- mainGroup это CMenuGroup, его Parent это CThirdTab "Settings"
+    -- Parent CThirdTab это CSecondTab "CosmicMenu"
+    local ok, cosmicMenuTab = pcall(function()
+        local settingsTab = mainGroup:Parent()  -- CThirdTab "Settings"
+        return settingsTab:Parent()  -- CSecondTab "CosmicMenu"
+    end)
+    
+    -- Добавляем иконку на вкладку CosmicMenu
+    if ok and cosmicMenuTab and cosmicMenuTab.Icon then
+        cosmicMenuTab:Icon("\u{f0ac}")  -- globe
+    end
 
-    local mainTab = tab:Create(TabsLabel("main"))
-    local particleTab = tab:Create(TabsLabel("particles"))
-    local cursorTab = tab:Create(TabsLabel("cursor"))
-    local effectsTab = tab:Create(TabsLabel("effects"))
-    local colorTab = tab:Create(TabsLabel("colors"))
-
-    local mainGroup = mainTab:Create(TabsLabel("main"))
-    local particleGroup = particleTab:Create(TabsLabel("particles"))
-    local cursorGroup = cursorTab:Create(TabsLabel("cursor"))
-    local effectsGroup = effectsTab:Create(TabsLabel("effects"))
-    local advancedEffects = effectsTab:Create(TabsLabel("advanced"))
-    local colorGroup = colorTab:Create(TabsLabel("colors"))
-
-    script.enabled = createSwitch(mainGroup, L("main_enabled"), true, L("main_enabled_tip"))
+    -- Main settings
+    script.enabled = mainGroup:Switch("Enabled", true)
+    script.enabled:Icon("\u{f011}")  -- power-off
     script.backgroundEffects = {Get = function() return true end}
-    script.backgroundOpacity = createSliderInt(mainGroup, L("main_darkness"), 0, 100, 30, "%d", L("main_darkness_tip"))
+    script.backgroundOpacity = mainGroup:Slider("Background Darkness", 0, 100, 30, "%d")
+    script.backgroundOpacity:Icon("\u{f042}")  -- adjust
 
-    script.bgParticleCount = createSliderInt(particleGroup, L("particles_count"), 50, 200, 100, "%d", L("particles_count_tip"))
-    script.particleGlow = createSwitch(particleGroup, L("particles_glow"), true, L("particles_glow_tip"))
-    script.shieldRadius = createSliderInt(particleGroup, L("particles_size"), 1, 5, 2, "%d", L("particles_size_tip"))
+    -- Particles
+    script.bgParticleCount = particleGroup:Slider("Particle Count", 50, 200, 100, "%d")
+    script.bgParticleCount:Icon("\u{f0e8}")  -- sitemap
+    script.particleGlow = particleGroup:Switch("Particle Glow", true)
+    script.particleGlow:Icon("\u{f0eb}")  -- lightbulb
+    script.shieldRadius = particleGroup:Slider("Particle Size", 1, 5, 2, "%d")
+    script.shieldRadius:Icon("\u{f0b2}")  -- expand
 
-    script.cursorAttraction = createSwitch(cursorGroup, L("cursor_attraction"), true, L("cursor_attraction_tip"))
-    script.attractionRadius = createSliderInt(cursorGroup, L("cursor_radius"), 50, 300, 150, "%d", L("cursor_radius_tip"))
-    script.attractionForce = createSliderFloat(cursorGroup, L("cursor_force"), 0.1, 5.0, 2.0, "%.1f", L("cursor_force_tip"))
-    script.smoothness = createSliderInt(cursorGroup, L("cursor_smoothness"), 1, 10, 5, "%d", L("cursor_smoothness_tip"))
+    -- Effects
+    script.backgroundBlur = effectsGroup:Switch("Background Blur", false)
+    script.backgroundBlur:Icon("\u{f0c9}")  -- bars
+    script.blurIntensity = effectsGroup:Slider("Blur Intensity", 0, 20, 10, "%d")
+    script.blurIntensity:Icon("\u{f010}")  -- eye-slash
+    script.nebulaClouds = effectsGroup:Switch("Nebula Clouds", true)
+    script.nebulaClouds:Icon("\u{f0c2}")  -- cloud
+    script.cloudCount = effectsGroup:Slider("Cloud Count", 3, 10, 5, "%d")
+    script.cloudCount:Icon("\u{f0ae}")  -- clone
+    script.stars = effectsGroup:Switch("Twinkling Stars", true)
+    script.stars:Icon("\u{f005}")  -- star
+    script.starCount = effectsGroup:Slider("Star Count", 100, 500, 200, "%d")
+    script.starCount:Icon("\u{f0d0}")  -- certificate
 
-    script.backgroundBlur = createSwitch(effectsGroup, L("blur_switch"), false, L("blur_switch_tip"))
-    script.blurIntensity = createSliderInt(effectsGroup, L("blur_intensity"), 0, 20, 10, "%d", L("blur_intensity_tip"))
-    script.nebulaClouds = createSwitch(effectsGroup, L("nebula_switch"), true, L("nebula_switch_tip"))
-    script.cloudCount = createSliderInt(effectsGroup, L("nebula_count"), 3, 10, 5, "%d", L("nebula_count_tip"))
-    script.stars = createSwitch(effectsGroup, L("stars_switch"), true, L("stars_switch_tip"))
-    script.starCount = createSliderInt(effectsGroup, L("stars_count"), 100, 500, 200, "%d", L("stars_count_tip"))
+    -- Advanced Effects
+    script.shootingStars = advancedEffects:Switch("Shooting Stars", true)
+    script.shootingStars:Icon("\u{f135}")  -- rocket
+    script.shootingStarFreq = advancedEffects:Slider("Shooting Star Frequency", 1, 10, 5, "%d")
+    script.shootingStarFreq:Icon("\u{f017}")  -- clock-o
+    script.auroraBorealis = advancedEffects:Switch("Aurora Borealis", true)
+    script.auroraBorealis:Icon("\u{f0d0}")  -- certificate
+    script.auroraIntensity = advancedEffects:Slider("Aurora Intensity", 0, 100, 50, "%d")
+    script.auroraIntensity:Icon("\u{f06d}")  -- fire
+    script.galaxySpiral = advancedEffects:Switch("Galaxy Spiral", false)
+    script.galaxySpiral:Icon("\u{f0e2}")  -- refresh
+    script.spiralArms = advancedEffects:Slider("Spiral Arms", 2, 6, 4, "%d")
+    script.spiralArms:Icon("\u{f0ce}")  -- table
+    script.wormholes = advancedEffects:Switch("Wormholes", false)
+    script.wormholes:Icon("\u{f0ac}")  -- globe
+    script.wormholeCount = advancedEffects:Slider("Wormhole Count", 1, 3, 2, "%d")
+    script.wormholeCount:Icon("\u{f0ae}")  -- clone
 
-    script.shootingStars = createSwitch(advancedEffects, L("shooting_switch"), true, L("shooting_tip"))
-    script.shootingStarFreq = createSliderInt(advancedEffects, L("shooting_freq"), 1, 10, 5, "%d", L("shooting_freq_tip"))
-    script.auroraBorealis = createSwitch(advancedEffects, L("aurora_switch"), true, L("aurora_switch_tip"))
-    script.auroraIntensity = createSliderInt(advancedEffects, L("aurora_intensity"), 0, 100, 50, "%d", L("aurora_intensity_tip"))
-    script.galaxySpiral = createSwitch(advancedEffects, L("galaxy_switch"), false, L("galaxy_switch_tip"))
-    script.spiralArms = createSliderInt(advancedEffects, L("galaxy_arms"), 2, 6, 4, "%d", L("galaxy_arms_tip"))
-    script.wormholes = createSwitch(advancedEffects, L("wormholes_switch"), false, L("wormholes_switch_tip"))
-    script.wormholeCount = createSliderInt(advancedEffects, L("wormholes_count"), 1, 3, 2, "%d", L("wormholes_count_tip"))
-
-    script.shieldColor = colorGroup:ColorPicker(L("primary_color"), DEFAULT_PRIMARY_COLOR)
-    script.shieldColor2 = colorGroup:ColorPicker(L("secondary_color"), DEFAULT_SECONDARY_COLOR)
+    -- Colors
+    script.shieldColor = colorGroup:ColorPicker("Primary Color", DEFAULT_PRIMARY_COLOR)
+    script.shieldColor2 = colorGroup:ColorPicker("Secondary Color", DEFAULT_SECONDARY_COLOR)
 end
 
 -- Основная логика и отрисовка
@@ -348,10 +165,15 @@ script.OnFrame = function()
     if not script.enabled or not script.enabled.Get then return end
     if not script.enabled:Get() then return end
 
-    local frameTime = GlobalVars and GlobalVars.GetFrameTime and GlobalVars.GetFrameTime() or 0.016
-    local dt = math.min(frameTime, 0.05)
-    time = time + dt * 0.1  -- Замедляем время в 10 раз
-    UpdateLanguage(false)
+    -- Получаем dt с fallback
+    local dt = 0.016
+    if GlobalVars and GlobalVars.GetFrameTime then
+        local ok, ft = pcall(GlobalVars.GetFrameTime)
+        if ok and ft and ft > 0 then
+            dt = math.min(ft, 0.033)  -- Максимум ~30 FPS для стабильности
+        end
+    end
+    time = time + dt
 
     -- Обновляем количество частиц при необходимости
     ensureCount(bgParticles, script.bgParticleCount:Get(), createBgParticle)
@@ -365,70 +187,18 @@ script.OnFrame = function()
     -- Обновляем количество червоточин при необходимости
     ensureCount(wormholes, script.wormholeCount:Get(), createWormhole)
 
-    -- Получаем позицию курсора
-    local cursorPos = getCursorScreenPos()
-
-    -- Обновление фоновых частиц с реакцией на курсор
+    -- Обновление фоновых частиц
     for i, particle in ipairs(bgParticles) do
-        -- Реакция на курсор
-        if script.cursorAttraction:Get() and cursorPos and cursorPos.x and cursorPos.y then
-            local dx = cursorPos.x - particle.x
-            local dy = cursorPos.y - particle.y
-            local dist = math.sqrt(dx * dx + dy * dy)
-            
-            if dist < script.attractionRadius:Get() and dist > 0 then
-                local force = script.attractionForce:Get() * (1 - dist / script.attractionRadius:Get())
-                local targetAngle = math.atan(dy, dx)
-                
-                -- Плавный поворот угла
-                local angleDiff = targetAngle - particle.angle
-                -- Нормализуем разницу углов
-                while angleDiff > math.pi do angleDiff = angleDiff - 2 * math.pi end
-                while angleDiff < -math.pi do angleDiff = angleDiff + 2 * math.pi end
-                
-                -- Плавное изменение угла с ограничением
-                local smoothFactor = math.min(script.smoothness:Get() * dt, 0.5)
-                particle.angle = particle.angle + angleDiff * smoothFactor
-                
-                -- Плавное изменение скорости
-                local targetSpeed = math.min(particle.speed + force * dt * 100, 5.0)
-                local speedDiff = targetSpeed - particle.speed
-                particle.speed = particle.speed + speedDiff * smoothFactor
-                
-                -- Плавное изменение яркости
-                local targetBrightness = math.min(1.0, 0.5 + force)
-                local brightnessDiff = targetBrightness - particle.brightness
-                particle.brightness = particle.brightness + brightnessDiff * smoothFactor
-            else
-                -- Плавное возвращение к нормальной яркости
-                local targetBrightness = 0.5 + math.sin(time * 2 + i) * 0.5
-                local brightnessDiff = targetBrightness - particle.brightness
-                particle.brightness = particle.brightness + brightnessDiff * math.min(dt * 2, 0.5)
-            end
-        end
-        
-        -- Обновляем позицию с ограничением скорости
-        local moveSpeed = math.min(particle.speed, 5.0)
-        particle.x = particle.x + math.cos(particle.angle) * moveSpeed * dt * 10  -- Замедлили в 5 раз
-        particle.y = particle.y + math.sin(particle.angle) * moveSpeed * dt * 10
+        -- Движение частицы
+        particle.x = particle.x + math.cos(particle.angle) * particle.speed * 20 * dt
+        particle.y = particle.y + math.sin(particle.angle) * particle.speed * 20 * dt
+        particle.brightness = 0.5 + math.sin(time * 2 + i) * 0.3
         
         -- Оборачивание по экрану
         if particle.x < -50 then particle.x = 1970 end
         if particle.x > 1970 then particle.x = -50 end
         if particle.y < -50 then particle.y = 1130 end
         if particle.y > 1130 then particle.y = -50 end
-        
-        -- Плавное затухание скорости
-        if not (script.cursorAttraction:Get() and cursorPos) then
-            local dx = cursorPos and cursorPos.x - particle.x or 0
-            local dy = cursorPos and cursorPos.y - particle.y or 0
-            local dist = cursorPos and math.sqrt(dx * dx + dy * dy) or 999
-            
-            if dist >= script.attractionRadius:Get() then
-                local smoothFactor = script.smoothness:Get() * 0.4 * dt
-                particle.speed = particle.speed + (0.5 - particle.speed) * smoothFactor
-            end
-        end
     end
     
     -- Обновление звезд
@@ -483,7 +253,7 @@ script.OnFrame = function()
         wormhole.pulse = 0.5 + math.sin(time * 3 + i) * 0.5
     end
     
-    -- Отрисовка фоновых эффектов только при открытом меню (работает везде)
+    -- Отрисовка фоновых эффектов только при открытом меню
     if script.backgroundEffects:Get() and IsMenuOpen() then
         DrawBackgroundEffects()
     end
@@ -491,8 +261,11 @@ end
 
 -- Проверка, открыто ли меню чита
 function IsMenuOpen()
-    local ok, v = pcall(Menu.Opened)
-    return ok and v == true
+    if Menu and Menu.Opened then
+        local ok, v = pcall(Menu.Opened)
+        return ok and v == true
+    end
+    return false
 end
 
 -- Отрисовка фоновых эффектов
@@ -506,37 +279,20 @@ function DrawBackgroundEffects()
     local primaryColor = getPrimaryColor()
     local secondaryColor = getSecondaryColor()
     
-    -- Затемнение фона с размытием
+    -- Затемнение фона
     local screenSize = Vec2(1920, 1080)  -- Стандартное разрешение
     Render.FilledRect(Vec2(0, 0), screenSize, Color(0, 0, 0, math.floor(opacity * 2.55)), 0)
     
-    -- Эффект размытия (если включен)
+    -- Эффект размытия (если включен) - используем настоящий Render.Blur
     if script.backgroundBlur and script.backgroundBlur:Get() and script.blurIntensity then
         local blurIntensity = script.blurIntensity:Get()
         
-        -- Создаем слои размытия с уменьшающейся интенсивностью
-        for i = 1, math.min(blurIntensity, 15) do
-            local alpha = math.floor(40 / (i * 0.8))
-            local offset = i * 1.5
-            
-            -- Основное размытие - крестовый паттерн
-            Render.FilledRect(Vec2(-offset, 0), Vec2(1920 + offset, 1080), Color(0, 0, 0, alpha), 0)
-            Render.FilledRect(Vec2(0, -offset), Vec2(1920, 1080 + offset), Color(0, 0, 0, alpha), 0)
-            
-            -- Диагональное размытие с меньшей интенсивностью
-            if i <= 8 then
-                local diagAlpha = math.floor(alpha * 0.3)
-                Render.FilledRect(Vec2(-offset * 0.7, -offset * 0.7), Vec2(1920 + offset * 0.7, 1080 + offset * 0.7), Color(0, 0, 0, diagAlpha), 0)
-                Render.FilledRect(Vec2(offset * 0.7, -offset * 0.7), Vec2(1920 - offset * 0.7, 1080 + offset * 0.7), Color(0, 0, 0, diagAlpha), 0)
-            end
-        end
-        
-        -- Добавляем мягкий виньет для красоты
-        local vignetteAlpha = math.floor(blurIntensity * 2)
-        for i = 1, 5 do
-            local size = 200 + i * 100
-            local alpha = math.floor(vignetteAlpha / (i + 1))
-            Render.FilledRect(Vec2(-size, -size), Vec2(1920 + size, 1080 + size), Color(0, 0, 0, alpha), 0)
+        -- Render.Blur(pos, size, strength) - плавная шкала размытия
+        -- Используем квадратный корень для более плавного нарастания
+        -- 0 -> 0, 1 -> 1, 5 -> 2.2, 10 -> 3.2, 20 -> 4.5
+        local strength = math.sqrt(blurIntensity) * 1.5
+        if strength > 0 then
+            Render.Blur(Vec2(0, 0), screenSize, strength)
         end
     end
     
