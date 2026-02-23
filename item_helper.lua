@@ -1,20 +1,11 @@
 local script = {}
 
 --------------------------------------------------------------------------------
--- ITEM HELPER v3.1 — Помощник по сборке предметов
+-- ITEM HELPER v3.2 — Помощник по сборке предметов
 -- Анализирует вражеский пик, фазу игры и предлагает оптимальные предметы
 -- Локализация: RU / EN / CN
 -- author: Euphoria
--- Updated: 2026-02-22
--- Changes v3.0:
---   - Net worth analysis (team gold comparison via item values)
---   - Hero counter item suggestions
---   - Game tempo detection (ahead/even/behind)
---   - Updated neutral items database (2026 patch)
---   - Improved text visibility (larger font, better contrast)
--- Changes v3.1:
---   - Fixed item icon loading (Gleipnir, Scythe of Vyse)
---   - Fixed Net Worth calculation (ITEM_COSTS database)
+-- Updated: 2026-02-24
 --------------------------------------------------------------------------------
 
 --------------------------------------------------------------------------------
@@ -36,6 +27,13 @@ local L_STRINGS = {
         early           = "EARLY",
         mid             = "MID",
         late            = "LATE",
+        -- Game modes
+        mode_unknown    = "UNKNOWN",
+        mode_allpick    = "ALL PICK",
+        mode_ranked     = "RANKED",
+        mode_turbo      = "TURBO",
+        mode_draft      = "DRAFT",
+        mode_random     = "RANDOM",
         -- Tips
         tip_invis       = "!! Many invis — buy Dust/Sentries!",
         tip_magic       = "!! Heavy magic dmg — Pipe/BKB!",
@@ -75,6 +73,14 @@ local L_STRINGS = {
         early           = "РАННЯЯ",
         mid             = "СЕРЕДИНА",
         late            = "ПОЗДНЯЯ",
+        -- Game modes
+        mode_unknown    = "НЕИЗВЕСТНО",
+        mode_allpick    = "ALL PICK",
+        mode_ranked     = "RANKED",
+        mode_turbo      = "TURBO",
+        mode_draft      = "DRAFT",
+        mode_random     = "RANDOM",
+        -- Tips
         tip_invis       = "!! Много инвизов — Dust/Sentries!",
         tip_magic       = "!! Много маг. урона — Pipe/BKB!",
         tip_heal        = "!! Много хила — Spirit Vessel!",
@@ -112,6 +118,14 @@ local L_STRINGS = {
         early           = "前期",
         mid             = "中期",
         late            = "后期",
+        -- Game modes
+        mode_unknown    = "未知",
+        mode_allpick    = "全选",
+        mode_ranked     = "天梯",
+        mode_turbo      = "快速",
+        mode_draft      = "征召",
+        mode_random     = "随机",
+        -- Tips
         tip_invis       = "!! 隐身较多 — 买粉/岗哨!",
         tip_magic       = "!! 魔法伤害高 — 笛子/BKB!",
         tip_heal        = "!! 大量回复 — 大勋章!",
@@ -839,6 +853,31 @@ local HERO_TAGS = {
 }
 
 --------------------------------------------------------------------------------
+-- GAME MODE DETECTION
+--------------------------------------------------------------------------------
+local GAME_MODE = {
+    UNKNOWN = 0,
+    ALL_PICK = 1,
+    RANKED = 2,
+    TURBO = 3,
+    SINGLE_DRAFT = 4,
+    ALL_RANDOM = 5,
+    CAPTAINS_MODE = 6,
+    ABILITY_DRAFT = 7,
+}
+
+local MODE_PHASE_MULTIPLIERS = {
+    [GAME_MODE.UNKNOWN] = {early = 1.0, mid = 1.0, late = 1.0},
+    [GAME_MODE.ALL_PICK] = {early = 1.0, mid = 1.0, late = 1.0},
+    [GAME_MODE.RANKED]   = {early = 1.1, mid = 1.0, late = 0.9},  -- More competitive
+    [GAME_MODE.TURBO]    = {early = 0.6, mid = 0.8, late = 1.2},  -- Faster game, skip early items
+    [GAME_MODE.SINGLE_DRAFT] = {early = 1.0, mid = 1.0, late = 1.0},
+    [GAME_MODE.ALL_RANDOM]   = {early = 1.0, mid = 1.0, late = 1.0},
+    [GAME_MODE.CAPTAINS_MODE] = {early = 1.1, mid = 1.0, late = 0.9},
+    [GAME_MODE.ABILITY_DRAFT] = {early = 0.8, mid = 1.0, late = 1.1},
+}
+
+--------------------------------------------------------------------------------
 -- HERO ROLE SYSTEM (for hero-aware item scoring)
 -- role: "carry", "mid", "offlane", "support", "hardsupport"
 -- style: "phys" = physical DPS, "magic" = caster, "hybrid", "utility"
@@ -1034,6 +1073,733 @@ local ITEM_ROLE_PENALTY = {
     item_yasha_and_kaya  = {bad_styles={"phys"}},
     item_witch_blade     = {bad_roles={"hardsupport"}},
     item_phylactery      = {bad_roles={"carry"}, bad_styles={"phys"}},
+}
+
+--------------------------------------------------------------------------------
+-- HERO SPECIFIC ITEMS (предметы для конкретных героев)
+-- good_items: предметы которые особенно хороши на этом герое (бонус score)
+-- bad_items: предметы которые плохи на этом герое (штраф score)
+-- Это позволяет учитывать специфику героя, например BF на Arc Warden - плохая идея
+--------------------------------------------------------------------------------
+local HERO_SPECIFIC_ITEMS = {
+    -- ══════════════ Carry Heroes ══════════════
+    npc_dota_hero_arc_warden = {
+        good_items = {
+            "item_mjollnir", "item_butterfly", "item_satanic", "item_skadi",
+            "item_monkey_king_bar", "item_black_king_bar", "item_blink",
+            "item_swift_blink", "item_nullifier", "item_abyssal_blade",
+            "item_diffusal_blade", "item_manta", "item_disperser"
+        },
+        bad_items = {
+            "item_battlefury", "item_radiance", "item_hand_of_midas",
+            "item_vanguard", "item_heart", "item_blade_mail"
+        },
+        reason_good = "Arc Warden uses Tempest Double to duplicate items",
+        reason_bad = "BF/Radiance don't work with Tempest Double"
+    },
+    npc_dota_hero_phantom_lancer = {
+        good_items = {
+            "item_diffusal_blade", "item_manta", "item_butterfly", "item_satanic",
+            "item_skadi", "item_abyssal_blade", "item_disperser", "item_heart"
+        },
+        bad_items = {
+            "item_battlefury", "item_mjollnir", "item_radiance",
+            "item_desolator", "item_monkey_king_bar"
+        },
+        reason_good = "Illusions benefit from these items",
+        reason_bad = "BF/Mjollnir/Radiance don't work on illusions"
+    },
+    npc_dota_hero_terrorblade = {
+        good_items = {
+            "item_satanic", "item_butterfly", "item_skadi", "item_manta",
+            "item_heart", "item_black_king_bar", "item_disperser"
+        },
+        bad_items = {
+            "item_battlefury", "item_mjollnir", "item_radiance",
+            "item_desolator", "item_monkey_king_bar"
+        },
+        reason_good = "Illusions and metamorphosis synergy",
+        reason_bad = "BF/Mjollnir don't work on illusions"
+    },
+    npc_dota_hero_naga_siren = {
+        good_items = {
+            "item_diffusal_blade", "item_manta", "item_butterfly", "item_heart",
+            "item_skadi", "item_radiance", "item_disperser"
+        },
+        bad_items = {
+            "item_battlefury", "item_mjollnir", "item_desolator",
+            "item_monkey_king_bar"
+        },
+        reason_good = "Illusions push and fight",
+        reason_bad = "BF/Mjollnir don't work on illusions"
+    },
+    npc_dota_hero_chaos_knight = {
+        good_items = {
+            "item_armlet", "item_heart", "item_satanic", "item_skadi",
+            "item_abyssal_blade", "item_manta", "item_black_king_bar"
+        },
+        bad_items = {
+            "item_battlefury", "item_mjollnir", "item_radiance",
+            "item_desolator", "item_monkey_king_bar"
+        },
+        reason_good = "Illusions get full stats from items",
+        reason_bad = "BF/Mjollnir don't work on illusions"
+    },
+    npc_dota_hero_meepo = {
+        good_items = {
+            "item_power_treads", "item_aghanims_scepter", "item_blink",
+            "item_ether_sword", "item_sheepstick", "item_octarine_core",
+            "item_witch_blade", "item_assault"
+        },
+        bad_items = {
+            "item_battlefury", "item_radiance", "item_hand_of_midas",
+            "item_heart", "item_satanic"
+        },
+        reason_good = "All Meepos benefit from stats",
+        reason_bad = "BF/Radiance only work on main Meepo"
+    },
+    npc_dota_hero_antiimage = {
+        good_items = {
+            "item_battlefury", "item_manta", "item_blink", "item_abyssal_blade",
+            "item_skadi", "item_satanic", "item_butterfly", "item_black_king_bar"
+        },
+        bad_items = {
+            "item_hand_of_midas", "item_radiance", "item_mjollnir"
+        },
+        reason_good = "Classic AM build with BF farm",
+        reason_bad = "Midas too slow, Radiance/Mjollnir not optimal"
+    },
+    npc_dota_hero_spectre = {
+        good_items = {
+            "item_radiance", "item_blade_mail", "item_heart", "item_skadi",
+            "item_spirit_vessel", "item_crimson_guard", "item_shivas_guard"
+        },
+        bad_items = {
+            "item_battlefury", "item_hand_of_midas", "item_desolator",
+            "item_monkey_king_bar"
+        },
+        reason_good = "Radiance + Haunt is devastating",
+        reason_bad = "BF doesn't help Spectre's playstyle"
+    },
+    npc_dota_hero_faceless_void = {
+        good_items = {
+            "item_mask_of_madness", "item_maelstrom", "item_mjollnir",
+            "item_black_king_bar", "item_butterfly", "item_satanic",
+            "item_abyssal_blade", "item_monkey_king_bar"
+        },
+        bad_items = {
+            "item_battlefury", "item_radiance", "item_hand_of_midas"
+        },
+        reason_good = "Attack speed + Chronosphere synergy",
+        reason_bad = "BF/Radiance don't fit Void's burst style"
+    },
+    npc_dota_hero_juggernaut = {
+        good_items = {
+            "item_battlefury", "item_mask_of_madness", "item_manta",
+            "item_black_king_bar", "item_satanic", "item_butterfly",
+            "item_abyssal_blade", "item_swift_blink"
+        },
+        bad_items = {
+            "item_radiance", "item_hand_of_midas"
+        },
+        reason_good = "BF for farm + Omnislash synergy",
+        reason_bad = "Radiance doesn't fit Jugg's style"
+    },
+    npc_dota_hero_ursa = {
+        good_items = {
+            "item_blink", "item_black_king_bar", "item_satanic", "item_skadi",
+            "item_abyssal_blade", "item_butterfly", "item_aghanims_scepter"
+        },
+        bad_items = {
+            "item_battlefury", "item_radiance", "item_hand_of_midas",
+            "item_mjollnir"
+        },
+        reason_good = "Blink + BKB for burst damage",
+        reason_bad = "BF/Radiance don't help Ursa's burst"
+    },
+    npc_dota_hero_slark = {
+        good_items = {
+            "item_silver_edge", "item_sange_and_yasha", "item_skadi",
+            "item_blink", "item_black_king_bar", "item_abyssal_blade",
+            "item_butterfly", "item_satanic"
+        },
+        bad_items = {
+            "item_battlefury", "item_radiance", "item_hand_of_midas",
+            "item_mjollnir"
+        },
+        reason_good = "Mobility + stat stealing synergy",
+        reason_bad = "BF/Radiance reveal Slark's position"
+    },
+    npc_dota_hero_weaver = {
+        good_items = {
+            "item_desolator", "item_black_king_bar", "item_silver_edge",
+            "item_butterfly", "item_manta", "item_monkey_king_bar",
+            "item_abyssal_blade"
+        },
+        bad_items = {
+            "item_battlefury", "item_radiance", "item_hand_of_midas"
+        },
+        reason_good = "Deso + Geminate Attack burst",
+        reason_bad = "BF/Radiance don't fit Weaver's hit-and-run"
+    },
+    npc_dota_hero_clinkz = {
+        good_items = {
+            "item_desolator", "item_silver_edge", "item_black_king_bar",
+            "item_butterfly", "item_satanic", "item_monkey_king_bar",
+            "item_abyssal_blade", "item_hurricane_pike"
+        },
+        bad_items = {
+            "item_battlefury", "item_radiance", "item_hand_of_midas",
+            "item_mjollnir"
+        },
+        reason_good = "Burst + Strafe synergy",
+        reason_bad = "BF/Radiance reveal Clinkz"
+    },
+    npc_dota_hero_templar_assassin = {
+        good_items = {
+            "item_desolator", "item_blink", "item_black_king_bar",
+            "item_butterfly", "item_satanic", "item_monkey_king_bar",
+            "item_abyssal_blade", "item_swift_blink"
+        },
+        bad_items = {
+            "item_battlefury", "item_radiance", "item_hand_of_midas",
+            "item_mjollnir"
+        },
+        reason_good = "Deso + Refraction burst",
+        reason_bad = "BF/Radiance don't fit TA's burst style"
+    },
+    npc_dota_hero_sniper = {
+        good_items = {
+            "item_mask_of_madness", "item_maelstrom", "item_mjollnir",
+            "item_black_king_bar", "item_satanic", "item_butterfly",
+            "item_skadi", "item_hurricane_pike", "item_monkey_king_bar"
+        },
+        bad_items = {
+            "item_battlefury", "item_radiance", "item_blink"
+        },
+        reason_good = "Range + attack speed synergy",
+        reason_bad = "BF/Radiance don't fit Sniper's range"
+    },
+    npc_dota_hero_drow_ranger = {
+        good_items = {
+            "item_mask_of_madness", "item_maelstrom", "item_mjollnir",
+            "item_black_king_bar", "item_satanic", "item_butterfly",
+            "item_skadi", "item_hurricane_pike", "item_monkey_king_bar",
+            "item_silver_edge"
+        },
+        bad_items = {
+            "item_battlefury", "item_radiance", "item_blink"
+        },
+        reason_good = "Glaives + attack speed synergy",
+        reason_bad = "BF/Radiance don't fit Drow's range"
+    },
+    npc_dota_hero_medusa = {
+        good_items = {
+            "item_mask_of_madness", "item_maelstrom", "item_mjollnir",
+            "item_skadi", "item_butterfly", "item_satanic", "item_black_king_bar",
+            "item_monkey_king_bar", "item_heart"
+        },
+        bad_items = {
+            "item_battlefury", "item_radiance", "item_desolator",
+            "item_diffusal_blade"
+        },
+        reason_good = "Mana + attack speed for Stone Gaze",
+        reason_bad = "BF/Deso don't fit Medusa's split shot"
+    },
+    npc_dota_hero_luna = {
+        good_items = {
+            "item_mask_of_madness", "item_maelstrom", "item_mjollnir",
+            "item_black_king_bar", "item_satanic", "item_butterfly",
+            "item_skadi", "item_monkey_king_bar", "item_hurricane_pike"
+        },
+        bad_items = {
+            "item_battlefury", "item_radiance", "item_desolator"
+        },
+        reason_good = "Glaives + Eclipse synergy",
+        reason_bad = "BF doesn't work with Glaives"
+    },
+    npc_dota_hero_sven = {
+        good_items = {
+            "item_mask_of_madness", "item_blink", "item_black_king_bar",
+            "item_satanic", "item_abyssal_blade", "item_swift_blink",
+            "item_monkey_king_bar", "item_assault"
+        },
+        bad_items = {
+            "item_radiance", "item_hand_of_midas", "item_mjollnir"
+        },
+        reason_good = "Blink + God's Strength burst",
+        reason_bad = "Radiance doesn't fit Sven's burst"
+    },
+    npc_dota_hero_troll_warlord = {
+        good_items = {
+            "item_mask_of_madness", "item_black_king_bar", "item_satanic",
+            "item_butterfly", "item_skadi", "item_abyssal_blade",
+            "item_monkey_king_bar", "item_silver_edge"
+        },
+        bad_items = {
+            "item_battlefury", "item_radiance", "item_hand_of_midas"
+        },
+        reason_good = "Attack speed + bash synergy",
+        reason_bad = "BF/Radiance don't fit Troll's fight style"
+    },
+    npc_dota_hero_life_stealer = {
+        good_items = {
+            "item_desolator", "item_sange_and_yasha", "item_black_king_bar",
+            "item_satanic", "item_skadi", "item_abyssal_blade",
+            "item_monkey_king_bar", "item_silver_edge"
+        },
+        bad_items = {
+            "item_battlefury", "item_radiance", "item_hand_of_midas",
+            "item_mjollnir"
+        },
+        reason_good = "Lifesteal + Rage synergy",
+        reason_bad = "BF/Radiance don't fit LS's style"
+    },
+    npc_dota_hero_huskar = {
+        good_items = {
+            "item_armlet", "item_black_king_bar", "item_satanic", "item_skadi",
+            "item_heart", "item_heavens_halberd", "item_spirit_vessel"
+        },
+        bad_items = {
+            "item_battlefury", "item_radiance", "item_hand_of_midas",
+            "item_mjollnir", "item_monkey_king_bar"
+        },
+        reason_good = "Armlet + Berserker's Blood synergy",
+        reason_bad = "BF/Radiance don't fit Huskar's magic damage"
+    },
+    npc_dota_hero_bloodseeker = {
+        good_items = {
+            "item_maelstrom", "item_mjollnir", "item_black_king_bar",
+            "item_sange_and_yasha", "item_butterfly", "item_satanic",
+            "item_monkey_king_bar", "item_abyssal_blade"
+        },
+        bad_items = {
+            "item_battlefury", "item_radiance", "item_hand_of_midas"
+        },
+        reason_good = "Attack speed + Blood Rite synergy",
+        reason_bad = "BF doesn't fit BS's chase style"
+    },
+    npc_dota_hero_broodmother = {
+        good_items = {
+            "item_soul_ring", "item_black_king_bar", "item_butterfly",
+            "item_satanic", "item_skadi", "item_monkey_king_bar",
+            "item_abyssal_blade", "item_assault"
+        },
+        bad_items = {
+            "item_battlefury", "item_radiance", "item_hand_of_midas",
+            "item_mjollnir"
+        },
+        reason_good = "Spiderlings + lifesteal synergy",
+        reason_bad = "BF doesn't help Brood's spider army"
+    },
+    npc_dota_hero_lycan = {
+        good_items = {
+            "item_vladmir", "item_black_king_bar", "item_assault",
+            "item_abyssal_blade", "item_satanic", "item_monkey_king_bar",
+            "item_desolator"
+        },
+        bad_items = {
+            "item_battlefury", "item_radiance", "item_hand_of_midas",
+            "item_mjollnir"
+        },
+        reason_good = "Wolves + Shapeshift synergy",
+        reason_bad = "BF doesn't help Lycan's summons"
+    },
+    npc_dota_hero_lone_druid = {
+        good_items = {
+            "item_soul_ring", "item_black_king_bar", "item_assault",
+            "item_butterfly", "item_satanic", "item_monkey_king_bar",
+            "item_abyssal_blade", "item_skadi"
+        },
+        bad_items = {
+            "item_battlefury", "item_radiance", "item_hand_of_midas"
+        },
+        reason_good = "Spirit Bear + items synergy",
+        reason_bad = "BF doesn't help Spirit Bear"
+    },
+    -- ══════════════ Mid Heroes ══════════════
+    npc_dota_hero_invoker = {
+        good_items = {
+            "item_aghanims_scepter", "item_black_king_bar", "item_blink",
+            "item_octarine_core", "item_sheepstick", "item_refresher",
+            "item_arcane_blink", "item_sphere"
+        },
+        bad_items = {
+            "item_battlefury", "item_radiance", "item_hand_of_midas",
+            "item_desolator", "item_monkey_king_bar"
+        },
+        reason_good = "Spell amp + CDR for Invoker",
+        reason_bad = "Right-click items don't fit Invoker"
+    },
+    npc_dota_hero_storm_spirit = {
+        good_items = {
+            "item_bloodstone", "item_black_king_bar", "item_sheepstick",
+            "item_octarine_core", "item_sphere", "item_arcane_blink",
+            "item_orchid", "item_shivas_guard"
+        },
+        bad_items = {
+            "item_battlefury", "item_radiance", "item_hand_of_midas",
+            "item_desolator", "item_monkey_king_bar"
+        },
+        reason_good = "Mana + spell amp for Ball Lightning",
+        reason_bad = "Right-click items don't fit Storm"
+    },
+    npc_dota_hero_ember_spirit = {
+        good_items = {
+            "item_battlefury", "item_black_king_bar", "item_maelstrom",
+            "item_mjollnir", "item_sheepstick", "item_blink",
+            "item_swift_blink", "item_satanic"
+        },
+        bad_items = {
+            "item_radiance", "item_hand_of_midas", "item_desolator"
+        },
+        reason_good = "BF + Sleight of Fist synergy",
+        reason_bad = "Radiance doesn't fit Ember's style"
+    },
+    npc_dota_hero_tinker = {
+        good_items = {
+            "item_blink", "item_aether_lens", "item_sheepstick",
+            "item_octarine_core", "item_dagon", "item_ethereal_blade",
+            "item_arcane_blink", "item_sphere"
+        },
+        bad_items = {
+            "item_battlefury", "item_radiance", "item_hand_of_midas",
+            "item_desolator", "item_monkey_king_bar"
+        },
+        reason_good = "Rearm + active items synergy",
+        reason_bad = "Right-click items don't fit Tinker"
+    },
+    npc_dota_hero_zuus = {
+        good_items = {
+            "item_aether_lens", "item_octarine_core", "item_sheepstick",
+            "item_refresher", "item_aghanims_scepter", "item_dagon",
+            "item_ethereal_blade", "item_kaya_and_sange"
+        },
+        bad_items = {
+            "item_battlefury", "item_radiance", "item_hand_of_midas",
+            "item_desolator", "item_monkey_king_bar", "item_blink"
+        },
+        reason_good = "Spell amp + global presence",
+        reason_bad = "Right-click items don't fit Zeus"
+    },
+    npc_dota_hero_puck = {
+        good_items = {
+            "item_blink", "item_aether_lens", "item_octarine_core",
+            "item_sheepstick", "item_sphere", "item_arcane_blink",
+            "item_gungir", "item_wind_waker"
+        },
+        bad_items = {
+            "item_battlefury", "item_radiance", "item_hand_of_midas",
+            "item_desolator", "item_monkey_king_bar"
+        },
+        reason_good = "Mobility + spell amp for Puck",
+        reason_bad = "Right-click items don't fit Puck"
+    },
+    npc_dota_hero_queenofpain = {
+        good_items = {
+            "item_blink", "item_aether_lens", "item_octarine_core",
+            "item_sheepstick", "item_sphere", "item_arcane_blink",
+            "item_orchid", "item_dagon"
+        },
+        bad_items = {
+            "item_battlefury", "item_radiance", "item_hand_of_midas",
+            "item_desolator", "item_monkey_king_bar"
+        },
+        reason_good = "Blink + spell burst synergy",
+        reason_bad = "Right-click items don't fit QoP"
+    },
+    npc_dota_hero_lina = {
+        good_items = {
+            "item_aether_lens", "item_octarine_core", "item_sheepstick",
+            "item_sphere", "item_black_king_bar", "item_agonys_scepter",
+            "item_dagon", "item_kaya_and_sange"
+        },
+        bad_items = {
+            "item_battlefury", "item_radiance", "item_hand_of_midas"
+        },
+        reason_good = "Spell amp + Laguna Blade burst",
+        reason_bad = "BF doesn't fit Lina's magic burst"
+    },
+    npc_dota_hero_leshrac = {
+        good_items = {
+            "item_bloodstone", "item_black_king_bar", "item_octarine_core",
+            "item_sheepstick", "item_sphere", "item_shivas_guard",
+            "item_kaya_and_sange"
+        },
+        bad_items = {
+            "item_battlefury", "item_radiance", "item_hand_of_midas",
+            "item_desolator"
+        },
+        reason_good = "Mana + spell amp for Leshrac",
+        reason_bad = "Right-click items don't fit Leshrac"
+    },
+    npc_dota_hero_void_spirit = {
+        good_items = {
+            "item_blink", "item_aether_lens", "item_octarine_core",
+            "item_sheepstick", "item_sphere", "item_arcane_blink",
+            "item_kaya_and_sange", "item_shivas_guard"
+        },
+        bad_items = {
+            "item_battlefury", "item_radiance", "item_hand_of_midas",
+            "item_desolator", "item_monkey_king_bar"
+        },
+        reason_good = "Mobility + spell amp for Void Spirit",
+        reason_bad = "Right-click items don't fit Void Spirit"
+    },
+    npc_dota_hero_obsidian_destroyer = {
+        good_items = {
+            "item_aether_lens", "item_octarine_core", "item_sheepstick",
+            "item_sphere", "item_black_king_bar", "item_aghanims_scepter",
+            "item_refresher", "item_wind_waker"
+        },
+        bad_items = {
+            "item_battlefury", "item_radiance", "item_hand_of_midas",
+            "item_desolator", "item_mjollnir"
+        },
+        reason_good = "Int + spell amp for Arcane Orb",
+        reason_bad = "Attack speed items don't scale with Arcane Orb"
+    },
+    -- ══════════════ Offlane Heroes ══════════════
+    npc_dota_hero_axe = {
+        good_items = {
+            "item_vanguard", "item_blink", "item_blade_mail", "item_black_king_bar",
+            "item_shivas_guard", "item_heart", "item_overwhelming_blink",
+            "item_crimson_guard"
+        },
+        bad_items = {
+            "item_battlefury", "item_radiance", "item_hand_of_midas",
+            "item_desolator", "item_monkey_king_bar"
+        },
+        reason_good = "Tank + Counter Helix synergy",
+        reason_bad = "DPS items don't fit Axe's tank role"
+    },
+    npc_dota_hero_tidehunter = {
+        good_items = {
+            "item_vanguard", "item_pipe", "item_crimson_guard", "item_shivas_guard",
+            "item_heart", "item_blink", "item_refresher", "item_aghanims_scepter"
+        },
+        bad_items = {
+            "item_battlefury", "item_radiance", "item_hand_of_midas",
+            "item_desolator", "item_monkey_king_bar"
+        },
+        reason_good = "Tank + Ravage initiation",
+        reason_bad = "DPS items don't fit Tide's tank role"
+    },
+    npc_dota_hero_bristleback = {
+        good_items = {
+            "item_vanguard", "item_blade_mail", "item_crimson_guard",
+            "item_shivas_guard", "item_heart", "item_spirit_vessel",
+            "item_holy_locket", "item_aghanims_scepter"
+        },
+        bad_items = {
+            "item_battlefury", "item_radiance", "item_hand_of_midas",
+            "item_desolator", "item_monkey_king_bar"
+        },
+        reason_good = "Tank + Quill Spray synergy",
+        reason_bad = "DPS items don't fit BB's tank role"
+    },
+    npc_dota_hero_mars = {
+        good_items = {
+            "item_vanguard", "item_blink", "item_black_king_bar",
+            "item_shivas_guard", "item_heart", "item_overwhelming_blink",
+            "item_desolator", "item_assault"
+        },
+        bad_items = {
+            "item_battlefury", "item_radiance", "item_hand_of_midas",
+            "item_mjollnir"
+        },
+        reason_good = "Initiation + Arena synergy",
+        reason_bad = "BF doesn't fit Mars's spell-based style"
+    },
+    npc_dota_hero_centaur = {
+        good_items = {
+            "item_vanguard", "item_blink", "item_blade_mail", "item_black_king_bar",
+            "item_heart", "item_overwhelming_blink", "item_shivas_guard"
+        },
+        bad_items = {
+            "item_battlefury", "item_radiance", "item_hand_of_midas",
+            "item_desolator", "item_monkey_king_bar"
+        },
+        reason_good = "Tank + Double Edge synergy",
+        reason_bad = "DPS items don't fit Centaur's tank role"
+    },
+    npc_dota_hero_legion_commander = {
+        good_items = {
+            "item_vanguard", "item_blink", "item_blade_mail", "item_black_king_bar",
+            "item_desolator", "item_abyssal_blade", "item_overwhelming_blink",
+            "item_assault"
+        },
+        bad_items = {
+            "item_radiance", "item_hand_of_midas", "item_mjollnir"
+        },
+        reason_good = "Blink + Duel damage stacking",
+        reason_bad = "Radiance doesn't fit LC's duel style"
+    },
+    npc_dota_hero_doom_bringer = {
+        good_items = {
+            "item_vanguard", "item_blink", "item_shivas_guard", "item_heart",
+            "item_overwhelming_blink", "item_refresher", "item_aghanims_scepter"
+        },
+        bad_items = {
+            "item_battlefury", "item_radiance", "item_hand_of_midas",
+            "item_desolator", "item_monkey_king_bar"
+        },
+        reason_good = "Tank + Doom disable",
+        reason_bad = "DPS items don't fit Doom's utility role"
+    },
+    npc_dota_hero_sand_king = {
+        good_items = {
+            "item_blink", "item_black_king_bar", "item_shivas_guard",
+            "item_heart", "item_overwhelming_blink", "item_refresher",
+            "item_aghanims_scepter"
+        },
+        bad_items = {
+            "item_battlefury", "item_radiance", "item_hand_of_midas",
+            "item_desolator", "item_monkey_king_bar"
+        },
+        reason_good = "Blink + Epicenter initiation",
+        reason_bad = "DPS items don't fit SK's initiator role"
+    },
+    npc_dota_hero_dark_seer = {
+        good_items = {
+            "item_vanguard", "item_blink", "item_shivas_guard", "item_heart",
+            "item_refresher", "item_aghanims_scepter", "item_octarine_core"
+        },
+        bad_items = {
+            "item_battlefury", "item_radiance", "item_hand_of_midas",
+            "item_desolator", "item_monkey_king_bar"
+        },
+        reason_good = "Tank + Wall of Replica synergy",
+        reason_bad = "DPS items don't fit DS's utility role"
+    },
+    npc_dota_hero_batrider = {
+        good_items = {
+            "item_blink", "item_black_king_bar", "item_shivas_guard",
+            "item_heart", "item_overwhelming_blink", "item_sphere",
+            "item_force_staff"
+        },
+        bad_items = {
+            "item_battlefury", "item_radiance", "item_hand_of_midas",
+            "item_desolator", "item_monkey_king_bar"
+        },
+        reason_good = "Blink + Lasso initiation",
+        reason_bad = "DPS items don't fit Batrider's initiator role"
+    },
+    npc_dota_hero_pangolier = {
+        good_items = {
+            "item_maelstrom", "item_mjollnir", "item_black_king_bar",
+            "item_blink", "item_satanic", "item_abyssal_blade",
+            "item_swift_blink", "item_monkey_king_bar"
+        },
+        bad_items = {
+            "item_battlefury", "item_radiance", "item_hand_of_midas"
+        },
+        reason_good = "Attack speed + Rolling Thunder synergy",
+        reason_bad = "BF doesn't fit Pangolier's style"
+    },
+    -- ══════════════ Support Heroes ══════════════
+    npc_dota_hero_lion = {
+        good_items = {
+            "item_aether_lens", "item_blink", "item_aghanims_scepter",
+            "item_octarine_core", "item_dagon", "item_sphere",
+            "item_arcane_blink"
+        },
+        bad_items = {
+            "item_battlefury", "item_radiance", "item_hand_of_midas",
+            "item_desolator", "item_monkey_king_bar", "item_satanic"
+        },
+        reason_good = "Spell amp + Finger burst",
+        reason_bad = "DPS items don't fit Lion's support role"
+    },
+    npc_dota_hero_shadow_shaman = {
+        good_items = {
+            "item_aether_lens", "item_blink", "item_aghanims_scepter",
+            "item_octarine_core", "item_refresher", "item_sphere",
+            "item_arcane_blink"
+        },
+        bad_items = {
+            "item_battlefury", "item_radiance", "item_hand_of_midas",
+            "item_desolator", "item_monkey_king_bar", "item_satanic"
+        },
+        reason_good = "Spell amp + Wards push",
+        reason_bad = "DPS items don't fit Shaman's support role"
+    },
+    npc_dota_hero_crystal_maiden = {
+        good_items = {
+            "item_aether_lens", "item_blink", "item_black_king_bar",
+            "item_aghanims_scepter", "item_octarine_core", "item_sphere",
+            "item_glimmer_cape"
+        },
+        bad_items = {
+            "item_battlefury", "item_radiance", "item_hand_of_midas",
+            "item_desolator", "item_monkey_king_bar", "item_satanic"
+        },
+        reason_good = "Spell amp + Freezing Field",
+        reason_bad = "DPS items don't fit CM's support role"
+    },
+    npc_dota_hero_dazzle = {
+        good_items = {
+            "item_aether_lens", "item_glimmer_cape", "item_force_staff",
+            "item_aghanims_scepter", "item_octarine_core", "item_sphere",
+            "item_holy_locket"
+        },
+        bad_items = {
+            "item_battlefury", "item_radiance", "item_hand_of_midas",
+            "item_desolator", "item_monkey_king_bar", "item_satanic"
+        },
+        reason_good = "Heal amp + save items",
+        reason_bad = "DPS items don't fit Dazzle's support role"
+    },
+    npc_dota_hero_oracle = {
+        good_items = {
+            "item_aether_lens", "item_glimmer_cape", "item_force_staff",
+            "item_aghanims_scepter", "item_octarine_core", "item_sphere",
+            "item_holy_locket", "item_wind_waker"
+        },
+        bad_items = {
+            "item_battlefury", "item_radiance", "item_hand_of_midas",
+            "item_desolator", "item_monkey_king_bar", "item_satanic"
+        },
+        reason_good = "Heal amp + save items",
+        reason_bad = "DPS items don't fit Oracle's support role"
+    },
+    npc_dota_hero_witch_doctor = {
+        good_items = {
+            "item_aether_lens", "item_glimmer_cape", "item_black_king_bar",
+            "item_aghanims_scepter", "item_octarine_core", "item_sphere",
+            "item_dagon"
+        },
+        bad_items = {
+            "item_battlefury", "item_radiance", "item_hand_of_midas",
+            "item_desolator", "item_monkey_king_bar", "item_satanic"
+        },
+        reason_good = "Spell amp + Death Ward",
+        reason_bad = "DPS items don't fit WD's support role"
+    },
+    npc_dota_hero_warlock = {
+        good_items = {
+            "item_aether_lens", "item_glimmer_cape", "item_aghanims_scepter",
+            "item_octarine_core", "item_refresher", "item_sphere"
+        },
+        bad_items = {
+            "item_battlefury", "item_radiance", "item_hand_of_midas",
+            "item_desolator", "item_monkey_king_bar", "item_satanic"
+        },
+        reason_good = "Spell amp + Golem push",
+        reason_bad = "DPS items don't fit Warlock's support role"
+    },
+    npc_dota_hero_ancient_apparition = {
+        good_items = {
+            "item_aether_lens", "item_aghanims_scepter", "item_octarine_core",
+            "item_sphere", "item_shivas_guard", "item_wind_waker"
+        },
+        bad_items = {
+            "item_battlefury", "item_radiance", "item_hand_of_midas",
+            "item_desolator", "item_monkey_king_bar", "item_satanic"
+        },
+        reason_good = "Spell amp + Ice Blast global",
+        reason_bad = "DPS items don't fit AA's support role"
+    },
 }
 
 --------------------------------------------------------------------------------
@@ -1426,6 +2192,11 @@ local ITEM_DB = {
     {name="item_hand_of_midas",  display="Hand of Midas",    cost=2200,   phase={1},       tags={"farm","attack_speed"}},
 }
 
+local ITEM_LOOKUP = {}
+for _, item in ipairs(ITEM_DB) do
+    ITEM_LOOKUP[item.name] = item
+end
+
 --------------------------------------------------------------------------------
 -- NEUTRAL ITEMS DATABASE (Updated for current patch - 2026)
 -- Source: assets/data/neutral_items.json
@@ -1540,6 +2311,15 @@ function script.OnScriptsLoaded()
     UI.opacity    = visTab:Slider("Opacity %", 20, 100, 85, "%d")
     UI.panelSide  = visTab:Combo("Panel Side", {"Left", "Right"}, 0)
     UI.visMode    = featTab:Combo("Show Mode", {"Always", "Cheat Menu Only", "Shop Only", "Menu or Shop"}, 0)
+
+    local filterTab = mainTab:Create("Filters & Focus")
+    UI.enemyFilterMode = filterTab:Combo("Enemy Filter Mode",
+        {"Use All Enemies", "Only Selected", "Exclude Selected"}, 0)
+    UI.enemyFilterMode:ToolTip("Control whether analysis uses every detected enemy, only heroes you pick below, or excludes them.")
+    UI.enemyFilterList = filterTab:MultiSelect("Filter Enemy Heroes", {}, false)
+    UI.enemyFilterList:ToolTip("Icons appear once enemy heroes are detected. Toggle heroes to focus on or remove from analysis.")
+    UI.showEnemyFocus = filterTab:Switch("Show Enemy Focus Rows", true)
+    UI.enemyFocusRows = filterTab:Slider("Enemy Focus Rows", 1, 6, 3, "%d")
 end
 
 --------------------------------------------------------------------------------
@@ -1554,9 +2334,13 @@ local S = {
     ownedItems      = {},
     enemyItems      = {},      -- Items owned by enemies
     enemyItemCounts = {},      -- Count of specific items among enemies
+    enemyFilterSnapshot = {},  -- cached order for MultiSelect updates
+    enemyFocus      = {},
+    activeEnemyCount = 0,
     myGold          = 0,
     myHeroName      = "",
     gamePhase       = PHASE_EARLY,
+    gameMode        = GAME_MODE.UNKNOWN,  -- Current game mode
     neutralTier     = 0,       -- Current neutral tier available
     lastAnalysis    = 0,
     heroIcons       = {},
@@ -1617,6 +2401,56 @@ local function gst()
     local ok, v = pcall(GameRules.GetGameStartTime); return ok and v or 0
 end
 
+-- Detect game mode from GameRules
+local function detectGameMode()
+    local ok, mode = pcall(GameRules.GetGameMode)
+    if not ok or not mode then return GAME_MODE.UNKNOWN end
+    
+    -- Game mode IDs from Dota 2
+    local GAME_MODE_IDS = {
+        [0] = GAME_MODE.UNKNOWN,       -- None
+        [1] = GAME_MODE.ALL_PICK,      -- All Pick
+        [2] = GAME_MODE.CAPTAINS_MODE, -- Captain's Mode
+        [3] = GAME_MODE.SINGLE_DRAFT,  -- Single Draft
+        [4] = GAME_MODE.ALL_RANDOM,    -- All Random
+        [5] = GAME_MODE.UNKNOWN,       -- Random Draft (treated as normal)
+        [6] = GAME_MODE.UNKNOWN,       -- Intro
+        [7] = GAME_MODE.UNKNOWN,       -- Diretide
+        [8] = GAME_MODE.UNKNOWN,       -- Reverse Captain's Mode
+        [9] = GAME_MODE.UNKNOWN,       -- Greeviling
+        [10] = GAME_MODE.UNKNOWN,      -- Tutorial
+        [11] = GAME_MODE.UNKNOWN,      -- Mid Only
+        [12] = GAME_MODE.UNKNOWN,      -- Least Played
+        [13] = GAME_MODE.UNKNOWN,      -- Limited Heroes
+        [14] = GAME_MODE.UNKNOWN,      -- Compendium Matchmaking
+        [15] = GAME_MODE.UNKNOWN,      -- Custom
+        [16] = GAME_MODE.CAPTAINS_MODE,-- Captain's Draft
+        [17] = GAME_MODE.UNKNOWN,      -- Balanced Draft
+        [18] = GAME_MODE.ABILITY_DRAFT,-- Ability Draft
+        [19] = GAME_MODE.UNKNOWN,      -- Event
+        [20] = GAME_MODE.ALL_RANDOM,   -- All Random Death Match
+        [21] = GAME_MODE.TURBO,        -- Turbo Mode (1vs1 Mid but also used for Turbo)
+        [22] = GAME_MODE.TURBO,        -- Turbo Mode
+        [23] = GAME_MODE.UNKNOWN,      -- Mutation
+    }
+    
+    local detectedMode = GAME_MODE_IDS[mode] or GAME_MODE.UNKNOWN
+    
+    -- Check for Turbo specifically via console variable or game rules
+    local ok2, isTurbo = pcall(GameRules.IsTurboMode)
+    if ok2 and isTurbo then
+        return GAME_MODE.TURBO
+    end
+    
+    -- Check for Ranked via IsRankedMatch
+    local ok3, isRanked = pcall(GameRules.IsRankedMatch)
+    if ok3 and isRanked then
+        return GAME_MODE.RANKED
+    end
+    
+    return detectedMode
+end
+
 local function prettyHero(name)
     local n = name:gsub("npc_dota_hero_", ""):gsub("_", " ")
     n = n:gsub("(%a)([%w]*)", function(a, b) return a:upper() .. b end)
@@ -1646,6 +2480,71 @@ local function StyleColor(style, key, alphaOverride)
     return Color(c.r or 200, c.g or 200, c.b or 200, alphaOverride or c.a or 255)
 end
 
+local function getEnemyFilterValue(name)
+    if not UI.enemyFilterList or not UI.enemyFilterList.Get then return nil end
+    local ok, val = pcall(function() return UI.enemyFilterList:Get(name) end)
+    if ok then return val end
+    return nil
+end
+
+local function shouldIncludeEnemy(name)
+    local mode = sg(UI.enemyFilterMode, 0)
+    if mode == 0 or not UI.enemyFilterList then return true end
+    local selected = getEnemyFilterValue(name)
+    if mode == 1 then
+        return selected == true
+    elseif mode == 2 then
+        return selected ~= true
+    end
+    return true
+end
+
+local function refreshEnemyFilterList()
+    if not UI.enemyFilterList or not UI.enemyFilterList.Update then return end
+    if #S.enemyHeroes == 0 then
+        S.enemyFilterSnapshot = {}
+        UI.enemyFilterList:Update({}, true)
+        return
+    end
+
+    local names = {}
+    for _, enemy in ipairs(S.enemyHeroes) do
+        table.insert(names, enemy.name)
+    end
+
+    local changed = #names ~= #S.enemyFilterSnapshot
+    if not changed then
+        for i, name in ipairs(names) do
+            if name ~= S.enemyFilterSnapshot[i] then
+                changed = true
+                break
+            end
+        end
+    end
+
+    if not changed then return end
+
+    local entries = {}
+    for _, name in ipairs(names) do
+        local icon = "panorama/images/heroes/icons/" .. name .. "_png.vtex_c"
+        local defaultOn = getEnemyFilterValue(name)
+        if defaultOn == nil then defaultOn = false end
+        table.insert(entries, {name, icon, defaultOn})
+    end
+
+    UI.enemyFilterList:Update(entries, true)
+    S.enemyFilterSnapshot = names
+end
+
+local function buildTagCounts(tags)
+    local counts = {}
+    if not tags then return counts end
+    for _, tag in ipairs(tags) do
+        counts[tag] = (counts[tag] or 0) + 1
+    end
+    return counts
+end
+
 local function tableContains(tbl, val)
     for _, v in ipairs(tbl) do if v == val then return true end end
     return false
@@ -1655,6 +2554,264 @@ local function countMatches(tbl, vals)
     local c = 0
     for _, v in ipairs(vals) do if tableContains(tbl, v) then c = c + 1 end end
     return c
+end
+
+local function shortText(txt, limit)
+    txt = txt or ""
+    if #txt <= limit then return txt end
+    return txt:sub(1, math.max(1, limit - 2)) .. ".."
+end
+
+local function applyRolePenalty(score, itemName, myRole, myStyle)
+    if score <= 0 then return score end
+    if not myRole and not myStyle then return score end
+    local penalty = ITEM_ROLE_PENALTY[itemName]
+    if not penalty then return score end
+    local penalized = false
+    if penalty.bad_roles and myRole then
+        for _, br in ipairs(penalty.bad_roles) do
+            if br == myRole then penalized = true; break end
+        end
+    end
+    if not penalized and penalty.bad_styles and myStyle then
+        for _, bs in ipairs(penalty.bad_styles) do
+            if bs == myStyle then penalized = true; break end
+        end
+    end
+    if penalized then
+        score = math.max(1, math.floor(score * 0.15))
+    end
+    return score
+end
+
+local function itemHasTag(itemDef, tag)
+    if not itemDef.tags then return false end
+    for _, t in ipairs(itemDef.tags) do
+        if t == tag then return true end
+    end
+    return false
+end
+
+local function stylePreferenceBonus(itemDef, ctx)
+    if not itemDef.tags or not ctx then return 0 end
+    local bonus = 0
+    local tags = itemDef.tags
+    local role = ctx.myRole
+    local style = ctx.myStyle
+
+    if style == "phys" and (tableContains(tags, "phys_dps") or tableContains(tags, "attack_speed")) then
+        bonus = bonus + 2
+    elseif style == "magic" and (tableContains(tags, "magic_burst") or tableContains(tags, "magic_amp") or tableContains(tags, "mana")) then
+        bonus = bonus + 2
+    elseif style == "utility" and (tableContains(tags, "team") or tableContains(tags, "save") or tableContains(tags, "dispel")) then
+        bonus = bonus + 2
+    elseif style == "hybrid" and (tableContains(tags, "phys_dps") and tableContains(tags, "magic_burst")) then
+        bonus = bonus + 2
+    end
+
+    if role == "support" or role == "hardsupport" then
+        if tableContains(tags, "team") or tableContains(tags, "save") or tableContains(tags, "heal") then
+            bonus = bonus + 2
+        end
+    elseif role == "carry" and (tableContains(tags, "phys_dps") or tableContains(tags, "farm")) then
+        bonus = bonus + 1
+    end
+
+    return bonus
+end
+
+local function applyHeroSpecificAdjust(score, heroName, itemName)
+    if score <= 0 then return score end
+    local spec = HERO_SPECIFIC_ITEMS[heroName]
+    if not spec then return score end
+    if spec.good_items then
+        for _, good in ipairs(spec.good_items) do
+            if good == itemName then
+                score = score + 10
+                break
+            end
+        end
+    end
+    if spec.bad_items then
+        for _, bad in ipairs(spec.bad_items) do
+            if bad == itemName then
+                score = math.max(1, math.floor(score * 0.1))
+                break
+            end
+        end
+    end
+    return score
+end
+
+local function computeItemScore(itemDef, ctx)
+    if not itemDef or not ctx then return 0 end
+    if not tableContains(itemDef.phase, ctx.phase) then return 0 end
+    if ctx.ownedItems and ctx.ownedItems[itemDef.name] then return -1 end
+
+    local enemyTags = ctx.enemyTags or {}
+    local score = 0
+
+    if itemDef.triggers then
+        for _, tr in ipairs(itemDef.triggers) do
+            local cnt = enemyTags[tr] or 0
+            if cnt > 0 then score = score + cnt * 4 end
+        end
+    end
+
+    for _, rule in ipairs(COUNTER_RULES) do
+        local totalEnemyTags = 0
+        local matched = true
+        for _, rTag in ipairs(rule.tags) do
+            local cnt = enemyTags[rTag] or 0
+            if cnt <= 0 then matched = false; break end
+            totalEnemyTags = totalEnemyTags + cnt
+        end
+        if matched then
+            local itemMatch = countMatches(itemDef.tags or {}, rule.suggest)
+            if itemMatch > 0 then
+                score = score + itemMatch * rule.weight * math.max(1, totalEnemyTags)
+            end
+        end
+    end
+
+    if score > 0 and ctx.myGold and ctx.myGold >= itemDef.cost then
+        score = score + 2
+    end
+
+    score = applyRolePenalty(score, itemDef.name, ctx.myRole, ctx.myStyle)
+    score = score + stylePreferenceBonus(itemDef, ctx)
+
+    if ctx.trackEnemyItems and ctx.enemyItemCounts then
+        local counts = ctx.enemyItemCounts
+        local bkbCount = counts["item_black_king_bar"] or 0
+        if bkbCount > 0 and (itemDef.name == "item_nullifier" or itemDef.name == "item_abyssal_blade") then
+            score = score + bkbCount * 8
+        end
+        local linkenCount = counts["item_sphere"] or 0
+        if linkenCount > 0 and itemDef.tags and tableContains(itemDef.tags, "disable") then
+            score = score + linkenCount * 4
+        end
+        local aeonCount = counts["item_aeon_disk"] or 0
+        if aeonCount > 0 and itemDef.name == "item_nullifier" then
+            score = score + aeonCount * 6
+        end
+        local ghostCount = counts["item_ghost"] or 0
+        if ghostCount > 0 and (itemDef.name == "item_ethereal_blade" or itemDef.name == "item_nullifier") then
+            score = score + ghostCount * 5
+        end
+        local glimmerCount = counts["item_glimmer_cape"] or 0
+        if glimmerCount > 0 and (itemDef.name == "item_dust" or itemDef.name == "item_nullifier") then
+            score = score + glimmerCount * 4
+        end
+        local bladeMailCount = counts["item_blade_mail"] or 0
+        if bladeMailCount > 0 and itemDef.tags and (tableContains(itemDef.tags, "lifesteal") or tableContains(itemDef.tags, "vs_phys")) then
+            score = score + bladeMailCount * 3
+        end
+    end
+
+    if ctx.showNetWorth and ctx.gameTempo then
+        if ctx.gameTempo == "ahead" and itemDef.cost >= 4000 and itemHasTag(itemDef, "phys_dps") then
+            score = score + 3
+        elseif ctx.gameTempo == "behind" then
+            if itemDef.cost < 3000 and (itemHasTag(itemDef, "vs_phys") or itemHasTag(itemDef, "vs_magic") or itemHasTag(itemDef, "save")) then
+                score = score + 4
+            end
+            if itemDef.cost >= 5000 then
+                score = math.max(1, math.floor(score * 0.5))
+            end
+        end
+    end
+
+    local modeMultipliers = MODE_PHASE_MULTIPLIERS[ctx.gameMode or GAME_MODE.UNKNOWN] or MODE_PHASE_MULTIPLIERS[GAME_MODE.UNKNOWN]
+    local phaseKey = ctx.phase == PHASE_EARLY and "early" or (ctx.phase == PHASE_MID and "mid" or "late")
+    local multiplier = modeMultipliers[phaseKey] or 1.0
+
+    if ctx.gameMode == GAME_MODE.TURBO then
+        if itemDef.cost < 1500 and tableContains(itemDef.phase, PHASE_EARLY) and not tableContains(itemDef.phase, PHASE_MID) then
+            score = math.max(1, math.floor(score * 0.3))
+        end
+        if itemDef.cost >= 3000 then
+            score = score + 3
+        end
+    elseif ctx.gameMode == GAME_MODE.RANKED and itemDef.cost >= 2000 and itemDef.cost <= 5000 then
+        score = score + 1
+    end
+
+    score = math.floor(score * multiplier)
+    score = applyHeroSpecificAdjust(score, ctx.heroName, itemDef.name)
+
+    return score
+end
+
+local function buildEnemyFocusData(ctxTemplate)
+    local focusEntries = {}
+    for _, enemy in ipairs(S.enemyHeroes) do
+        if enemy.included then
+            local ctx = {}
+            for k, v in pairs(ctxTemplate) do ctx[k] = v end
+            ctx.enemyTags = enemy.tagCounts or {}
+            ctx.enemyItemCounts = enemy.itemCounts or {}
+
+            local scored = {}
+            local function addScore(itemName, value, reason)
+                local itemDef = ITEM_LOOKUP[itemName]
+                if not itemDef then return end
+                if ctx.ownedItems and ctx.ownedItems[itemName] then return end
+                local entry = scored[itemName]
+                if not entry then
+                    entry = {item = itemDef, score = 0, reasons = {}}
+                    scored[itemName] = entry
+                end
+                entry.score = entry.score + value
+                if reason and reason ~= "" then
+                    table.insert(entry.reasons, reason)
+                end
+            end
+
+            local counterData = HERO_COUNTERS[enemy.name]
+            if counterData and counterData.items then
+                for _, itemName in ipairs(counterData.items) do
+                    addScore(itemName, 30, counterData.reason or "Direct counter")
+                end
+            end
+
+            for _, itemDef in ipairs(ITEM_DB) do
+                local s = computeItemScore(itemDef, ctx)
+                if s > 0 then
+                    addScore(itemDef.name, s)
+                end
+            end
+
+            local rankedItems = {}
+            for _, entry in pairs(scored) do
+                local reason = (#entry.reasons > 0) and entry.reasons[1] or LR(entry.item.name)
+                table.insert(rankedItems, {
+                    item = entry.item,
+                    score = entry.score,
+                    reason = reason,
+                })
+            end
+            table.sort(rankedItems, function(a, b)
+                if a.score ~= b.score then return a.score > b.score end
+                return a.item.cost > b.item.cost
+            end)
+
+            local basePriority = #(HERO_TAGS[enemy.name] or {})
+            if counterData then basePriority = basePriority + 10 end
+
+            table.insert(focusEntries, {
+                enemy = enemy,
+                display = prettyHero(enemy.name),
+                items = rankedItems,
+                priority = basePriority,
+            })
+        end
+    end
+    table.sort(focusEntries, function(a, b)
+        if a.priority ~= b.priority then return a.priority > b.priority end
+        return (a.enemy.level or 0) > (b.enemy.level or 0)
+    end)
+    return focusEntries
 end
 
 --------------------------------------------------------------------------------
@@ -1760,6 +2917,11 @@ local function analyzeEnemyTeam()
 
     local myTeam = safeStatic(Entity, "GetTeamNum", me)
     if not myTeam then return end
+
+    -- Detect game mode (only once per game)
+    if S.gameMode == GAME_MODE.UNKNOWN then
+        S.gameMode = detectGameMode()
+    end
 
     -- Game phase
     local gameTime = gt() - gst()
@@ -1883,6 +3045,7 @@ local function analyzeEnemyTeam()
     S.enemyTags = {}
     S.enemyItems = {}
     S.enemyItemCounts = {}
+    S.activeEnemyCount = 0
     local heroes = Heroes.GetAll()
     if not heroes then return end
 
@@ -1909,6 +3072,7 @@ local function analyzeEnemyTeam()
                     alive = alive ~= false,
                     level = level,
                     items = {},
+                    tags = HERO_TAGS[name] or {},
                 }
 
                 -- Track enemy items if enabled
@@ -1936,17 +3100,29 @@ local function analyzeEnemyTeam()
                 end
 
                 table.insert(S.enemyHeroes, enemyData)
-
-                local tags = HERO_TAGS[name]
-                if tags then
-                    for _, tag in ipairs(tags) do
-                        S.enemyTags[tag] = (S.enemyTags[tag] or 0) + 1
-                    end
-                end
             end
         end
         ::continue::
     end
+
+    -- Apply enemy filters
+    S.enemyTags = {}
+    for _, enemy in ipairs(S.enemyHeroes) do
+        enemy.included = shouldIncludeEnemy(enemy.name)
+        if enemy.included then
+            S.activeEnemyCount = S.activeEnemyCount + 1
+            for _, tag in ipairs(enemy.tags or {}) do
+                S.enemyTags[tag] = (S.enemyTags[tag] or 0) + 1
+            end
+        end
+        enemy.tagCounts = buildTagCounts(enemy.tags)
+        enemy.itemCounts = {}
+        for itemName, _ in pairs(enemy.items) do
+            enemy.itemCounts[itemName] = 1
+        end
+    end
+
+    refreshEnemyFilterList()
 
     -- Sort threat counts
     S.threatCounts = {}
@@ -1963,6 +3139,7 @@ local function analyzeEnemyTeam()
     if sg(UI.showHeroCounters, true) then
         local counterScore = {}
         for _, enemy in ipairs(S.enemyHeroes) do
+            if enemy.included then
             local counterData = HERO_COUNTERS[enemy.name]
             if counterData then
                 for _, itemName in ipairs(counterData.items) do
@@ -1971,16 +3148,19 @@ local function analyzeEnemyTeam()
                     end
                 end
             end
+            end
         end
         -- Convert to sorted table
         for itemName, score in pairs(counterScore) do
             local counterData = nil
-            -- Find reason from HERO_COUNTERS
+            -- Find reason from HERO_COUNTERS among filtered enemies
             for _, enemy in ipairs(S.enemyHeroes) do
-                local cd = HERO_COUNTERS[enemy.name]
-                if cd and tableContains(cd.items, itemName) then
-                    counterData = cd
-                    break
+                if enemy.included then
+                    local cd = HERO_COUNTERS[enemy.name]
+                    if cd and tableContains(cd.items, itemName) then
+                        counterData = cd
+                        break
+                    end
                 end
             end
             table.insert(S.heroCounterSuggestions, {
@@ -2002,124 +3182,24 @@ local function analyzeEnemyTeam()
     end
 
     -- Score items
-    local function scoreItem(itemDef)
-        if not tableContains(itemDef.phase, S.gamePhase) then return 0 end
-        if S.ownedItems[itemDef.name] then return -1 end
-        local score = 0
-        -- Trigger-based scoring
-        if itemDef.triggers then
-            for _, tr in ipairs(itemDef.triggers) do
-                local cnt = S.enemyTags[tr] or 0
-                if cnt > 0 then score = score + cnt * 4 end
-            end
-        end
-        -- Counter-rule scoring
-        for _, rule in ipairs(COUNTER_RULES) do
-            local ruleMatch = 0
-            for _, rTag in ipairs(rule.tags) do
-                if S.enemyTags[rTag] and S.enemyTags[rTag] > 0 then
-                    ruleMatch = ruleMatch + 1
-                end
-            end
-            if ruleMatch >= #rule.tags then
-                local itemMatch = countMatches(itemDef.tags, rule.suggest)
-                if itemMatch > 0 then
-                    local totalEnemyTags = 0
-                    for _, rTag in ipairs(rule.tags) do
-                        totalEnemyTags = totalEnemyTags + (S.enemyTags[rTag] or 0)
-                    end
-                    score = score + itemMatch * rule.weight * totalEnemyTags
-                end
-            end
-        end
-        -- Cost efficiency bonus
-        if score > 0 and S.myGold >= itemDef.cost then
-            score = score + 2
-        end
-        -- Hero-aware role/style penalty: penalize items bad for my hero
-        if score > 0 and (myRole or myStyle) then
-            local penalty = ITEM_ROLE_PENALTY[itemDef.name]
-            if penalty then
-                local penalized = false
-                -- Check role mismatch
-                if penalty.bad_roles and myRole then
-                    for _, br in ipairs(penalty.bad_roles) do
-                        if br == myRole then penalized = true; break end
-                    end
-                end
-                -- Check style mismatch
-                if not penalized and penalty.bad_styles and myStyle then
-                    for _, bs in ipairs(penalty.bad_styles) do
-                        if bs == myStyle then penalized = true; break end
-                    end
-                end
-                if penalized then
-                    score = math.max(1, math.floor(score * 0.15))
-                end
-            end
-        end
-        -- Enemy item counter scoring
-        if sg(UI.trackEnemyItems, true) then
-            -- BKB on enemies -> suggest Nullifier/Abyssal
-            if S.enemyItemCounts["item_black_king_bar"] and S.enemyItemCounts["item_black_king_bar"] > 0 then
-                if itemDef.name == "item_nullifier" or itemDef.name == "item_abyssal_blade" then
-                    score = score + S.enemyItemCounts["item_black_king_bar"] * 8
-                end
-            end
-            -- Linken/Aeon Disk on enemies -> suggest second disable or pop item
-            if S.enemyItemCounts["item_sphere"] and S.enemyItemCounts["item_sphere"] > 0 then
-                if itemDef.tags and tableContains(itemDef.tags, "disable") then
-                    score = score + S.enemyItemCounts["item_sphere"] * 4
-                end
-            end
-            if S.enemyItemCounts["item_aeon_disk"] and S.enemyItemCounts["item_aeon_disk"] > 0 then
-                if itemDef.name == "item_nullifier" then
-                    score = score + S.enemyItemCounts["item_aeon_disk"] * 6
-                end
-            end
-            -- Ghost Scepter on enemies -> suggest Ethereal/Nullifier
-            if S.enemyItemCounts["item_ghost"] and S.enemyItemCounts["item_ghost"] > 0 then
-                if itemDef.name == "item_ethereal_blade" or itemDef.name == "item_nullifier" then
-                    score = score + S.enemyItemCounts["item_ghost"] * 5
-                end
-            end
-            -- Glimmer Cape on enemies -> suggest Dust/Nullifier
-            if S.enemyItemCounts["item_glimmer_cape"] and S.enemyItemCounts["item_glimmer_cape"] > 0 then
-                if itemDef.name == "item_dust" or itemDef.name == "item_nullifier" then
-                    score = score + S.enemyItemCounts["item_glimmer_cape"] * 4
-                end
-            end
-            -- Blade Mail on enemies -> suggest lifesteal/ranged counter
-            if S.enemyItemCounts["item_blade_mail"] and S.enemyItemCounts["item_blade_mail"] > 0 then
-                if itemDef.tags and (tableContains(itemDef.tags, "lifesteal") or tableContains(itemDef.tags, "vs_phys")) then
-                    score = score + S.enemyItemCounts["item_blade_mail"] * 3
-                end
-            end
-        end
-        -- Game Tempo scoring (net worth analysis)
-        if sg(UI.showNetWorth, true) and S.gameTempo ~= "even" then
-            if S.gameTempo == "ahead" then
-                -- Leading: suggest luxury items
-                if itemDef.cost >= 4000 and tableContains(itemDef.tags, "phys_dps") then
-                    score = score + 3
-                end
-            elseif S.gameTempo == "behind" then
-                -- Losing: suggest cheaper defensive items
-                if itemDef.cost < 3000 and (tableContains(itemDef.tags, "vs_phys") or tableContains(itemDef.tags, "vs_magic") or tableContains(itemDef.tags, "save")) then
-                    score = score + 4
-                end
-                -- Penalty for expensive items when behind
-                if itemDef.cost >= 5000 then
-                    score = math.max(1, math.floor(score * 0.5))
-                end
-            end
-        end
-        return score
-    end
+    local ctx = {
+        phase = S.gamePhase,
+        ownedItems = S.ownedItems,
+        enemyTags = S.enemyTags,
+        enemyItemCounts = S.enemyItemCounts,
+        myGold = S.myGold,
+        myRole = myRole,
+        myStyle = myStyle,
+        gameMode = S.gameMode,
+        gameTempo = S.gameTempo,
+        showNetWorth = sg(UI.showNetWorth, true),
+        heroName = S.myHeroName,
+        trackEnemyItems = sg(UI.trackEnemyItems, true),
+    }
 
     local scored = {}
     for _, itemDef in ipairs(ITEM_DB) do
-        local s = scoreItem(itemDef)
+        local s = computeItemScore(itemDef, ctx)
         if s > 0 then table.insert(scored, {item = itemDef, score = s}) end
     end
     table.sort(scored, function(a, b) return a.score > b.score end)
@@ -2364,6 +3444,33 @@ local function drawHeader(x, y, w, alpha)
     dRect(x, y, w, 2, colA(acc, alpha * 0.8), 0)
     dText(14, L("title"), x + 8, y + 10, textC)
 
+    -- Game mode badge (new)
+    local modeKeys = {
+        [GAME_MODE.UNKNOWN] = "mode_unknown",
+        [GAME_MODE.ALL_PICK] = "mode_allpick",
+        [GAME_MODE.RANKED] = "mode_ranked",
+        [GAME_MODE.TURBO] = "mode_turbo",
+        [GAME_MODE.SINGLE_DRAFT] = "mode_draft",
+        [GAME_MODE.ALL_RANDOM] = "mode_random",
+        [GAME_MODE.CAPTAINS_MODE] = "mode_draft",
+        [GAME_MODE.ABILITY_DRAFT] = "mode_draft",
+    }
+    local modeColors = {
+        [GAME_MODE.UNKNOWN] = {100, 100, 100},
+        [GAME_MODE.ALL_PICK] = {80, 180, 220},
+        [GAME_MODE.RANKED] = {255, 180, 60},
+        [GAME_MODE.TURBO] = {255, 100, 150},
+        [GAME_MODE.SINGLE_DRAFT] = {150, 120, 200},
+        [GAME_MODE.ALL_RANDOM] = {120, 200, 150},
+        [GAME_MODE.CAPTAINS_MODE] = {200, 150, 100},
+        [GAME_MODE.ABILITY_DRAFT] = {180, 100, 200},
+    }
+    local mc = modeColors[S.gameMode] or {100, 100, 100}
+    local mName = L(modeKeys[S.gameMode] or "mode_unknown")
+    local ms = tSz(8, mName)
+    dRect(x + 8, y + 28, ms.x + 8, 14, col(mc[1], mc[2], mc[3], F(alpha * 0.15)), 3)
+    dText(8, mName, x + 12, y + 29, col(mc[1], mc[2], mc[3], F(alpha * 0.85)))
+
     -- Phase badge
     local phaseKeys = {[PHASE_EARLY]="early", [PHASE_MID]="mid", [PHASE_LATE]="late"}
     local phaseColors = {[PHASE_EARLY]={80,220,120}, [PHASE_MID]={255,200,60}, [PHASE_LATE]={255,90,70}}
@@ -2389,7 +3496,11 @@ end
 local function drawEnemySection(x, y, w, alpha)
     local curY = y
     local acc = TC.accent
-    dText(10, L("enemies"), x + 4, curY, colA(acc, alpha * 0.9))
+    local enemyTitle = L("enemies")
+    if S.activeEnemyCount > 0 and S.activeEnemyCount < #S.enemyHeroes then
+        enemyTitle = enemyTitle .. " (" .. S.activeEnemyCount .. "/" .. #S.enemyHeroes .. ")"
+    end
+    dText(10, enemyTitle, x + 4, curY, colA(acc, alpha * 0.9))
     curY = curY + 16
 
     local iconSz = 24
@@ -2581,6 +3692,47 @@ local function drawHeroCounters(x, y, w, alpha)
         curY = curY + h + 2
     end
 
+    return curY - y
+end
+
+--------------------------------------------------------------------------------
+-- DRAW: ENEMY FOCUS SECTION
+--------------------------------------------------------------------------------
+local function drawEnemyFocus(x, y, w, alpha)
+    if not sg(UI.showEnemyFocus, true) then return 0 end
+    if not S.enemyFocus or #S.enemyFocus == 0 then return 0 end
+
+    local rows = clamp(sg(UI.enemyFocusRows, 3), 1, 6)
+    local curY = y
+    dText(10, "ENEMY FOCUS", x + 4, curY, col(255, 150, 90, F(alpha * 0.9)))
+    curY = curY + 16
+
+    for i = 1, math.min(rows, #S.enemyFocus) do
+        local entry = S.enemyFocus[i]
+        local enemy = entry.enemy
+        local rowH = 28
+        dRect(x, curY, w, rowH, col(18, 20, 30, F(alpha * 0.25)), 5)
+
+        local icon = heroIcon(enemy.name)
+        if icon then
+            dImg(icon, x + 4, curY + 4, 20, 20, col(255, 255, 255, F(alpha * 0.9)), 3)
+        else
+            dText(10, "?", x + 10, curY + 6, colA(TC.dim, alpha * 0.5))
+        end
+
+        local aliveC = enemy.alive and col(120, 220, 160, F(alpha * 0.8)) or col(220, 100, 100, F(alpha * 0.8))
+        dText(10, entry.display, x + 28, curY + 4, colA(TC.text, alpha * 0.95))
+        dText(8, enemy.alive and "ALIVE" or "DEAD", x + 28, curY + 16, aliveC)
+
+        if entry.items and #entry.items > 0 then
+            local best = entry.items[1]
+            local reason = best.reason ~= "" and best.reason or LR(best.item.name)
+            dText(9, shortText(reason, 26), x + w - 110, curY + 4, colA(TC.dim, alpha * 0.8))
+            dText(10, best.item.display, x + w - 110, curY + 14, colA(TC.accent, alpha * 0.9))
+        end
+
+        curY = curY + rowH + 2
+    end
     return curY - y
 end
 
@@ -2850,7 +4002,7 @@ local function drawFooter(x, y, w, alpha)
         curY = curY + 4
     end
 
-    dText(8, "v2.0", x + w - 26, curY, col(40, 44, 60, F(alpha * 0.25)))
+    dText(8, "v3.2", x + w - 26, curY, col(40, 44, 60, F(alpha * 0.25)))
     curY = curY + 12
     return curY - y
 end
@@ -2929,6 +4081,8 @@ local function drawPanel()
         local hcH = drawHeroCounters(px + CFG.PAD, curY, innerW, alpha)
         curY = curY + hcH
     end
+    local focusH = drawEnemyFocus(px + CFG.PAD, curY, innerW, alpha)
+    curY = curY + focusH
     local sH = drawSuggestions(px + CFG.PAD, curY, innerW, alpha)
     curY = curY + sH
     local nH = drawNeutralSection(px + CFG.PAD, curY, innerW, alpha)
@@ -2991,6 +4145,7 @@ function script.OnGameEnd()
     S.myGold = 0
     S.myHeroName = ""
     S.gamePhase = PHASE_EARLY
+    S.gameMode = GAME_MODE.UNKNOWN
     S.neutralTier = 0
     S.lastAnalysis = 0
     S.heroIcons = {}
