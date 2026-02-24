@@ -1,7 +1,7 @@
 local script = {}
 
 --------------------------------------------------------------------------------
--- ITEM HELPER v3.2 — Помощник по сборке предметов
+-- ITEM HELPER — Помощник по сборке предметов
 -- Анализирует вражеский пик, фазу игры и предлагает оптимальные предметы
 -- Локализация: RU / EN / CN
 -- author: Euphoria
@@ -61,6 +61,20 @@ local L_STRINGS = {
         m_vis_menu      = "Cheat Menu Only",
         m_vis_shop      = "Shop Only",
         m_vis_both      = "Menu or Shop",
+        m_show_gold     = "Show Gold in Header",
+        m_show_score_breakdown = "Show Score Breakdown",
+        m_show_category_badges = "Show Category Badges",
+        m_breakdown_chips = "Breakdown Chips",
+        net_worth       = "NET WORTH",
+        hero_counters   = "HERO COUNTERS",
+        enemy_focus     = "ENEMY FOCUS",
+        waiting_data    = "Waiting for data...",
+        alive           = "ALIVE",
+        dead            = "DEAD",
+        gold_unknown    = "--",
+        cat_must_have   = "MUST",
+        cat_situational = "SIT",
+        cat_luxury      = "LUX",
     },
     ru = {
         title           = "ITEM HELPER",
@@ -694,12 +708,122 @@ local function updateLang()
     end
 end
 
+local L_UI_OVERRIDES = {
+    en = {
+        analyzing = "Scanning enemy draft...",
+        no_enemies = "No enemies yet (demo/lobby: spawn bots to test)",
+        waiting_data = "No data yet...",
+        test_tryhero = "TRY HERO",
+        test_lobby = "LOBBY",
+        test_custom = "CUSTOM",
+    },
+    ru = {
+        analyzing = "Сканю вражеский пик...",
+        no_enemies = "Пока пусто (в демке/лобби заспавни ботов)",
+        waiting_data = "Данных пока нет...",
+        test_tryhero = "ОПРОБОВАТЬ",
+        test_lobby = "ЛОББИ",
+        test_custom = "КАСТОМ",
+    },
+    cn = {
+        analyzing = "在看对面阵容...",
+        no_enemies = "还没敌人（测试可在试玩/房间里生机器人）",
+        waiting_data = "还没拿到数据...",
+        test_tryhero = "试玩英雄",
+        test_lobby = "房间",
+        test_custom = "自定义",
+    },
+}
+
+local L_REASON_SLANG = {
+    en = {
+        item_ghost = "Panic button vs right-click focus",
+        item_cyclone = "Eul: self-dispel / setup / cancel channels",
+        item_black_king_bar = "BKB so you can actually hit/cast",
+        item_force_staff = "Force: save / reposition / break slows",
+        item_glimmer_cape = "Glimmer save: magic resist + fade out",
+        item_heavens_halberd = "Halberd shuts down right-click cores",
+        item_spirit_vessel = "Vessel hard-cuts heal and regen",
+        item_lotus_orb = "Lotus: self-dispel + bounce target spells",
+        item_pipe = "Pipe vs heavy magic spam",
+        item_hurricane_pike = "Pike for spacing vs melee jumpers",
+        item_sphere = "Linken vs single-target catch",
+        item_aeon_disk = "Aeon stops getting bursted 100-0",
+        item_nullifier = "Nullifier removes save items (Ghost/Glimmer/Aeon)",
+        item_orchid = "Orchid to shut up caster cores",
+        item_rod_of_atos = "Atos root for mobile heroes",
+        item_sheepstick = "Hex = best late hard catch",
+        item_scythe_of_vyse = "Hex = best late hard catch",
+        item_dust = "Dust if they keep juking in invis",
+        item_ward_sentry = "Sentries for invis vision + deward",
+        item_manta = "Manta to purge stuff and split lanes",
+        item_blink = "Blink for jump/start or disengage",
+        item_blade_mail = "Blademail punishes commit and burst",
+        item_wind_waker = "Wind Waker save / reset / drag fight",
+    },
+    ru = {
+        item_ghost = "Сэйв от райтклик фокуса",
+        item_cyclone = "Еул: диспел с себя / сетап / сбить чейнел",
+        item_black_king_bar = "BKB, чтобы тебя не держали и ты бил/кастил",
+        item_force_staff = "Форс: сейв / репозишн / сбить слоу",
+        item_glimmer_cape = "Глиммер: сейв, магрез и уйти в инвиз",
+        item_heavens_halberd = "Алебарда выключает райтклик кора",
+        item_spirit_vessel = "Вессел режет хил/реген очень сильно",
+        item_lotus_orb = "Лотус: диспел с себя + вернуть таргет-спелл",
+        item_pipe = "Пайп против магического спама/прокаста",
+        item_hurricane_pike = "Пика для кайта милишников и прыгающих",
+        item_sphere = "Линка против таргетного контроля",
+        item_aeon_disk = "Аеон чтобы не лопаться за прокаст",
+        item_nullifier = "Нуллик снимает сейвы (Ghost/Glimmer/Aeon)",
+        item_orchid = "Орчид чтобы заткнуть кастера/мидера",
+        item_rod_of_atos = "Атос: прибить мобильного героя",
+        item_sheepstick = "Хекс — самый надёжный лейт-контроль",
+        item_scythe_of_vyse = "Хекс — самый надёжный лейт-контроль",
+        item_dust = "Даст, если они вечно уходят в инвиз",
+        item_ward_sentry = "Сентри: вижен по инвизу + девард",
+        item_manta = "Мантуха: снять гадость и сплитить",
+        item_blink = "Блинк на врыв / инициацию / выход",
+        item_blade_mail = "БМ наказывает за врыв и прокаст",
+        item_wind_waker = "Виндвейкер: сейв / ресет / потянуть время",
+    },
+    cn = {
+        item_ghost = "Ghost保命，顶住物理右键集火",
+        item_cyclone = "吹风：给自己解状态 / 先手接控 / 打断读条",
+        item_black_king_bar = "BKB开了才能站着打和放技能",
+        item_force_staff = "推推保命/拉扯/断减速",
+        item_glimmer_cape = "微光保人，魔抗+隐身拉扯",
+        item_heavens_halberd = "天堂直接废右键大哥",
+        item_spirit_vessel = "大骨灰狠砍回复和吸血",
+        item_lotus_orb = "莲花：解状态，还能弹回单体技能",
+        item_pipe = "笛子顶法系爆发和消耗",
+        item_hurricane_pike = "大推推拉开身位打近战跳脸",
+        item_sphere = "林肯防单点先手",
+        item_aeon_disk = "永恒盘防被一套秒",
+        item_nullifier = "否决拆救人装（Ghost/微光/Aeon）",
+        item_orchid = "紫苑先手封嘴法核",
+        item_rod_of_atos = "阿托斯拴住会跑的英雄",
+        item_sheepstick = "羊刀=后期最稳硬控",
+        item_scythe_of_vyse = "羊刀=后期最稳硬控",
+        item_dust = "粉别省，对面老隐身就安排",
+        item_ward_sentry = "真眼控隐身顺手反眼",
+        item_manta = "分身斧解状态+带线拉扯",
+        item_blink = "跳刀开团/先手/拉开都好用",
+        item_blade_mail = "刃甲反打，谁冲你谁难受",
+        item_wind_waker = "风杖鞋保人/拖时间/重置团战",
+    },
+}
+
 local function L(key)
     local tbl = L_STRINGS[LANG] or L_STRINGS.en
-    return tbl[key] or L_STRINGS.en[key] or key
+    local ov = (L_UI_OVERRIDES[LANG] and L_UI_OVERRIDES[LANG][key])
+        or (L_UI_OVERRIDES.en and L_UI_OVERRIDES.en[key])
+    return ov or tbl[key] or L_STRINGS.en[key] or key
 end
 
 local function LR(itemName)
+    local slangTbl = L_REASON_SLANG[LANG] or L_REASON_SLANG.en
+    local slang = (slangTbl and slangTbl[itemName]) or (L_REASON_SLANG.en and L_REASON_SLANG.en[itemName])
+    if slang and slang ~= "" then return slang end
     local tbl = L_REASONS[LANG] or L_REASONS.en
     local reason = tbl[itemName] or L_REASONS.en[itemName] or ""
     if reason ~= "" then return reason end
@@ -2044,7 +2168,9 @@ local ITEM_COSTS = {
 -- Function to get item cost from database
 local function GetItemCost(itemName)
     if not itemName then return 0 end
-    -- Try our cost database first
+    -- Prefer live game data when available; fallback to local table for aliases/undocumented cases.
+    local ok, liveCost = pcall(GameRules.GetItemCost, itemName)
+    if ok and liveCost and liveCost > 0 then return liveCost end
     local cost = ITEM_COSTS[itemName]
     if cost then return cost end
     return 0
@@ -2292,34 +2418,45 @@ function script.OnScriptsLoaded()
     local tab = Menu.Create("General", "Main", "Item Helper")
     tab:Icon("\u{f085}")
     local mainTab = tab:Create("Settings")
-    local featTab = mainTab:Create("Features")
-    UI.enabled       = featTab:Switch("Enable Helper", true, "\u{f00c}")
-    UI.showPanel     = featTab:Switch("Show Panel", true)
-    UI.autoAnalyze   = featTab:Switch("Auto Analyze", true)
-    UI.maxItems      = featTab:Slider("Max Suggestions", 3, 10, 6, "%d")
-    UI.showReasons   = featTab:Switch("Show Reasons", true)
-    UI.showThreats   = featTab:Switch("Show Threat Analysis", true)
-    UI.showOwned     = featTab:Switch("Highlight Owned", true)
-    UI.showNeutrals  = featTab:Switch("Show Neutral Items", true)
-    UI.trackEnemyItems = featTab:Switch("Track Enemy Items", true)
-    UI.showHeroCounters = featTab:Switch("Show Hero Counters", true)
-    UI.showNetWorth   = featTab:Switch("Show Net Worth Analysis", true)
-    local visTab = mainTab:Create("Visual")
-    UI.scale      = visTab:Slider("Panel Scale %", 60, 150, 100, "%d")
-    UI.offX       = visTab:Slider("Offset X", -800, 800, 0, "%d")
-    UI.offY       = visTab:Slider("Offset Y", -600, 600, 0, "%d")
-    UI.opacity    = visTab:Slider("Opacity %", 20, 100, 85, "%d")
-    UI.panelSide  = visTab:Combo("Panel Side", {"Left", "Right"}, 0)
-    UI.visMode    = featTab:Combo("Show Mode", {"Always", "Cheat Menu Only", "Shop Only", "Menu or Shop"}, 0)
+    local analysisTab = mainTab:Create("Analysis")
+    local panelTab = mainTab:Create("Panel")
+    local dataTab = mainTab:Create("Data/Filters")
+    local debugTab = mainTab:Create("Debug")
 
-    local filterTab = mainTab:Create("Filters & Focus")
-    UI.enemyFilterMode = filterTab:Combo("Enemy Filter Mode",
+    UI.enabled       = analysisTab:Switch("Enable Helper", true, "\u{f00c}")
+    UI.autoAnalyze   = analysisTab:Switch("Auto Analyze", true)
+    UI.maxItems      = analysisTab:Slider("Max Suggestions", 3, 10, 6, "%d")
+    UI.showReasons   = analysisTab:Switch("Show Reasons", true)
+    UI.showThreats   = analysisTab:Switch("Show Threat Analysis", true)
+    UI.trackEnemyItems = analysisTab:Switch("Track Enemy Items", true)
+    UI.showHeroCounters = analysisTab:Switch("Show Hero Counters", true)
+    UI.showNetWorth   = analysisTab:Switch("Show Net Worth Analysis", true)
+    UI.showEnemyFocus = analysisTab:Switch("Show Enemy Focus Rows", true)
+    UI.enemyFocusRows = analysisTab:Slider("Enemy Focus Rows", 1, 6, 3, "%d")
+    UI.showNeutrals  = analysisTab:Switch("Show Neutral Items", true)
+
+    UI.showPanel     = panelTab:Switch("Show Panel", true)
+    UI.showOwned     = panelTab:Switch("Highlight Owned", true)
+    UI.showGoldHeader = panelTab:Switch("Show Gold in Header", true)
+    UI.scale      = panelTab:Slider("Panel Scale %", 60, 150, 100, "%d")
+    UI.offX       = panelTab:Slider("Offset X", -800, 800, 0, "%d")
+    UI.offY       = panelTab:Slider("Offset Y", -600, 600, 0, "%d")
+    UI.opacity    = panelTab:Slider("Opacity %", 20, 100, 85, "%d")
+    UI.panelSide  = panelTab:Combo("Panel Side", {"Left", "Right"}, 0)
+    UI.visMode    = panelTab:Combo("Show Mode", {"Always", "Cheat Menu Only", "Shop Only", "Menu or Shop"}, 0)
+
+    UI.enemyFilterMode = dataTab:Combo("Enemy Filter Mode",
         {"Use All Enemies", "Only Selected", "Exclude Selected"}, 0)
     UI.enemyFilterMode:ToolTip("Control whether analysis uses every detected enemy, only heroes you pick below, or excludes them.")
-    UI.enemyFilterList = filterTab:MultiSelect("Filter Enemy Heroes", {}, false)
+    UI.enemyFilterList = dataTab:MultiSelect("Filter Enemy Heroes", {}, false)
     UI.enemyFilterList:ToolTip("Icons appear once enemy heroes are detected. Toggle heroes to focus on or remove from analysis.")
-    UI.showEnemyFocus = filterTab:Switch("Show Enemy Focus Rows", true)
-    UI.enemyFocusRows = filterTab:Slider("Enemy Focus Rows", 1, 6, 3, "%d")
+
+    UI.showCategoryBadges = debugTab:Switch("Show Category Badges", true)
+    UI.showScoreBreakdown = debugTab:Switch("Show Score Breakdown", true)
+    UI.breakdownChipCount = debugTab:Slider("Breakdown Chips", 1, 4, 2, "%d")
+    UI.showScoreBreakdown:ToolTip("Shows compact scoring contribution chips on item cards.")
+    UI.showCategoryBadges:ToolTip("Shows MUST / SITUATIONAL / LUXURY category on item cards.")
+    UI.showGoldHeader:ToolTip("Disable if local gold reading is incorrect on your build.")
 end
 
 --------------------------------------------------------------------------------
@@ -2338,6 +2475,10 @@ local S = {
     enemyFocus      = {},
     activeEnemyCount = 0,
     myGold          = 0,
+    myGoldKnown     = false,
+    rawGameModeId   = -1,
+    playerCount     = 0,
+    testContextKind = nil, -- "tryhero" | "lobby" | "custom" | nil
     myHeroName      = "",
     gamePhase       = PHASE_EARLY,
     gameMode        = GAME_MODE.UNKNOWN,  -- Current game mode
@@ -2357,6 +2498,10 @@ local S = {
     gameTempo       = "even",  -- "ahead", "even", "behind"
     -- Hero counter suggestions
     heroCounterSuggestions = {},
+    clickRegions     = {},      -- interactive item card regions
+    hoveredRegion    = nil,     -- current hovered click region
+    panelVisible     = false,   -- last panel draw visibility state
+    panelRect        = nil,     -- last panel bounds for hit-tests
 }
 
 --------------------------------------------------------------------------------
@@ -2368,7 +2513,22 @@ local fontsReady = false
 local function getFont(sz)
     sz = math.max(8, math.floor(sz))
     if FC[sz] then return FC[sz] end
-    local ok, f = pcall(Render.LoadFont, "Inter", Enum.FontCreate.FONTFLAG_ANTIALIAS, 500)
+    local flags = Enum.FontCreate and Enum.FontCreate.FONTFLAG_ANTIALIAS or nil
+
+    -- Prefer legacy API used by this script/build first, then try Render v2.
+    local ok, f = pcall(function()
+        if Render.LoadFont then
+            return Render.LoadFont("Inter", flags, 500)
+        end
+    end)
+    if ok and f then FC[sz] = f; fontsReady = true; return f end
+
+    ok, f = pcall(function()
+        if Render.CreateFont then
+            local weight = (Enum.FontWeight and Enum.FontWeight.NORMAL) or 400
+            return Render.CreateFont("Inter", sz, weight, flags)
+        end
+    end)
     if ok and f then FC[sz] = f; fontsReady = true; return f end
     return nil
 end
@@ -2459,7 +2619,11 @@ local function prettyHero(name)
 end
 
 local function screenSz()
-    local ok, r = pcall(Render.ScreenSize)
+    local ok, r = pcall(function()
+        if Render.ScreenSize then return Render.ScreenSize() end
+        if Render.GetScreenSize then return Render.GetScreenSize() end
+        if Engine.GetScreenSize then return Engine.GetScreenSize() end
+    end)
     if ok and r then
         if type(r) == "userdata" or type(r) == "table" then return r.x or 1920, r.y or 1080 end
     end
@@ -2467,10 +2631,136 @@ local function screenSz()
 end
 
 local function safeStatic(tbl, method, ...)
-    local fn = tbl and tbl[method]
-    if not fn then return nil end
+    if not tbl then return nil end
+    local okLookup, fn = pcall(function() return tbl[method] end)
+    if not okLookup or not fn then return nil end
     local ok, r = pcall(fn, ...)
     return ok and r or nil
+end
+
+local function safeMethod(obj, method, ...)
+    if not obj then return nil end
+    local okLookup, fn = pcall(function() return obj[method] end)
+    if not okLookup or not fn then return nil end
+
+    -- Prefer regular method call with self, then fall back to bindings that don't expect self.
+    local ok, r = pcall(fn, obj, ...)
+    if ok then return r end
+
+    ok, r = pcall(fn, ...)
+    return ok and r or nil
+end
+
+local function numOrNil(v)
+    if v == nil then return nil end
+    if type(v) == "number" then return v end
+    local ok, n = pcall(tonumber, v)
+    if ok then return n end
+    return nil
+end
+
+local function findPlayerByID(playerID)
+    if not playerID or playerID < 0 then return nil end
+    local allPlayers = safeStatic(Players, "GetAll")
+    if allPlayers then
+        for _, p in ipairs(allPlayers) do
+            local pid = safeMethod(p, "GetPlayerID") or safeStatic(Player, "GetPlayerID", p)
+            if pid == playerID then
+                return p
+            end
+        end
+    end
+    return nil
+end
+
+local function getLocalPlayerObject()
+    local p = safeStatic(Players, "GetLocal")
+    if p then return p end
+    p = safeStatic(Player, "GetLocal")
+    if p then return p end
+
+    local me = safeStatic(Heroes, "GetLocal")
+    if not me then return nil end
+    p = safeMethod(me, "GetPlayer")
+    if p then return p end
+    local playerID = safeMethod(me, "GetPlayerID")
+    if playerID and playerID >= 0 then
+        return findPlayerByID(playerID)
+    end
+    return nil
+end
+
+local function getPlayerCurrentGold(player)
+    if not player then return nil end
+
+    local g = numOrNil(safeMethod(player, "GetGold")) or numOrNil(safeStatic(Player, "GetGold", player))
+    if g and g >= 0 then return g end
+
+    local rg = numOrNil(safeMethod(player, "GetReliableGold")) or numOrNil(safeStatic(Player, "GetReliableGold", player))
+    local ug = numOrNil(safeMethod(player, "GetUnreliableGold")) or numOrNil(safeStatic(Player, "GetUnreliableGold", player))
+    if rg and ug then
+        local s = rg + ug
+        if s >= 0 then return s end
+    end
+
+    local tg = numOrNil(safeMethod(player, "GetTotalGold")) or numOrNil(safeStatic(Player, "GetTotalGold", player))
+    if tg and tg >= 0 then return tg end
+
+    return nil
+end
+
+local function getHeroCurrentGold(hero)
+    if not hero then return nil end
+    local g = numOrNil(safeMethod(hero, "GetGold")) or numOrNil(safeStatic(Heroes, "GetGold", hero))
+    if g and g >= 0 then return g end
+    local rg = numOrNil(safeMethod(hero, "GetReliableGold")) or numOrNil(safeStatic(Heroes, "GetReliableGold", hero))
+    local ug = numOrNil(safeMethod(hero, "GetUnreliableGold")) or numOrNil(safeStatic(Heroes, "GetUnreliableGold", hero))
+    if rg and ug then
+        local s = rg + ug
+        if s >= 0 then return s end
+    end
+    return nil
+end
+
+local function refreshMyGold()
+    local p = getLocalPlayerObject()
+    local g = getPlayerCurrentGold(p)
+    if g == nil then
+        g = getHeroCurrentGold(safeStatic(Heroes, "GetLocal"))
+    end
+    if g ~= nil then
+        S.myGold = g
+        S.myGoldKnown = true
+        return g
+    end
+    S.myGoldKnown = false
+    return S.myGold or 0
+end
+
+local function refreshRuntimeTestContext()
+    local modeId = numOrNil(safeStatic(GameRules, "GetGameMode"))
+    local playerCount = numOrNil(safeStatic(Players, "Count"))
+    if playerCount == nil then
+        local all = safeStatic(Players, "GetAll")
+        if all then playerCount = #all end
+    end
+    local localPlayer = getLocalPlayerObject()
+    local localHero = (localPlayer and safeMethod(localPlayer, "GetHero")) or safeStatic(Heroes, "GetLocal")
+
+    S.rawGameModeId = modeId or -1
+    S.playerCount = playerCount or 0
+    S.testContextKind = nil
+
+    -- Heuristic: "Try Hero" and most sandbox lobbies run as custom mode (15).
+    if modeId == 15 then
+        if localHero and (not playerCount or playerCount <= 1) then
+            S.testContextKind = "tryhero"
+        elseif playerCount and playerCount > 1 then
+            S.testContextKind = "lobby"
+        else
+            S.testContextKind = "custom"
+        end
+    end
 end
 
 local function StyleColor(style, key, alphaOverride)
@@ -2562,6 +2852,23 @@ local function shortText(txt, limit)
     return txt:sub(1, math.max(1, limit - 2)) .. ".."
 end
 
+local tSz
+
+local function shortTextByWidth(sz, txt, maxW)
+    txt = tostring(txt or "")
+    if txt == "" then return txt end
+    if maxW <= 6 then return "" end
+    if tSz(sz, txt).x <= maxW then return txt end
+
+    local suffix = ".."
+    local out = txt
+    while #out > 1 and tSz(sz, out .. suffix).x > maxW do
+        out = out:sub(1, #out - 1)
+    end
+    if out == "" then return suffix end
+    return out .. suffix
+end
+
 local function applyRolePenalty(score, itemName, myRole, myStyle)
     if score <= 0 then return score end
     if not myRole and not myStyle then return score end
@@ -2643,18 +2950,30 @@ local function applyHeroSpecificAdjust(score, heroName, itemName)
     return score
 end
 
-local function computeItemScore(itemDef, ctx)
-    if not itemDef or not ctx then return 0 end
-    if not tableContains(itemDef.phase, ctx.phase) then return 0 end
-    if ctx.ownedItems and ctx.ownedItems[itemDef.name] then return -1 end
+local function computeItemScore(itemDef, ctx, withBreakdown)
+    if not itemDef or not ctx then return 0, nil end
+    if not tableContains(itemDef.phase, ctx.phase) then return 0, nil end
+    if ctx.ownedItems and ctx.ownedItems[itemDef.name] then return -1, nil end
 
     local enemyTags = ctx.enemyTags or {}
     local score = 0
+    local breakMap = withBreakdown and {} or nil
+
+    local function addBreak(key, delta)
+        if not breakMap or not key or not delta or delta == 0 then return end
+        delta = math.floor(delta)
+        if delta == 0 then return end
+        breakMap[key] = (breakMap[key] or 0) + delta
+    end
 
     if itemDef.triggers then
         for _, tr in ipairs(itemDef.triggers) do
             local cnt = enemyTags[tr] or 0
-            if cnt > 0 then score = score + cnt * 4 end
+            if cnt > 0 then
+                local d = cnt * 4
+                score = score + d
+                addBreak("trigger:" .. tr, d)
+            end
         end
     end
 
@@ -2669,47 +2988,74 @@ local function computeItemScore(itemDef, ctx)
         if matched then
             local itemMatch = countMatches(itemDef.tags or {}, rule.suggest)
             if itemMatch > 0 then
-                score = score + itemMatch * rule.weight * math.max(1, totalEnemyTags)
+                local d = itemMatch * rule.weight * math.max(1, totalEnemyTags)
+                score = score + d
+                addBreak("counter_rules", d)
             end
         end
     end
 
-    if score > 0 and ctx.myGold and ctx.myGold >= itemDef.cost then
+    if score > 0 and ctx.myGoldKnown and ctx.myGold and ctx.myGold >= itemDef.cost then
         score = score + 2
+        addBreak("affordable", 2)
     end
 
-    score = applyRolePenalty(score, itemDef.name, ctx.myRole, ctx.myStyle)
-    score = score + stylePreferenceBonus(itemDef, ctx)
+    do
+        local before = score
+        score = applyRolePenalty(score, itemDef.name, ctx.myRole, ctx.myStyle)
+        addBreak("role_penalty", score - before)
+    end
+
+    do
+        local d = stylePreferenceBonus(itemDef, ctx)
+        if d ~= 0 then
+            score = score + d
+            addBreak("style_bonus", d)
+        end
+    end
 
     if ctx.trackEnemyItems and ctx.enemyItemCounts then
         local counts = ctx.enemyItemCounts
         local bkbCount = counts["item_black_king_bar"] or 0
         if bkbCount > 0 and (itemDef.name == "item_nullifier" or itemDef.name == "item_abyssal_blade") then
-            score = score + bkbCount * 8
+            local d = bkbCount * 8
+            score = score + d
+            addBreak("enemy_item:bkb", d)
         end
         local linkenCount = counts["item_sphere"] or 0
         if linkenCount > 0 and itemDef.tags and tableContains(itemDef.tags, "disable") then
-            score = score + linkenCount * 4
+            local d = linkenCount * 4
+            score = score + d
+            addBreak("enemy_item:linkens", d)
         end
         local aeonCount = counts["item_aeon_disk"] or 0
         if aeonCount > 0 and itemDef.name == "item_nullifier" then
-            score = score + aeonCount * 6
+            local d = aeonCount * 6
+            score = score + d
+            addBreak("enemy_item:aeon", d)
         end
         local ghostCount = counts["item_ghost"] or 0
         if ghostCount > 0 and (itemDef.name == "item_ethereal_blade" or itemDef.name == "item_nullifier") then
-            score = score + ghostCount * 5
+            local d = ghostCount * 5
+            score = score + d
+            addBreak("enemy_item:ghost", d)
         end
         local glimmerCount = counts["item_glimmer_cape"] or 0
         if glimmerCount > 0 and (itemDef.name == "item_dust" or itemDef.name == "item_nullifier") then
-            score = score + glimmerCount * 4
+            local d = glimmerCount * 4
+            score = score + d
+            addBreak("enemy_item:glimmer", d)
         end
         local bladeMailCount = counts["item_blade_mail"] or 0
         if bladeMailCount > 0 and itemDef.tags and (tableContains(itemDef.tags, "lifesteal") or tableContains(itemDef.tags, "vs_phys")) then
-            score = score + bladeMailCount * 3
+            local d = bladeMailCount * 3
+            score = score + d
+            addBreak("enemy_item:blademail", d)
         end
     end
 
     if ctx.showNetWorth and ctx.gameTempo then
+        local before = score
         if ctx.gameTempo == "ahead" and itemDef.cost >= 4000 and itemHasTag(itemDef, "phys_dps") then
             score = score + 3
         elseif ctx.gameTempo == "behind" then
@@ -2720,27 +3066,163 @@ local function computeItemScore(itemDef, ctx)
                 score = math.max(1, math.floor(score * 0.5))
             end
         end
+        addBreak("tempo", score - before)
     end
 
     local modeMultipliers = MODE_PHASE_MULTIPLIERS[ctx.gameMode or GAME_MODE.UNKNOWN] or MODE_PHASE_MULTIPLIERS[GAME_MODE.UNKNOWN]
     local phaseKey = ctx.phase == PHASE_EARLY and "early" or (ctx.phase == PHASE_MID and "mid" or "late")
     local multiplier = modeMultipliers[phaseKey] or 1.0
 
-    if ctx.gameMode == GAME_MODE.TURBO then
-        if itemDef.cost < 1500 and tableContains(itemDef.phase, PHASE_EARLY) and not tableContains(itemDef.phase, PHASE_MID) then
-            score = math.max(1, math.floor(score * 0.3))
+    do
+        local before = score
+        if ctx.gameMode == GAME_MODE.TURBO then
+            if itemDef.cost < 1500 and tableContains(itemDef.phase, PHASE_EARLY) and not tableContains(itemDef.phase, PHASE_MID) then
+                score = math.max(1, math.floor(score * 0.3))
+            end
+            if itemDef.cost >= 3000 then
+                score = score + 3
+            end
+        elseif ctx.gameMode == GAME_MODE.RANKED and itemDef.cost >= 2000 and itemDef.cost <= 5000 then
+            score = score + 1
         end
-        if itemDef.cost >= 3000 then
-            score = score + 3
-        end
-    elseif ctx.gameMode == GAME_MODE.RANKED and itemDef.cost >= 2000 and itemDef.cost <= 5000 then
-        score = score + 1
+        addBreak("mode_adjust", score - before)
     end
 
-    score = math.floor(score * multiplier)
-    score = applyHeroSpecificAdjust(score, ctx.heroName, itemDef.name)
+    do
+        local before = score
+        score = math.floor(score * multiplier)
+        addBreak("phase_mult", score - before)
+    end
 
-    return score
+    do
+        local before = score
+        score = applyHeroSpecificAdjust(score, ctx.heroName, itemDef.name)
+        addBreak("hero_specific", score - before)
+    end
+
+    if not breakMap then
+        return score, nil
+    end
+
+    local breakdown = {}
+    for key, delta in pairs(breakMap) do
+        if delta ~= 0 then
+            table.insert(breakdown, {key = key, delta = delta})
+        end
+    end
+    table.sort(breakdown, function(a, b)
+        local aa = math.abs(a.delta or 0)
+        local bb = math.abs(b.delta or 0)
+        if aa ~= bb then return aa > bb end
+        if (a.delta or 0) ~= (b.delta or 0) then return (a.delta or 0) > (b.delta or 0) end
+        return tostring(a.key) < tostring(b.key)
+    end)
+    table.insert(breakdown, {key = "final", delta = score})
+    return score, breakdown
+end
+
+local function sumBreakdownPrefix(breakdown, prefix)
+    local total = 0
+    for _, entry in ipairs(breakdown or {}) do
+        local k = tostring(entry.key or "")
+        if k:find(prefix, 1, true) == 1 and (entry.delta or 0) > 0 then
+            total = total + (entry.delta or 0)
+        end
+    end
+    return total
+end
+
+local function breakdownKeyLabel(key)
+    if not key then return "" end
+    if key == "counter_rules" then return "counter rules" end
+    if key == "affordable" then return "affordable" end
+    if key == "role_penalty" then return "role penalty" end
+    if key == "style_bonus" then return "hero style" end
+    if key == "tempo" then return "tempo" end
+    if key == "mode_adjust" then return "mode" end
+    if key == "phase_mult" then return "phase" end
+    if key == "hero_specific" then return "hero fit" end
+    if key == "enemy_item:bkb" then return "vs BKB" end
+    if key == "enemy_item:linkens" then return "vs Linken" end
+    if key == "enemy_item:aeon" then return "vs Aeon" end
+    if key == "enemy_item:ghost" then return "vs Ghost" end
+    if key == "enemy_item:glimmer" then return "vs Glimmer" end
+    if key == "enemy_item:blademail" then return "vs BM" end
+    if key:find("trigger:", 1, true) == 1 then
+        return key:sub(9):gsub("_", " ")
+    end
+    return tostring(key):gsub("_", " ")
+end
+
+local function classifySuggestionCategory(itemDef, score, breakdown)
+    if not itemDef then return "situational" end
+
+    local defensive = itemHasTag(itemDef, "save") or itemHasTag(itemDef, "dispel")
+        or itemHasTag(itemDef, "vs_magic") or itemHasTag(itemDef, "vs_phys")
+        or itemHasTag(itemDef, "block_spell")
+    local triggerPower = sumBreakdownPrefix(breakdown, "trigger:")
+    local counterPower = sumBreakdownPrefix(breakdown, "counter_rules")
+    local enemyItemPower = sumBreakdownPrefix(breakdown, "enemy_item:")
+
+    if defensive and (score >= 10 or triggerPower >= 8 or enemyItemPower >= 6) then
+        return "must_have"
+    end
+    if (counterPower + enemyItemPower) >= 10 and score >= 9 then
+        return "must_have"
+    end
+
+    local luxury = itemDef.cost >= 4500 and (
+        itemHasTag(itemDef, "phys_dps") or itemHasTag(itemDef, "magic_burst")
+        or itemHasTag(itemDef, "crit") or itemHasTag(itemDef, "attack_speed")
+        or itemHasTag(itemDef, "farm")
+    )
+    if luxury then
+        return "luxury"
+    end
+    return "situational"
+end
+
+local function buildSuggestionMeta(itemDef, ctx, score, breakdown)
+    breakdown = breakdown or {{key = "final", delta = score}}
+
+    local highlights = {}
+    for _, entry in ipairs(breakdown) do
+        if entry.key ~= "final" and (entry.delta or 0) ~= 0 then
+            table.insert(highlights, {
+                key = entry.key,
+                delta = entry.delta,
+                label = breakdownKeyLabel(entry.key),
+            })
+        end
+    end
+    table.sort(highlights, function(a, b)
+        local ap = (a.delta or 0) > 0
+        local bp = (b.delta or 0) > 0
+        if ap ~= bp then return ap end
+        local aa = math.abs(a.delta or 0)
+        local bb = math.abs(b.delta or 0)
+        if aa ~= bb then return aa > bb end
+        return tostring(a.label) < tostring(b.label)
+    end)
+
+    local topReasons = {}
+    for _, h in ipairs(highlights) do
+        if (h.delta or 0) > 0 and h.label and h.label ~= "" then
+            table.insert(topReasons, h.label)
+            if #topReasons >= 3 then break end
+        end
+    end
+    if #topReasons == 0 then
+        local reason = itemDef and LR(itemDef.name) or ""
+        if reason ~= "" then table.insert(topReasons, reason) end
+    end
+
+    return {
+        category = classifySuggestionCategory(itemDef, score, breakdown),
+        breakdown = breakdown,
+        breakdownHighlights = highlights,
+        topReasons = topReasons,
+    }
 end
 
 local function buildEnemyFocusData(ctxTemplate)
@@ -2847,16 +3329,43 @@ end
 -- DRAW PRIMITIVES
 --------------------------------------------------------------------------------
 local function dRect(x, y, w, h, c, rnd)
-    Render.FilledRect(V(F(x), F(y)), V(F(x+w), F(y+h)), c, rnd or 0, Enum.DrawFlags.RoundCornersAll)
+    local pos = V(F(x), F(y))
+    local size = V(F(w), F(h))
+    local ok = pcall(function()
+        -- Legacy signature used by original script (pos, endPos, color, rounding, flags)
+        Render.FilledRect(pos, V(F(x+w), F(y+h)), c, rnd or 0, Enum.DrawFlags.RoundCornersAll)
+    end)
+    if not ok then
+        pcall(Render.FilledRect, pos, size, c, rnd or 0)
+    end
 end
 
 local function dBorder(x, y, w, h, c, rnd, t)
-    Render.Rect(V(F(x), F(y)), V(F(x+w), F(y+h)), c, rnd or 0, Enum.DrawFlags.RoundCornersAll, t or 1)
+    local pos = V(F(x), F(y))
+    local size = V(F(w), F(h))
+    local ok = pcall(function()
+        if Render.Rect then
+            Render.Rect(pos, V(F(x+w), F(y+h)), c, rnd or 0, Enum.DrawFlags.RoundCornersAll, t or 1)
+        elseif Render.OutlineRect then
+            Render.OutlineRect(pos, size, c, rnd or 0, t or 1)
+        end
+    end)
+    if not ok and Render.OutlineRect then
+        pcall(Render.OutlineRect, pos, size, c, rnd or 0, t or 1)
+    end
 end
 
 local function dText(sz, txt, x, y, c)
     local f = getFont(sz); if not f then return end
-    Render.Text(f, sz, tostring(txt), V(F(x), F(y)), c)
+    txt = tostring(txt)
+    local pos = V(F(x), F(y))
+    local ok = pcall(function()
+        -- Legacy signature used by original script/build.
+        Render.Text(f, sz, txt, pos, c)
+    end)
+    if not ok then
+        pcall(Render.Text, f, pos, txt, c)
+    end
 end
 
 --------------------------------------------------------------------------------
@@ -2864,8 +3373,10 @@ end
 --------------------------------------------------------------------------------
 local textSizeCache = {}
 local TEXT_CACHE_MAX_SIZE = 500  -- Limit cache size to prevent memory bloat
+local textSizeCacheCount = 0
+local clearTextCache
 
-local function tSz(sz, txt)
+tSz = function(sz, txt)
     local key = sz .. "_" .. tostring(txt)
     local cached = textSizeCache[key]
     if cached then return cached end
@@ -2875,21 +3386,41 @@ local function tSz(sz, txt)
     if not f then 
         result = {x = sz * #tostring(txt) * 0.55, y = sz}
     else
-        local ok, r = pcall(Render.TextSize, f, sz, tostring(txt))
-        if ok and r then result = r
-        else result = {x = sz * #tostring(txt) * 0.55, y = sz} end
+        local ok, r1, r2 = pcall(function()
+            if Render.TextSize then
+                return Render.TextSize(f, sz, tostring(txt))
+            end
+            if Render.GetTextSize then
+                return Render.GetTextSize(f, tostring(txt))
+            end
+        end)
+        if ok and r1 then
+            if type(r1) == "number" then
+                result = {x = r1, y = r2 or sz}
+            elseif type(r1) == "table" or type(r1) == "userdata" then
+                result = {x = r1.x or 0, y = r1.y or sz}
+            end
+        end
+        if not result then
+            result = {x = sz * #tostring(txt) * 0.55, y = sz}
+        end
     end
     
     -- Limit cache size
-    if #textSizeCache < TEXT_CACHE_MAX_SIZE then
+    if textSizeCacheCount >= TEXT_CACHE_MAX_SIZE then
+        clearTextCache()
+    end
+    if textSizeCache[key] == nil then
         textSizeCache[key] = result
+        textSizeCacheCount = textSizeCacheCount + 1
     end
     
     return result
 end
 
-local function clearTextCache()
+clearTextCache = function()
     textSizeCache = {}
+    textSizeCacheCount = 0
 end
 
 local function dLine(x1, y1, x2, y2, c, t)
@@ -2905,7 +3436,87 @@ local function dImg(img, x, y, w, h, c, rnd)
 end
 
 local function dBlur(x, y, w, h)
-    Render.Blur(V(F(x), F(y)), V(F(x+w), F(y+h)), 1.0, 1.0, 0, Enum.DrawFlags.None)
+    local pos = V(F(x), F(y))
+    local size = V(F(w), F(h))
+    local ok = pcall(function()
+        Render.Blur(pos, V(F(x+w), F(y+h)), 1.0, 1.0, 0, Enum.DrawFlags.None)
+    end)
+    if not ok then
+        pcall(Render.Blur, pos, size, 1.0)
+    end
+end
+
+local function wrapTextLines(sz, txt, maxW)
+    txt = tostring(txt or "")
+    if txt == "" or maxW <= 0 then return {} end
+    local words = {}
+    for word in txt:gmatch("%S+") do table.insert(words, word) end
+    if #words == 0 then return {} end
+
+    local lines = {}
+    local line = ""
+    for _, word in ipairs(words) do
+        local test = (line == "") and word or (line .. " " .. word)
+        if tSz(sz, test).x > maxW and line ~= "" then
+            table.insert(lines, line)
+            line = word
+        else
+            line = test
+        end
+    end
+    if line ~= "" then table.insert(lines, line) end
+    return lines
+end
+
+local function clearClickRegions()
+    S.clickRegions = {}
+    S.hoveredRegion = nil
+end
+
+local function registerClickRegion(x, y, w, h, itemName, section, priorityIndex, enabled)
+    if not itemName or w <= 0 or h <= 0 then return end
+    table.insert(S.clickRegions, {
+        x = x, y = y, w = w, h = h,
+        itemName = itemName,
+        section = section or "main",
+        priorityIndex = priorityIndex or 0,
+        enabled = (enabled ~= false),
+    })
+end
+
+local function getCursorPos2D()
+    local pos = safeStatic(Engine, "GetCursorPos")
+    if not pos and Engine.GetCursorPos then
+        local ok, p = pcall(Engine.GetCursorPos)
+        if ok then pos = p end
+    end
+    if pos and (type(pos) == "userdata" or type(pos) == "table") then
+        return pos.x or 0, pos.y or 0
+    end
+    return nil, nil
+end
+
+local function pointInRect(x, y, rx, ry, rw, rh)
+    return x >= rx and y >= ry and x <= (rx + rw) and y <= (ry + rh)
+end
+
+local function findClickRegionAt(x, y)
+    for i = #S.clickRegions, 1, -1 do
+        local r = S.clickRegions[i]
+        local inside = false
+        if r then
+            if x and y then
+                inside = pointInRect(x, y, r.x, r.y, r.w, r.h)
+            end
+            if not inside and Input and Input.IsCursorInRect then
+                inside = (safeStatic(Input, "IsCursorInRect", r.x, r.y, r.w, r.h) == true)
+            end
+        end
+        if inside then
+            return r
+        end
+    end
+    return nil
 end
 
 --------------------------------------------------------------------------------
@@ -2942,8 +3553,6 @@ local function analyzeEnemyTeam()
     if sg(UI.showNetWorth, true) then
         local myTeamNW = 0
         local enemyTeamNW = 0
-        local debugInfo = ""
-        local heroCount = 0
         
         local heroes = Heroes.GetAll()
         if not heroes or #heroes == 0 then
@@ -2953,31 +3562,35 @@ local function analyzeEnemyTeam()
         
         for _, hero in ipairs(heroes) do
             if hero and Entity.IsEntity(hero) then
-                heroCount = heroCount + 1
                 local team = safeStatic(Entity, "GetTeamNum", hero)
-                local unitName = safeStatic(NPC, "GetUnitName", hero) or "unknown"
                 local totalGold = 0
                 
-                -- Method 1: Try to get gold from Player
-                local playerID = safeStatic(Hero, "GetPlayerID", hero)
-                if playerID and playerID >= 0 then
-                    local player = Players.Get(playerID)
-                    if player then
-                        local gold = safeStatic(Player, "GetGold", player)
-                        if gold and gold > 0 then
-                            totalGold = totalGold + gold
-                        end
+                -- Prefer hero-owned player object (documented) and fall back to player id path.
+                local player = safeMethod(hero, "GetPlayer")
+                if not player then
+                    local playerID = safeMethod(hero, "GetPlayerID")
+                    if playerID and playerID >= 0 then
+                        player = findPlayerByID(playerID)
+                    end
+                end
+                if player then
+                    local gold = safeMethod(player, "GetGold") or safeStatic(Player, "GetGold", player)
+                    if gold and gold > 0 then
+                        totalGold = totalGold + gold
                     end
                 end
                 
-                -- Method 2: Calculate from item values using our database
+                -- Item net worth approximation from inventory value.
                 local itemValue = 0
                 local itemCount = 0
                 for i = 0, 8 do
                     local item = safeStatic(NPC, "GetItemByIndex", hero, i)
                     if item then
-                        local itemName = safeStatic(Ability, "GetName", item)
-                        local cost = GetItemCost(itemName)
+                        local cost = safeMethod(item, "GetCost")
+                        if not cost or cost <= 0 then
+                            local itemName = safeMethod(item, "GetName") or safeStatic(Ability, "GetName", item)
+                            cost = GetItemCost(itemName)
+                        end
                         if cost > 0 then
                             itemValue = itemValue + cost
                             itemCount = itemCount + 1
@@ -2987,7 +3600,12 @@ local function analyzeEnemyTeam()
                 -- Neutral item (slot 16)
                 local neutralItem = safeStatic(NPC, "GetItemByIndex", hero, 16)
                 if neutralItem then
-                    itemValue = itemValue + 1000
+                    local nCost = safeMethod(neutralItem, "GetCost")
+                    if not nCost or nCost <= 0 then
+                        local nName = safeMethod(neutralItem, "GetName") or safeStatic(Ability, "GetName", neutralItem)
+                        nCost = GetItemCost(nName)
+                    end
+                    itemValue = itemValue + (nCost and nCost > 0 and nCost or 1000)
                     itemCount = itemCount + 1
                 end
                 
@@ -2999,9 +3617,6 @@ local function analyzeEnemyTeam()
                     enemyTeamNW = enemyTeamNW + totalGold
                 end
                 
-                if totalGold > 0 then
-                    debugInfo = debugInfo .. unitName .. "(T" .. team .. ")=G" .. (totalGold - itemValue) .. "+I" .. itemValue .. "[" .. itemCount .. "items] "
-                end
             end
         end
         
@@ -3017,10 +3632,19 @@ local function analyzeEnemyTeam()
     end
 
     -- My gold & hero name
-    local myPlayer = safeStatic(Heroes, "GetPlayerID", me)
-    if myPlayer then
-        local gold = safeStatic(Player, "GetGold", myPlayer)
-        if gold then S.myGold = gold end
+    local myPlayer = getLocalPlayerObject()
+    local gold = getPlayerCurrentGold(myPlayer)
+    if gold == nil then
+        gold = getHeroCurrentGold(me)
+    end
+    if gold ~= nil then
+        S.myGold = gold
+        S.myGoldKnown = true
+    else
+        if not myPlayer then
+            S.myGold = 0
+        end
+        S.myGoldKnown = false
     end
     S.myHeroName = safeStatic(NPC, "GetUnitName", me) or ""
 
@@ -3045,6 +3669,7 @@ local function analyzeEnemyTeam()
     S.enemyTags = {}
     S.enemyItems = {}
     S.enemyItemCounts = {}
+    S.enemyFocus = {}
     S.activeEnemyCount = 0
     local heroes = Heroes.GetAll()
     if not heroes then return end
@@ -3188,6 +3813,7 @@ local function analyzeEnemyTeam()
         enemyTags = S.enemyTags,
         enemyItemCounts = S.enemyItemCounts,
         myGold = S.myGold,
+        myGoldKnown = S.myGoldKnown,
         myRole = myRole,
         myStyle = myStyle,
         gameMode = S.gameMode,
@@ -3197,12 +3823,35 @@ local function analyzeEnemyTeam()
         trackEnemyItems = sg(UI.trackEnemyItems, true),
     }
 
+    if sg(UI.showEnemyFocus, true) then
+        S.enemyFocus = buildEnemyFocusData(ctx)
+    else
+        S.enemyFocus = {}
+    end
+
     local scored = {}
     for _, itemDef in ipairs(ITEM_DB) do
-        local s = computeItemScore(itemDef, ctx)
-        if s > 0 then table.insert(scored, {item = itemDef, score = s}) end
+        local s, breakdown = computeItemScore(itemDef, ctx, true)
+        if s > 0 then
+            local meta = buildSuggestionMeta(itemDef, ctx, s, breakdown)
+            table.insert(scored, {
+                item = itemDef,
+                score = s,
+                category = meta.category,
+                breakdown = meta.breakdown,
+                breakdownHighlights = meta.breakdownHighlights,
+                topReasons = meta.topReasons,
+            })
+        end
     end
-    table.sort(scored, function(a, b) return a.score > b.score end)
+    table.sort(scored, function(a, b)
+        if a.category ~= b.category then
+            local prio = {must_have = 3, situational = 2, luxury = 1}
+            return (prio[a.category] or 0) > (prio[b.category] or 0)
+        end
+        if a.score ~= b.score then return a.score > b.score end
+        return (a.item.cost or 0) > (b.item.cost or 0)
+    end)
 
     S.suggestions = {}
     local maxItems = sg(UI.maxItems, 6)
@@ -3211,7 +3860,14 @@ local function analyzeEnemyTeam()
         if #S.suggestions >= maxItems then break end
         if not addedNames[entry.item.name] then
             addedNames[entry.item.name] = true
-            table.insert(S.suggestions, {item = entry.item, score = entry.score})
+            table.insert(S.suggestions, {
+                item = entry.item,
+                score = entry.score,
+                category = entry.category or "situational",
+                breakdown = entry.breakdown or {{key = "final", delta = entry.score}},
+                breakdownHighlights = entry.breakdownHighlights or {},
+                topReasons = entry.topReasons or {},
+            })
         end
     end
 
@@ -3471,6 +4127,19 @@ local function drawHeader(x, y, w, alpha)
     dRect(x + 8, y + 28, ms.x + 8, 14, col(mc[1], mc[2], mc[3], F(alpha * 0.15)), 3)
     dText(8, mName, x + 12, y + 29, col(mc[1], mc[2], mc[3], F(alpha * 0.85)))
 
+    -- Test context badge (lobby / Try Hero custom sandbox)
+    if S.testContextKind then
+        local tKey = (S.testContextKind == "tryhero" and "test_tryhero")
+            or (S.testContextKind == "lobby" and "test_lobby")
+            or "test_custom"
+        local tTxt = L(tKey)
+        local ts = tSz(7, tTxt)
+        local tx = x + 8 + ms.x + 16
+        local tw = ts.x + 8
+        dRect(tx, y + 29, tw, 12, col(255, 170, 60, F(alpha * 0.16)), 3)
+        dText(7, tTxt, tx + 4, y + 30, col(255, 190, 90, F(alpha * 0.85)))
+    end
+
     -- Phase badge
     local phaseKeys = {[PHASE_EARLY]="early", [PHASE_MID]="mid", [PHASE_LATE]="late"}
     local phaseColors = {[PHASE_EARLY]={80,220,120}, [PHASE_MID]={255,200,60}, [PHASE_LATE]={255,90,70}}
@@ -3481,10 +4150,13 @@ local function drawHeader(x, y, w, alpha)
     dRect(bx, y + 10, ps.x + 10, 18, col(pc[1], pc[2], pc[3], F(alpha * 0.15)), 4)
     dText(10, pName, bx + 5, y + 12, col(pc[1], pc[2], pc[3], F(alpha * 0.9)))
 
-    -- Gold
-    local goldTxt = F(S.myGold) .. "g"
-    local goldSz = tSz(9, goldTxt)
-    dText(9, goldTxt, x + w - goldSz.x - 8, y + 30, col(255, 215, 0, F(alpha * 0.7)))
+    -- Gold (optional; some builds may report incorrect value)
+    if sg(UI.showGoldHeader, true) then
+        local goldTxt = (S.myGoldKnown and (F(S.myGold) .. "g")) or L("gold_unknown")
+        local goldSz = tSz(9, goldTxt)
+        local goldColor = S.myGoldKnown and col(255, 215, 0, F(alpha * 0.7)) or colA(TC.dim, alpha * 0.65)
+        dText(9, goldTxt, x + w - goldSz.x - 8, y + 30, goldColor)
+    end
 
     dRect(x + 4, y + CFG.HEADER_H - 1, w - 8, 1, colA(TC.dim, alpha * 0.2), 0)
     return CFG.HEADER_H
@@ -3573,12 +4245,12 @@ local function drawNetWorthBar(x, y, w, alpha)
     local totalNW = S.myTeamNetWorth + S.enemyTeamNetWorth
     
     -- Title
-    dText(9, "NET WORTH", x + 4, curY, col(150, 150, 150, F(alpha * 0.7)))
+    dText(9, L("net_worth"), x + 4, curY, col(150, 150, 150, F(alpha * 0.7)))
     curY = curY + 14
     
     -- If no data yet, show placeholder
     if totalNW == 0 then
-        dText(8, "Waiting for data...", x + 4, curY + 2, col(100, 100, 100, F(alpha * 0.5)))
+        dText(8, L("waiting_data"), x + 4, curY + 2, col(100, 100, 100, F(alpha * 0.5)))
         return 24
     end
 
@@ -3634,7 +4306,9 @@ local function drawHeroCounters(x, y, w, alpha)
     if #S.heroCounterSuggestions == 0 then return 0 end
 
     local curY = y
-    dText(10, "HERO COUNTERS", x + 4, curY, col(255, 100, 100, F(alpha * 0.9)))
+    dText(10, L("hero_counters"), x + 4, curY, col(255, 100, 100, F(alpha * 0.9)))
+    local hcTitleW = tSz(10, L("hero_counters")).x
+    dRect(x + 8 + hcTitleW, curY + 7, math.max(0, w - hcTitleW - 16), 1, colA(TC.dim, alpha * 0.14), 0)
     curY = curY + 16
 
     -- Draw compact counter items
@@ -3643,8 +4317,8 @@ local function drawHeroCounters(x, y, w, alpha)
         if i > maxCounters then break end
 
         local item = counter.item
-        local owned = S.ownedItems[item]
-        local canAfford = S.myGold >= (Item.GetCost and Item.GetCost(item) or 0)
+        local owned = sg(UI.showOwned, true) and S.ownedItems[item]
+        local canAfford = S.myGoldKnown and S.myGold >= GetItemCost(item)
 
         -- Find item display name
         local displayName = item:gsub("item_", ""):gsub("_", " ")
@@ -3680,14 +4354,25 @@ local function drawHeroCounters(x, y, w, alpha)
         end
 
         -- Item name
-        local nameC = owned and col(80, 200, 120, F(alpha * 0.7)) or colA(TC.text, alpha)
+        local nameC
+        if owned then
+            nameC = col(80, 200, 120, F(alpha * 0.7))
+        elseif canAfford then
+            nameC = col(255, 215, 0, F(alpha * 0.9))
+        else
+            nameC = colA(TC.text, alpha)
+        end
         dText(9, displayName, x + 28, curY + 3, nameC)
 
         -- Counter score badge
         local scoreTxt = "x" .. counter.score
         local scoreSz = tSz(7, scoreTxt)
-        dRect(x + w - scoreSz.x - 8, curY + 4, scoreSz.x + 4, 12, col(255, 80, 80, F(alpha * 0.2)), 2)
-        dText(7, scoreTxt, x + w - scoreSz.x - 6, curY + 5, col(255, 100, 100, F(alpha * 0.8)))
+        local scoreBg = canAfford and {255, 215, 0} or {255, 80, 80}
+        local scoreFg = canAfford and {255, 225, 120} or {255, 100, 100}
+        dRect(x + w - scoreSz.x - 8, curY + 4, scoreSz.x + 4, 12, col(scoreBg[1], scoreBg[2], scoreBg[3], F(alpha * 0.2)), 2)
+        dText(7, scoreTxt, x + w - scoreSz.x - 6, curY + 5, col(scoreFg[1], scoreFg[2], scoreFg[3], F(alpha * 0.85)))
+
+        registerClickRegion(x, curY, w, h, item, "hero_counter", i, true)
 
         curY = curY + h + 2
     end
@@ -3704,13 +4389,15 @@ local function drawEnemyFocus(x, y, w, alpha)
 
     local rows = clamp(sg(UI.enemyFocusRows, 3), 1, 6)
     local curY = y
-    dText(10, "ENEMY FOCUS", x + 4, curY, col(255, 150, 90, F(alpha * 0.9)))
+    dText(10, L("enemy_focus"), x + 4, curY, col(255, 150, 90, F(alpha * 0.9)))
+    local efTitleW = tSz(10, L("enemy_focus")).x
+    dRect(x + 8 + efTitleW, curY + 7, math.max(0, w - efTitleW - 16), 1, colA(TC.dim, alpha * 0.14), 0)
     curY = curY + 16
 
     for i = 1, math.min(rows, #S.enemyFocus) do
         local entry = S.enemyFocus[i]
         local enemy = entry.enemy
-        local rowH = 28
+        local rowH = 30
         dRect(x, curY, w, rowH, col(18, 20, 30, F(alpha * 0.25)), 5)
 
         local icon = heroIcon(enemy.name)
@@ -3721,14 +4408,21 @@ local function drawEnemyFocus(x, y, w, alpha)
         end
 
         local aliveC = enemy.alive and col(120, 220, 160, F(alpha * 0.8)) or col(220, 100, 100, F(alpha * 0.8))
-        dText(10, entry.display, x + 28, curY + 4, colA(TC.text, alpha * 0.95))
-        dText(8, enemy.alive and "ALIVE" or "DEAD", x + 28, curY + 16, aliveC)
+        local leftX = x + 28
+        local rightW = math.max(145, F(w * 0.52))
+        local rightX = x + w - rightW - 6
+        local leftW = math.max(32, rightX - leftX - 8)
+        dText(10, shortTextByWidth(10, entry.display, leftW), leftX, curY + 4, colA(TC.text, alpha * 0.95))
+        dText(8, shortTextByWidth(8, enemy.alive and L("alive") or L("dead"), leftW), leftX, curY + 17, aliveC)
 
         if entry.items and #entry.items > 0 then
             local best = entry.items[1]
             local reason = best.reason ~= "" and best.reason or LR(best.item.name)
-            dText(9, shortText(reason, 26), x + w - 110, curY + 4, colA(TC.dim, alpha * 0.8))
-            dText(10, best.item.display, x + w - 110, curY + 14, colA(TC.accent, alpha * 0.9))
+            local canAffordBest = S.myGoldKnown and S.myGold >= (best.item.cost or 0)
+            dText(9, shortTextByWidth(9, reason, rightW), rightX, curY + 4, colA(TC.dim, alpha * 0.8))
+            local bestC = canAffordBest and col(255, 215, 0, F(alpha * 0.9)) or colA(TC.accent, alpha * 0.9)
+            dText(10, shortTextByWidth(10, best.item.display, rightW), rightX, curY + 16, bestC)
+            registerClickRegion(x, curY, w, rowH, best.item.name, "enemy_focus", i, true)
         end
 
         curY = curY + rowH + 2
@@ -3739,48 +4433,103 @@ end
 --------------------------------------------------------------------------------
 -- DRAW: ITEM SUGGESTION CARD
 --------------------------------------------------------------------------------
-local function drawItemCard(x, y, w, suggestion, idx, alpha)
+local CATEGORY_VIS = {
+    must_have = {labelKey = "cat_must_have", color = {255, 116, 104}},
+    situational = {labelKey = "cat_situational", color = {85, 170, 255}},
+    luxury = {labelKey = "cat_luxury", color = {255, 205, 95}},
+}
+
+local function getCategoryVis(cat)
+    return CATEGORY_VIS[cat or "situational"] or CATEGORY_VIS.situational
+end
+
+local function getBreakdownChips(suggestion)
+    if not sg(UI.showScoreBreakdown, true) then return {} end
+    local maxChips = clamp(sg(UI.breakdownChipCount, 2), 1, 4)
+    local chips = {}
+    for _, h in ipairs(suggestion.breakdownHighlights or {}) do
+        if (h.delta or 0) ~= 0 and h.label and h.label ~= "" then
+            local sign = (h.delta or 0) > 0 and "+" or ""
+            local txt = sign .. tostring(h.delta) .. " " .. shortText(h.label, 14)
+            table.insert(chips, {
+                text = txt,
+                delta = h.delta or 0,
+                label = h.label,
+            })
+            if #chips >= maxChips then break end
+        end
+    end
+    return chips
+end
+
+local function buildItemCardLayout(suggestion, w)
     local item = suggestion.item
-    local acc = TC.accent
-    local owned = S.ownedItems[item.name]
-    local canAfford = S.myGold >= item.cost
-
-    local nameX = x + 26 + 26 + 8
-    local textAreaW = w - (nameX - x) - 6
+    local nameXOffset = 26 + 26 + 8
+    local textAreaW = w - nameXOffset - 6
     local h = 20
-
-    -- Reason text wrapping - Improved visibility with larger font
     local reasonLines = {}
+    local breakdownChips = getBreakdownChips(suggestion)
+    local showCategory = sg(UI.showCategoryBadges, true)
+
+    if showCategory then
+        h = h + 13
+    end
+
     if sg(UI.showReasons, true) then
         local reason = LR(item.name)
+        if reason == "" and suggestion.topReasons and #suggestion.topReasons > 0 then
+            reason = table.concat(suggestion.topReasons, " • ")
+        end
         if reason ~= "" then
-            local words = {}
-            for word in reason:gmatch("%S+") do table.insert(words, word) end
-            local line = ""
-            for _, word in ipairs(words) do
-                local test = line == "" and word or (line .. " " .. word)
-                local testW = tSz(10, test)
-                if testW.x > textAreaW and line ~= "" then
-                    table.insert(reasonLines, line)
-                    line = word
-                else
-                    line = test
-                end
+            reasonLines = wrapTextLines(10, reason, textAreaW)
+            if #reasonLines > 0 then
+                h = h + #reasonLines * 13 + 2
             end
-            if line ~= "" then table.insert(reasonLines, line) end
-            h = h + #reasonLines * 13 + 2
         end
     end
 
-    -- Trigger tags
+    if #breakdownChips > 0 then
+        h = h + 14
+    end
+
     local hasTriggers = false
     if item.triggers then
         for _, tr in ipairs(item.triggers) do
-            if S.enemyTags[tr] and S.enemyTags[tr] > 0 then hasTriggers = true; break end
+            if S.enemyTags[tr] and S.enemyTags[tr] > 0 then
+                hasTriggers = true
+                break
+            end
         end
     end
     if hasTriggers then h = h + 14 end
-    h = math.max(h, 36)
+    h = math.max(h, showCategory and 44 or 36)
+
+    return {
+        h = h,
+        nameXOffset = nameXOffset,
+        textAreaW = textAreaW,
+        reasonLines = reasonLines,
+        breakdownChips = breakdownChips,
+        showCategory = showCategory,
+        hasTriggers = hasTriggers,
+    }
+end
+
+local function drawItemCard(x, y, w, suggestion, idx, alpha)
+    local item = suggestion.item
+    local acc = TC.accent
+    local owned = sg(UI.showOwned, true) and S.ownedItems[item.name]
+    local canAfford = S.myGoldKnown and S.myGold >= item.cost
+    local layout = buildItemCardLayout(suggestion, w)
+
+    local nameX = x + layout.nameXOffset
+    local textAreaW = layout.textAreaW
+    local h = layout.h
+    local reasonLines = layout.reasonLines
+    local breakdownChips = layout.breakdownChips
+    local showCategory = layout.showCategory
+    local hasTriggers = layout.hasTriggers
+    local categoryVis = getCategoryVis(suggestion.category)
 
     -- Card background
     local bgA = F(alpha * 0.35)
@@ -3817,24 +4566,74 @@ local function drawItemCard(x, y, w, suggestion, idx, alpha)
         dText(10, firstChar, iconX + 8, iconY + 6, colA(TC.dim, alpha * 0.5))
     end
 
-    -- Item name
-    local nameC = owned and col(80, 200, 120, F(alpha * 0.7)) or colA(TC.text, alpha)
-    dText(11, item.display, nameX, y + 4, nameC)
-
-    -- Cost / Owned
+    -- Top-right badges (score + cost) for cleaner alignment
     local costTxt = owned and L("owned") or (item.cost .. "g")
-    local costC
-    if owned then costC = col(80, 200, 120, F(alpha * 0.55))
-    elseif canAfford then costC = col(255, 215, 0, F(alpha * 0.8))
-    else costC = col(150, 85, 85, F(alpha * 0.6)) end
-    local costSz = tSz(9, costTxt)
-    dText(9, costTxt, x + w - costSz.x - 6, y + 5, costC)
+    local scoreTxt = "S " .. tostring(suggestion.score or 0)
+    local costSz = tSz(8, costTxt)
+    local scoreSz = tSz(8, scoreTxt)
+    local costBadgeW = costSz.x + 8
+    local scoreBadgeW = scoreSz.x + 8
+    local badgeGap = 4
+    local costBx = x + w - costBadgeW - 6
+    local scoreBx = costBx - scoreBadgeW - badgeGap
+    local badgeY = y + 4
 
-    -- Reason text (multi-line) - Improved visibility
+    local scoreC = categoryVis.color
+    dRect(scoreBx, badgeY, scoreBadgeW, 12, col(scoreC[1], scoreC[2], scoreC[3], F(alpha * 0.14)), 3)
+    dText(8, scoreTxt, scoreBx + 4, badgeY + 1, col(scoreC[1], scoreC[2], scoreC[3], F(alpha * 0.9)))
+
+    local costC
+    if owned then costC = col(80, 200, 120, F(alpha * 0.65))
+    elseif canAfford then costC = col(255, 215, 0, F(alpha * 0.85))
+    else costC = col(150, 85, 85, F(alpha * 0.7)) end
+    dRect(costBx, badgeY, costBadgeW, 12, col(costC.r, costC.g, costC.b, F(alpha * 0.10)), 3)
+    dText(8, costTxt, costBx + 4, badgeY + 1, costC)
+
+    -- Item name
+    local nameC
+    if owned then
+        nameC = col(80, 200, 120, F(alpha * 0.7))
+    elseif canAfford then
+        nameC = col(255, 215, 0, F(alpha * 0.95))
+    else
+        nameC = colA(TC.text, alpha)
+    end
+    local nameMaxW = math.max(40, scoreBx - nameX - 6)
+    dText(11, shortTextByWidth(11, item.display, nameMaxW), nameX, y + 4, nameC)
+
     local curTextY = y + 20
+    if showCategory then
+        local catTxt = L(categoryVis.labelKey)
+        local catSz = tSz(7, catTxt)
+        local catW = catSz.x + 8
+        dRect(nameX, curTextY, catW, 11, col(categoryVis.color[1], categoryVis.color[2], categoryVis.color[3], F(alpha * 0.14)), 3)
+        dText(7, catTxt, nameX + 4, curTextY + 1, col(categoryVis.color[1], categoryVis.color[2], categoryVis.color[3], F(alpha * 0.85)))
+        curTextY = curTextY + 13
+    end
+
+    -- Reason text (multi-line)
     for _, rLine in ipairs(reasonLines) do
         dText(10, rLine, nameX, curTextY, colA(TC.text, alpha * 0.85))
         curTextY = curTextY + 13
+    end
+
+    -- Score breakdown chips (compact transparency)
+    if #breakdownChips > 0 then
+        local chipX = nameX
+        local chipY = curTextY
+        local maxRight = x + w - 4
+        for _, chip in ipairs(breakdownChips) do
+            local chipText = chip.text
+            local chipSz = tSz(7, chipText)
+            local chipW = chipSz.x + 6
+            if chipX + chipW > maxRight then break end
+            local pos = (chip.delta or 0) >= 0
+            local cc = pos and {92, 205, 140} or {235, 120, 120}
+            dRect(chipX, chipY, chipW, 11, col(cc[1], cc[2], cc[3], F(alpha * 0.10)), 3)
+            dText(7, chipText, chipX + 3, chipY + 1, col(cc[1], cc[2], cc[3], F(alpha * 0.78)))
+            chipX = chipX + chipW + 3
+        end
+        curTextY = curTextY + 14
     end
 
     -- Trigger tags
@@ -3858,6 +4657,8 @@ local function drawItemCard(x, y, w, suggestion, idx, alpha)
         end
     end
 
+    registerClickRegion(x, y, w, h, item.name, "main", idx, true)
+
     return h
 end
 
@@ -3867,6 +4668,28 @@ end
 local function drawSuggestions(x, y, w, alpha)
     local curY = y
     dText(10, L("recommended"), x + 4, curY, colA(TC.accent, alpha * 0.9))
+    local recTitleW = tSz(10, L("recommended")).x
+    dRect(x + 8 + recTitleW, curY + 7, math.max(0, w - recTitleW - 16), 1, colA(TC.dim, alpha * 0.14), 0)
+    if #S.suggestions > 0 then
+        local counts = {must_have = 0, situational = 0, luxury = 0}
+        for _, sug in ipairs(S.suggestions) do
+            counts[sug.category or "situational"] = (counts[sug.category or "situational"] or 0) + 1
+        end
+        local bx = x + w - 4
+        for _, cat in ipairs({"luxury", "situational", "must_have"}) do
+            local cnt = counts[cat] or 0
+            if cnt > 0 then
+                local vis = getCategoryVis(cat)
+                local txt = L(vis.labelKey) .. " " .. cnt
+                local ts = tSz(7, txt)
+                local bw = ts.x + 8
+                bx = bx - bw
+                dRect(bx, curY + 1, bw, 11, col(vis.color[1], vis.color[2], vis.color[3], F(alpha * 0.12)), 3)
+                dText(7, txt, bx + 4, curY + 2, col(vis.color[1], vis.color[2], vis.color[3], F(alpha * 0.8)))
+                bx = bx - 3
+            end
+        end
+    end
     curY = curY + 18
 
     if #S.suggestions == 0 then
@@ -3912,7 +4735,7 @@ local function drawNeutralSection(x, y, w, alpha)
     -- Neutral item cards (compact version)
     for i, sug in ipairs(S.neutralSuggestions) do
         local item = sug.item
-        local owned = S.ownedItems[item.name]
+        local owned = sg(UI.showOwned, true) and S.ownedItems[item.name]
         local tierItemC = NEUTRAL_TIER_COLORS[item.tier] or {150, 150, 150}
         
         local h = 22
@@ -3950,6 +4773,8 @@ local function drawNeutralSection(x, y, w, alpha)
         dRect(x + w - tierBadgeSz.x - 10, curY + 5, tierBadgeSz.x + 6, 12, col(tierItemC[1], tierItemC[2], tierItemC[3], F(alpha * 0.15)), 2)
         dText(7, tierBadge, x + w - tierBadgeSz.x - 7, curY + 6, col(tierItemC[1], tierItemC[2], tierItemC[3], F(alpha * 0.7)))
 
+        registerClickRegion(x, curY, w, h, item.name, "neutral", i, true)
+
         curY = curY + h + 2
     end
 
@@ -3980,19 +4805,7 @@ local function drawFooter(x, y, w, alpha)
     end
 
     if tip then
-        -- Word-wrap footer tip too
-        local maxW = w - 12
-        local words = {}
-        for word in tip:gmatch("%S+") do table.insert(words, word) end
-        local lines = {}
-        local line = ""
-        for _, word in ipairs(words) do
-            local test = line == "" and word or (line .. " " .. word)
-            if tSz(9, test).x > maxW and line ~= "" then
-                table.insert(lines, line); line = word
-            else line = test end
-        end
-        if line ~= "" then table.insert(lines, line) end
+        local lines = wrapTextLines(9, tip, w - 12)
         local tipH = #lines * 13 + 6
         dRect(x + 2, curY, w - 4, tipH, col(tipC[1], tipC[2], tipC[3], F(alpha * 0.06)), 4)
         for _, ln in ipairs(lines) do
@@ -4008,10 +4821,135 @@ local function drawFooter(x, y, w, alpha)
 end
 
 --------------------------------------------------------------------------------
+-- PANEL MEASURE / OVERLAYS
+--------------------------------------------------------------------------------
+local function getFooterTipData()
+    local tip, tipC = nil, {150, 158, 185}
+    if S.enemyTags["invis"] and S.enemyTags["invis"] >= 2 then
+        tip = L("tip_invis"); tipC = {255, 200, 80}
+    elseif S.enemyTags["magic_burst"] and S.enemyTags["magic_burst"] >= 3 then
+        tip = L("tip_magic"); tipC = {120, 80, 255}
+    elseif S.enemyTags["heal"] and S.enemyTags["heal"] >= 2 then
+        tip = L("tip_heal"); tipC = {80, 220, 120}
+    elseif S.enemyTags["phys_dps"] and S.enemyTags["phys_dps"] >= 3 then
+        tip = L("tip_phys"); tipC = {255, 130, 50}
+    elseif S.enemyTags["illusions"] and S.enemyTags["illusions"] >= 2 then
+        tip = L("tip_illusions"); tipC = {200, 150, 255}
+    elseif S.enemyTags["disable"] and S.enemyTags["disable"] >= 3 then
+        tip = L("tip_disable"); tipC = {255, 220, 50}
+    end
+    return tip, tipC
+end
+
+local function measureEnemySectionHeight(w)
+    local h = 16 + 24 + 6
+    if sg(UI.showThreats, true) and #S.threatCounts > 0 then
+        local tagRowY = 0
+        local tagX = 4
+        local shown = 0
+        local maxRight = w - 4
+        for _, tc in ipairs(S.threatCounts) do
+            if shown >= 10 then break end
+            if tc.count > 0 then
+                local txt = tc.tag:upper()
+                if tc.count > 1 then txt = txt .. " x" .. tc.count end
+                local tagW = tSz(8, txt).x + 10
+                if tagX + tagW > maxRight and tagX > 4 then
+                    tagX = 4
+                    tagRowY = tagRowY + 17
+                end
+                tagX = tagX + tagW + 3
+                shown = shown + 1
+            end
+        end
+        h = h + 14 + tagRowY + 19
+    end
+    h = h + 6 -- separator spacing
+    return h
+end
+
+local function measureNetWorthBarHeight()
+    if not sg(UI.showNetWorth, true) then return 0 end
+    local totalNW = S.myTeamNetWorth + S.enemyTeamNetWorth
+    if totalNW == 0 then return 24 end
+    return 32
+end
+
+local function measureHeroCountersHeight()
+    if not sg(UI.showHeroCounters, true) then return 0 end
+    if #S.heroCounterSuggestions == 0 then return 0 end
+    return 16 + math.min(#S.heroCounterSuggestions, 5) * 22
+end
+
+local function measureEnemyFocusHeight()
+    if not sg(UI.showEnemyFocus, true) then return 0 end
+    if not S.enemyFocus or #S.enemyFocus == 0 then return 0 end
+    local rows = clamp(sg(UI.enemyFocusRows, 3), 1, 6)
+    return 16 + math.min(rows, #S.enemyFocus) * 32
+end
+
+local function measureSuggestionsHeight(w)
+    local h = 18
+    if #S.suggestions == 0 then
+        return h + 18
+    end
+    for _, sug in ipairs(S.suggestions) do
+        h = h + buildItemCardLayout(sug, w).h + 3
+    end
+    return h
+end
+
+local function measureNeutralSectionHeight()
+    if not sg(UI.showNeutrals, true) then return 0 end
+    if S.neutralTier == 0 or #S.neutralSuggestions == 0 then return 0 end
+    return 6 + 16 + (#S.neutralSuggestions * 24)
+end
+
+local function measureFooterHeight(w)
+    local h = 6
+    local tip = getFooterTipData()
+    if tip then
+        local lines = wrapTextLines(9, tip, w - 12)
+        h = h + (#lines * 13) + 4
+    end
+    h = h + 12
+    return h
+end
+
+local function measurePanelHeight(innerW)
+    local contentH = CFG.PAD
+    contentH = contentH + CFG.HEADER_H + 4
+    contentH = contentH + measureEnemySectionHeight(innerW)
+    contentH = contentH + measureNetWorthBarHeight()
+    contentH = contentH + measureHeroCountersHeight()
+    contentH = contentH + measureEnemyFocusHeight()
+    contentH = contentH + measureSuggestionsHeight(innerW)
+    contentH = contentH + measureNeutralSectionHeight()
+    contentH = contentH + measureFooterHeight(innerW)
+    return F(contentH)
+end
+
+local function drawHoverOverlay()
+    local cx, cy = getCursorPos2D()
+    S.hoveredRegion = findClickRegionAt(cx, cy)
+
+    local hover = S.hoveredRegion
+    if hover then
+        dRect(hover.x, hover.y, hover.w, hover.h, col(255, 255, 255, 12), 5)
+        dBorder(hover.x, hover.y, hover.w, hover.h, col(255, 255, 255, 46), 5, 1)
+    end
+end
+
+--------------------------------------------------------------------------------
 -- DRAW: MAIN PANEL
 --------------------------------------------------------------------------------
 local function drawPanel()
-    if not shouldShowPanel() then return end
+    if not shouldShowPanel() then
+        S.panelVisible = false
+        S.panelRect = nil
+        clearClickRegions()
+        return
+    end
     syncThemeColors()
 
     local sw, sh = screenSz()
@@ -4022,32 +4960,8 @@ local function drawPanel()
     local panelSide = sg(UI.panelSide, 0)
     local pw = F(CFG.PW * scale)
 
-    -- Dynamic height estimate
-    local contentH = CFG.HEADER_H + CFG.PAD
-    local enemyH = 16 + 24 + 6
-    if sg(UI.showThreats, true) and #S.threatCounts > 0 then
-        local tagsPerRow = math.max(1, F((pw - 16) / 60))
-        local tagRows = math.ceil(math.min(#S.threatCounts, 10) / tagsPerRow)
-        enemyH = enemyH + 14 + tagRows * 17 + 19
-    end
-    contentH = contentH + enemyH + 6
-    -- Add net worth bar height
-    if sg(UI.showNetWorth, true) then
-        contentH = contentH + 36
-    end
-    -- Add hero counters height
-    if sg(UI.showHeroCounters, true) and #S.heroCounterSuggestions > 0 then
-        contentH = contentH + 18 + math.min(#S.heroCounterSuggestions, 5) * 22
-    end
-    local numSugs = math.min(#S.suggestions, sg(UI.maxItems, 6))
-    contentH = contentH + 18 + numSugs * 52
-    -- Add neutral items section height
-    if sg(UI.showNeutrals, true) and S.neutralTier > 0 and #S.neutralSuggestions > 0 then
-        contentH = contentH + 24 + #S.neutralSuggestions * 24
-    end
-    contentH = contentH + 40  -- Footer
-
-    local ph = F(contentH * scale)
+    local innerW = pw - CFG.PAD * 2
+    local ph = measurePanelHeight(innerW)
     local px, py
     if panelSide == 0 then px = CFG.MARGIN + offX
     else px = sw - pw - CFG.MARGIN + offX end
@@ -4056,7 +4970,14 @@ local function drawPanel()
     py = clamp(py, 4, sh - ph - 4)
 
     local alpha = 255 * opac
-    if alpha < 2 then return end
+    if alpha < 2 then
+        S.panelVisible = false
+        S.panelRect = nil
+        clearClickRegions()
+        return
+    end
+
+    clearClickRegions()
 
     dBlur(px, py, pw, ph)
     local themeBg = TC.bg
@@ -4064,8 +4985,8 @@ local function drawPanel()
     local bdrC = TC.border
     dBorder(px, py, pw, ph, col(bdrC.r, bdrC.g, bdrC.b, F(40 * alpha / 255)), CFG.ROUNDING, 1)
 
-    local innerW = pw - CFG.PAD * 2
     local curY = py + CFG.PAD
+    local clipPushed = false -- disabled on this build: some Render variants accept PushClip but clip everything incorrectly
 
     local hH = drawHeader(px + CFG.PAD, curY, innerW, alpha)
     curY = curY + hH + 4
@@ -4088,6 +5009,11 @@ local function drawPanel()
     local nH = drawNeutralSection(px + CFG.PAD, curY, innerW, alpha)
     curY = curY + nH
     drawFooter(px + CFG.PAD, curY, innerW, alpha)
+    if clipPushed and Render.PopClip then pcall(Render.PopClip) end
+
+    S.panelVisible = true
+    S.panelRect = {x = px, y = py, w = pw, h = ph}
+    drawHoverOverlay()
 end
 
 --------------------------------------------------------------------------------
@@ -4102,6 +5028,8 @@ function script.OnUpdate()
 
         initFonts()
         updateLang()
+        refreshRuntimeTestContext()
+        refreshMyGold()
 
         if sg(UI.autoAnalyze, true) then
             local now = gt()
@@ -4110,6 +5038,7 @@ function script.OnUpdate()
                 analyzeEnemyTeam()
             end
         end
+
     end)
     if not ok and err then print("[ItemHelper] Update: " .. tostring(err)) end
 end
@@ -4117,12 +5046,27 @@ end
 function script.OnDraw()
     local ok, err = pcall(function()
         if not fontsReady then initFonts() end
-        if not sg(UI.enabled, true) then return end
-        if not sg(UI.showPanel, true) then return end
+        if not sg(UI.enabled, true) then
+            S.panelVisible = false
+            S.panelRect = nil
+            clearClickRegions()
+            return
+        end
+        if not sg(UI.showPanel, true) then
+            S.panelVisible = false
+            S.panelRect = nil
+            clearClickRegions()
+            return
+        end
 
         local inGame = false
         pcall(function() inGame = Engine.IsInGame() end)
-        if not inGame then return end
+        if not inGame then
+            S.panelVisible = false
+            S.panelRect = nil
+            clearClickRegions()
+            return
+        end
 
         local now = gt()
         if S.lastFrame > 0 then S.dt = clamp(now - S.lastFrame, 0.001, 0.1) end
@@ -4130,7 +5074,12 @@ function script.OnDraw()
         S.pulseTime = S.pulseTime + S.dt
         drawPanel()
     end)
-    if not ok and err then print("[ItemHelper] Draw: " .. tostring(err)) end
+    if not ok and err then
+        S.panelVisible = false
+        S.panelRect = nil
+        clearClickRegions()
+        print("[ItemHelper] Draw: " .. tostring(err))
+    end
 end
 
 function script.OnGameEnd()
@@ -4143,6 +5092,10 @@ function script.OnGameEnd()
     S.enemyItems = {}
     S.enemyItemCounts = {}
     S.myGold = 0
+    S.myGoldKnown = false
+    S.rawGameModeId = -1
+    S.playerCount = 0
+    S.testContextKind = nil
     S.myHeroName = ""
     S.gamePhase = PHASE_EARLY
     S.gameMode = GAME_MODE.UNKNOWN
@@ -4150,6 +5103,10 @@ function script.OnGameEnd()
     S.lastAnalysis = 0
     S.heroIcons = {}
     S.itemIcons = {}
+    S.clickRegions = {}
+    S.hoveredRegion = nil
+    S.panelVisible = false
+    S.panelRect = nil
     S.lastFrame = 0
     S.dt = 0.016
     S.pulseTime = 0
