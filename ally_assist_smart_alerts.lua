@@ -4,9 +4,18 @@
 -- Shows HUD + minimap ping only when a usable TP/Travel exists and a valid anchor is near the ally.
 
 local META = {
-    NAME = "Smart Ally Assist Alerts",
+    NAME = "Help Alert",
     ID = "ally_assist_smart_alerts",
     VERSION = "1.0.0",
+}
+
+local MENU_CFG = {
+    INFO_FIRST_TAB = "Info Screen",
+    INFO_SECTION = "Main",
+    SCRIPT_NAME = "Help Alert",
+    THIRD_TAB = "Main",
+    ROOT_GROUP = "General",
+    TAB_ICON = "\u{f0f3}", -- bell
 }
 
 local ALERT_TYPES = {
@@ -26,6 +35,9 @@ local INTERNAL = {
     PER_ALLY_PING_COOLDOWN_SEC = 6.0,
     ESCALATION_HP_DROP_PCT = 8.0,
     MAX_ACTIVE_ALERTS = 4,
+    MIN_SCAN_INTERVAL_SEC = 0.10,
+    TP_CAPABILITY_REFRESH_SEC = 0.30,
+    TP_CAPABILITY_REFRESH_MISSING_SEC = 0.75,
 }
 
 local DEFAULTS = {
@@ -327,6 +339,7 @@ local State = {
     cachedLocalHeroIndex = nil,
     nextAlertId = 0,
     lastTpCapability = nil,
+    lastTpRefreshAt = -1e9,
 }
 
 local function ensureI18N()
@@ -423,19 +436,35 @@ local function clamp(v, lo, hi)
 end
 
 local MCALL_STATIC_CACHE = {}
+local MCALL_USERDATA_DIRECT_INDEX_UNSUPPORTED = false
+local MCALL_SOURCES = nil
+
+local function mcallIndex(obj, method)
+    return obj[method]
+end
+
+local function getMcallSources()
+    if MCALL_SOURCES then return MCALL_SOURCES end
+    MCALL_SOURCES = { Hero, NPC, Entity, Ability, Item, Tower, Modifier, Player }
+    return MCALL_SOURCES
+end
 
 local function mcall(obj, method, ...)
     if not obj then return nil end
 
+    local objType = type(obj)
+
     -- Some UCZone userdata objects throw on direct indexing (obj[method]).
-    -- Try direct method access safely first.
-    local okIndex, fn = pcall(function()
-        return obj[method]
-    end)
-    if okIndex and type(fn) == "function" then
-        local okCall, a, b, c, d, e = pcall(fn, obj, ...)
-        if okCall then
-            return a, b, c, d, e
+    -- Once detected, skip this path for userdata to reduce pcall overhead/spikes.
+    if objType ~= "userdata" or not MCALL_USERDATA_DIRECT_INDEX_UNSUPPORTED then
+        local okIndex, fn = pcall(mcallIndex, obj, method)
+        if okIndex and type(fn) == "function" then
+            local okCall, a, b, c, d, e = pcall(fn, obj, ...)
+            if okCall then
+                return a, b, c, d, e
+            end
+        elseif objType == "userdata" and not okIndex then
+            MCALL_USERDATA_DIRECT_INDEX_UNSUPPORTED = true
         end
     end
 
@@ -450,7 +479,7 @@ local function mcall(obj, method, ...)
         MCALL_STATIC_CACHE[method] = nil
     end
 
-    local sources = { Hero, NPC, Entity, Ability, Item, Tower, Modifier, Player }
+    local sources = getMcallSources()
     for i = 1, #sources do
         local src = sources[i]
         if type(src) == "table" then
@@ -978,16 +1007,129 @@ local function tryMenuCreate(...)
     return nil
 end
 
+local function tryMenuFind(...)
+    if type(Menu) ~= "table" or type(Menu.Find) ~= "function" then return nil end
+    local ok, v = pcall(Menu.Find, ...)
+    if ok then return v end
+    return nil
+end
+
+local function tryFindOrCreateChild(parent, childName)
+    if not parent or not childName then return nil end
+
+    local findFn = menuMethod(parent, "Find")
+    if findFn then
+        local okFind, child = pcall(findFn, parent, childName)
+        if okFind and child then
+            return child
+        end
+    end
+
+    local createFn = menuMethod(parent, "Create")
+    if createFn then
+        local okCreate, child = pcall(createFn, parent, childName)
+        if okCreate and child then
+            return child
+        end
+    end
+
+    return nil
+end
+
+local function safeSetMenuIcon(obj, icon)
+    if not obj or type(icon) ~= "string" or icon == "" then return false end
+    local iconFn = menuMethod(obj, "Icon")
+    if not iconFn then return false end
+    local ok = pcall(iconFn, obj, icon)
+    return ok == true
+end
+
+local function createInfoScreenMenuGroup()
+    -- User-requested host container: Menu.Find("Info Screen", "Main")
+    local node = tryMenuFind(MENU_CFG.INFO_FIRST_TAB, MENU_CFG.INFO_SECTION)
+
+    -- Extra fallback: resolve first tab then section manually if this build's Menu.Find
+    -- doesn't return partial path objects consistently.
+    if not node then
+        local first = tryMenuFind(MENU_CFG.INFO_FIRST_TAB)
+        node = tryFindOrCreateChild(first, MENU_CFG.INFO_SECTION)
+    end
+    if not node then
+        return nil
+    end
+
+    safeOpenMenu(node)
+
+    local secondTab = nil
+    local thirdTab = nil
+    local helpTabForIcon = nil
+
+    if isMenuGroupLike(node) then
+        safeOpenMenu(node)
+        return node
+    end
+
+    -- If node has :Icon(), it's usually CSecondTab (or CThirdTab in some overloads).
+    -- We handle both by trying to create Help Alert beneath it first.
+    if menuMethod(node, "Icon") ~= nil then
+        local maybeChild = tryFindOrCreateChild(node, MENU_CFG.SCRIPT_NAME)
+        if maybeChild and isMenuGroupLike(maybeChild) then
+            safeOpenMenu(maybeChild)
+            safeSetMenuIcon(node, MENU_CFG.TAB_ICON)
+            return maybeChild
+        end
+        if maybeChild then
+            thirdTab = maybeChild
+            helpTabForIcon = maybeChild
+        else
+            -- Node itself may already be the Help Alert tab.
+            thirdTab = node
+            helpTabForIcon = node
+        end
+        secondTab = node
+    else
+        -- Node is likely CTabSection "Main": create/find second tab "Help Alert".
+        secondTab = tryFindOrCreateChild(node, MENU_CFG.SCRIPT_NAME)
+        helpTabForIcon = secondTab
+        if not secondTab then return nil end
+    end
+
+    safeOpenMenu(secondTab)
+    safeSetMenuIcon(helpTabForIcon, MENU_CFG.TAB_ICON)
+
+    if not thirdTab then
+        thirdTab = tryFindOrCreateChild(secondTab, MENU_CFG.THIRD_TAB)
+    end
+    if not thirdTab then return nil end
+
+    safeOpenMenu(thirdTab)
+    if helpTabForIcon ~= thirdTab then
+        safeSetMenuIcon(thirdTab, MENU_CFG.TAB_ICON)
+    end
+
+    local group = tryFindOrCreateChild(thirdTab, MENU_CFG.ROOT_GROUP)
+    if isMenuGroupLike(group) then
+        safeOpenMenu(group)
+        return group
+    end
+    return nil
+end
+
 local function createMenuGroup()
     if type(Menu) ~= "table" or type(Menu.Create) ~= "function" then
         return nil
     end
 
+    local infoGroup = createInfoScreenMenuGroup()
+    if isMenuGroupLike(infoGroup) then
+        return infoGroup
+    end
+
     -- Primary documented path: return CMenuGroup directly.
     local directCandidates = {
-        { "Scripts", "User Scripts", "Smart Ally Assist Alerts", "Main", "Settings" },
-        { "Scripts", "User Scripts", "Smart Ally Assist Alerts", "Settings", "Main" },
-        { "Scripts", "User Scripts", "Smart Ally Assist Alerts", "General", "Main" },
+        { "Scripts", "User Scripts", MENU_CFG.SCRIPT_NAME, "Main", "Settings" },
+        { "Scripts", "User Scripts", MENU_CFG.SCRIPT_NAME, "Settings", "Main" },
+        { "Scripts", "User Scripts", MENU_CFG.SCRIPT_NAME, "General", "Main" },
     }
     for i = 1, #directCandidates do
         local args = directCandidates[i]
@@ -1000,7 +1142,7 @@ local function createMenuGroup()
     end
 
     -- Fallback chain for environments where Menu.Create returns tabs/sections.
-    local root = tryMenuCreate("Scripts", "User Scripts", "Smart Ally Assist Alerts")
+    local root = tryMenuCreate("Scripts", "User Scripts", MENU_CFG.SCRIPT_NAME)
     if isMenuGroupLike(root) then
         local openFn = menuMethod(root, "Open")
         if openFn then pcall(openFn, root) end
@@ -1287,7 +1429,7 @@ end
 -- Teleport item detection
 -- -----------------------------------------------------------------------------
 
-local function getItemByName(hero, wantedName)
+local function getItemByName(hero, wantedName, allowDeepSlotScan)
     if not hero or not wantedName then return nil end
 
     -- In this repo/API build, NPC.GetItem(hero, "item_name") is a known working pattern.
@@ -1317,6 +1459,10 @@ local function getItemByName(hero, wantedName)
     do
         local ab = mcall(hero, "GetAbilityByName", wantedName)
         if ab then return ab end
+    end
+
+    if allowDeepSlotScan == false then
+        return nil
     end
 
     -- Last-resort slot scan. Include TP slot (commonly 15) and neutral (16).
@@ -1499,25 +1645,30 @@ local function enumerateTeleportObjects(hero)
     end
 
     -- Item-like scans (inventory/backpack/neutral/dedicated slots in custom builds)
-    for slot = 0, 31 do
+    -- 0..20 is enough for common + custom extra slots while keeping CPU cost down.
+    for slot = 0, 20 do
         local it = mcall(hero, "GetItem", slot)
         if not it and type(NPC) == "table" and type(NPC.GetItem) == "function" then
             local ok, v = pcall(NPC.GetItem, hero, slot)
             if ok then it = v end
         end
         add(it)
-        add(getItemByIndexMaybe(hero, slot))
+        if not it then
+            add(getItemByIndexMaybe(hero, slot))
+        end
     end
 
     -- Ability-like scans (dedicated TP slot often appears here)
-    for slot = 0, 127 do
+    for slot = 0, 63 do
         local ab = mcall(hero, "GetAbility", slot)
         if not ab and type(NPC) == "table" and type(NPC.GetAbility) == "function" then
             local ok, v = pcall(NPC.GetAbility, hero, slot)
             if ok then ab = v end
         end
         add(ab)
-        add(getAbilityByIndexMaybe(hero, slot))
+        if not ab then
+            add(getAbilityByIndexMaybe(hero, slot))
+        end
     end
 
     return list
@@ -1543,7 +1694,7 @@ local function findTeleportItem(myHero)
     local firstUnusable = nil
     for i = 1, #candidates do
         local c = candidates[i]
-        local item = getItemByName(myHero, c.name)
+        local item = getItemByName(myHero, c.name, false)
         if item then
             local usable, reason = canUseTeleportItemNow(myHero, item)
             if usable then
@@ -1582,6 +1733,23 @@ local function findTeleportItem(myHero)
     if bestUnusable then return bestUnusable end
 
     return buildTpCapability(nil, nil, false, "no_item")
+end
+
+local function getTeleportCapabilityCached(myHero, now)
+    local prev = State.lastTpCapability
+    local refreshSec = INTERNAL.TP_CAPABILITY_REFRESH_MISSING_SEC
+    if prev and prev.usable then
+        refreshSec = INTERNAL.TP_CAPABILITY_REFRESH_SEC
+    end
+
+    if (now - safeNum(State.lastTpRefreshAt, -1e9)) < refreshSec and prev ~= nil then
+        return prev
+    end
+
+    local cap = findTeleportItem(myHero)
+    State.lastTpCapability = cap
+    State.lastTpRefreshAt = now
+    return cap
 end
 
 -- -----------------------------------------------------------------------------
@@ -1655,17 +1823,39 @@ local function nearestAnchorFromList(list, myHero, allyPos, maxDist, validator, 
     return best
 end
 
-local function findNearestFriendlyTower(allyPos, myHero, maxDist)
+local function scanCacheGetTowers(scanCache)
+    if scanCache and scanCache.towers ~= nil then
+        return scanCache.towers
+    end
     local towers = getAllTowers()
+    if scanCache then
+        scanCache.towers = towers
+    end
+    return towers
+end
+
+local function scanCacheGetNPCs(scanCache)
+    if scanCache and scanCache.npcs ~= nil then
+        return scanCache.npcs
+    end
+    local npcs = getAllNPCs()
+    if scanCache then
+        scanCache.npcs = npcs
+    end
+    return npcs
+end
+
+local function findNearestFriendlyTower(allyPos, myHero, maxDist, scanCache)
+    local towers = scanCacheGetTowers(scanCache)
     return nearestAnchorFromList(towers, myHero, allyPos, maxDist, isValidFriendlyTowerAnchor, "tower")
 end
 
-local function findNearestTravelNonHeroAnchor(allyPos, myHero, maxDist)
-    local npcs = getAllNPCs()
+local function findNearestTravelNonHeroAnchor(allyPos, myHero, maxDist, scanCache)
+    local npcs = scanCacheGetNPCs(scanCache)
     return nearestAnchorFromList(npcs, myHero, allyPos, maxDist, isValidTravelNonHeroAnchor, "unit")
 end
 
-local function findNearestTravelHeroAnchor(allyPos, myHero, maxDist, preferHero)
+local function findNearestTravelHeroAnchor(allyPos, myHero, maxDist, preferHero, heroesList)
     local best = nil
     local bestDist = math.huge
 
@@ -1684,7 +1874,7 @@ local function findNearestTravelHeroAnchor(allyPos, myHero, maxDist, preferHero)
         end
     end
 
-    local heroes = getAllHeroes()
+    local heroes = heroesList or getAllHeroes()
     local preferIdx = getEntityIndex(preferHero)
     for i = 1, #heroes do
         local hero = heroes[i]
@@ -1710,7 +1900,7 @@ local function findNearestTravelHeroAnchor(allyPos, myHero, maxDist, preferHero)
     return best
 end
 
-local function findBestTpAnchorForAlly(myHero, ally, tpCapability)
+local function findBestTpAnchorForAlly(myHero, ally, tpCapability, scanCache)
     if not myHero or not ally or not tpCapability or not tpCapability.usable then
         return nil
     end
@@ -1722,21 +1912,22 @@ local function findBestTpAnchorForAlly(myHero, ally, tpCapability)
     local kind = tpCapability.kind
 
     if kind == "scroll" then
-        return findNearestFriendlyTower(allyPos, myHero, maxDist)
+        return findNearestFriendlyTower(allyPos, myHero, maxDist, scanCache)
     end
 
     if kind == "travel1" then
-        local a1 = findNearestTravelNonHeroAnchor(allyPos, myHero, maxDist)
+        local a1 = findNearestTravelNonHeroAnchor(allyPos, myHero, maxDist, scanCache)
         if a1 then return a1 end
-        return findNearestFriendlyTower(allyPos, myHero, maxDist)
+        return findNearestFriendlyTower(allyPos, myHero, maxDist, scanCache)
     end
 
     if kind == "travel2" then
-        local aHero = findNearestTravelHeroAnchor(allyPos, myHero, maxDist, ally)
+        local heroList = scanCache and scanCache.allHeroes or nil
+        local aHero = findNearestTravelHeroAnchor(allyPos, myHero, maxDist, ally, heroList)
         if aHero then return aHero end
-        local aUnit = findNearestTravelNonHeroAnchor(allyPos, myHero, maxDist)
+        local aUnit = findNearestTravelNonHeroAnchor(allyPos, myHero, maxDist, scanCache)
         if aUnit then return aUnit end
-        return findNearestFriendlyTower(allyPos, myHero, maxDist)
+        return findNearestFriendlyTower(allyPos, myHero, maxDist, scanCache)
     end
 
     return nil
@@ -1761,9 +1952,9 @@ local function collectAlliedHeroes(myHero, allHeroes)
     return out
 end
 
-local function findNearestFriendlyTowerForPos(myHero, pos)
+local function findNearestFriendlyTowerForPos(myHero, pos, scanCache)
     local maxDist = getWidgetValue(UI.TowerProtectRadius, DEFAULTS.towerProtectRadius)
-    return findNearestFriendlyTower(pos, myHero, maxDist)
+    return findNearestFriendlyTower(pos, myHero, maxDist, scanCache)
 end
 
 local function allyHasCC(hero)
@@ -1780,7 +1971,7 @@ local function enemyPassesVisibilityFilter(enemy, visibleOnly)
     return (not isDormant(enemy)) or isVisible(enemy)
 end
 
-local function buildThreatContext(myHero, ally, now, allHeroes)
+local function buildThreatContext(myHero, ally, now, allHeroes, scanCache)
     local allyPos = getPos(ally)
     if not allyPos then return nil end
 
@@ -1837,7 +2028,7 @@ local function buildThreatContext(myHero, ally, now, allHeroes)
     local takingDamageNow = ((now - lastHurtTime) <= 1.0) or recentDamage > 0
     local cc = allyHasCC(ally)
 
-    local tower = findNearestFriendlyTowerForPos(myHero, allyPos)
+    local tower = findNearestFriendlyTowerForPos(myHero, allyPos, scanCache)
     local underFriendlyTower = tower ~= nil
 
     local primaryEnemyHpDropPct1s = 0
@@ -2250,6 +2441,7 @@ end
 
 local function shouldRunScan(now)
     local scanIntervalSec = getWidgetValue(UI.ScanIntervalMs, DEFAULTS.scanIntervalMs) / 1000.0
+    scanIntervalSec = math.max(INTERNAL.MIN_SCAN_INTERVAL_SEC, scanIntervalSec)
     if (now - State.lastScanAt) < scanIntervalSec then
         return false
     end
@@ -2275,42 +2467,47 @@ function script.OnUpdate()
     local myHero = getLocalHero()
     if not myHero then return end
 
-    local allHeroes = getAllHeroes()
-    if #allHeroes == 0 then return end
-
     if not shouldRunScan(now) then
         return
     end
 
+    local allHeroes = getAllHeroes()
+    if #allHeroes == 0 then return end
+
     updateTracksForHeroes(allHeroes, now)
     State.cachedLocalHeroIndex = getEntityIndex(myHero)
 
-    local tpCapability = findTeleportItem(myHero)
-    State.lastTpCapability = tpCapability
+    local tpCapability = getTeleportCapabilityCached(myHero, now)
     if not tpCapability or not tpCapability.usable then
         pruneStaleTracks(now)
         return
     end
 
+    local scanCache = {
+        allHeroes = allHeroes,
+        towers = nil,
+        npcs = nil,
+    }
+
     local allies = collectAlliedHeroes(myHero, allHeroes)
     for i = 1, #allies do
         local ally = allies[i]
-        local ctx = buildThreatContext(myHero, ally, now, allHeroes)
+        local ctx = buildThreatContext(myHero, ally, now, allHeroes, scanCache)
         if ctx then
             local candidate = classifyThreat(ctx)
             if candidate then
-                local anchor = findBestTpAnchorForAlly(myHero, ally, tpCapability)
-                if anchor then
-                    candidate.anchorEntity = anchor.entity
-                    candidate.anchorPos = anchor.pos
-                    candidate.anchorType = anchor.type
-                    candidate.allyPos = ctx.allyPos
-                    candidate.tpKind = tpCapability.kind
-                    if shouldEmitAlert(ally, candidate.type, candidate.severity, now) then
+                if shouldEmitAlert(ally, candidate.type, candidate.severity, now) then
+                    local anchor = findBestTpAnchorForAlly(myHero, ally, tpCapability, scanCache)
+                    if anchor then
+                        candidate.anchorEntity = anchor.entity
+                        candidate.anchorPos = anchor.pos
+                        candidate.anchorType = anchor.type
+                        candidate.allyPos = ctx.allyPos
+                        candidate.tpKind = tpCapability.kind
                         emitAlert(candidate, tpCapability, now)
+                    elseif debugEnabled() then
+                        debugLog(string.format("no_anchor for ally=%s event=%s", tostring(candidate.allyName), tostring(candidate.type)))
                     end
-                elseif debugEnabled() then
-                    debugLog(string.format("no_anchor for ally=%s event=%s", tostring(candidate.allyName), tostring(candidate.type)))
                 end
             end
         end
@@ -2350,6 +2547,7 @@ local function resetState()
     State.cachedLocalHeroIndex = nil
     State.nextAlertId = 0
     State.lastTpCapability = nil
+    State.lastTpRefreshAt = -1e9
 end
 
 function script.OnGameEnd()
@@ -2357,4 +2555,3 @@ function script.OnGameEnd()
 end
 
 return script
-

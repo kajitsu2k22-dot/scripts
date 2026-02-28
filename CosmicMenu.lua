@@ -376,131 +376,203 @@ script.OnScriptsLoaded = function()
 
     UpdateScreenSize(0)
 
-    local mainGroup = Menu.Create("General", "Main", "CosmicMenu", "Settings", "Main")
-    local particleBaseGroup = Menu.Create("General", "Main", "CosmicMenu", "Settings", "Particles - Base")
-    local particleMotionGroup = Menu.Create("General", "Main", "CosmicMenu", "Settings", "Particles - Motion")
-    local particleLinksGroup = Menu.Create("General", "Main", "CosmicMenu", "Settings", "Particles - Links")
-    local particleCursorGroup = Menu.Create("General", "Main", "CosmicMenu", "Settings", "Particles - Cursor")
-    local effectsGroup = Menu.Create("General", "Main", "CosmicMenu", "Settings", "Effects")
-    local advancedEffects = Menu.Create("General", "Main", "CosmicMenu", "Settings", "Advanced")
-    local colorGroup = Menu.Create("General", "Main", "CosmicMenu", "Settings", "Colors")
+    local tab = Menu.Create("General", "Main", "CosmicMenu")
+    local main = tab:Create("Settings")
 
     local ok, cosmicMenuTab = pcall(function()
-        local settingsTab = mainGroup:Parent()
-        return settingsTab:Parent()
+        return tab:Parent()
     end)
 
     if ok and cosmicMenuTab and cosmicMenuTab.Icon then
         cosmicMenuTab:Icon("\u{f0ac}")
     end
 
-    -- Main settings
-    script.enabled = mainGroup:Switch("Enabled", true)
-    script.enabled:Icon("\u{f011}")
+    -- ═══════════════════════════════════════════════════════════════
+    --  General
+    -- ═══════════════════════════════════════════════════════════════
+    local g_general = main:Create("General")
+
+    script.enabled = g_general:Switch("Enable CosmicMenu", true, "\u{f011}")
+    script.enabled:ToolTip("Master switch — enables or disables the entire cosmic background")
+
     script.backgroundEffects = {Get = function() return true end}
-    script.backgroundOpacity = mainGroup:Slider("Background Darkness", 0, 100, 30, "%d")
-    script.backgroundOpacity:Icon("\u{f042}")
 
-    -- Particles: Base
-    script.bgParticleCount = particleBaseGroup:Slider("Particle Count", 20, 500, 100, "%d")
-    script.bgParticleCount:Icon("\u{f0e8}")
-    script.shieldRadius = particleBaseGroup:Slider("Particle Size", 1, 8, 2, "%d")
-    script.shieldRadius:Icon("\u{f0b2}")
-    script.particleBaseAlpha = particleBaseGroup:Slider("Particle Opacity", 10, 255, 150, "%d")
-    script.particleBaseAlpha:Icon("\u{f06e}")
-    script.particleSoftCore = particleBaseGroup:Switch("Soft Core", true)
-    script.particleSoftCore:Icon("\u{f111}")
-    script.particleGlow = particleBaseGroup:Switch("Particle Glow", true)
-    script.particleGlow:Icon("\u{f0eb}")
-    script.particleGlowScale = particleBaseGroup:Slider("Glow Size", 1, 8, 3, "%d")
-    script.particleGlowScale:Icon("\u{f0c8}")
-    script.particleGlowAlpha = particleBaseGroup:Slider("Glow Opacity", 0, 100, 30, "%d%%")
-    script.particleGlowAlpha:Icon("\u{f043}")
+    script.backgroundOpacity = g_general:Slider("Background Darkness", 0, 100, 30, "%d")
+    script.backgroundOpacity:ToolTip("How dark the overlay behind the menu is (0 = transparent, 100 = fully black)")
 
-    -- Particles: Motion
-    script.particleSpeedScale = particleMotionGroup:Slider("Particle Speed", 10, 400, 100, "%d%%")
-    script.particleSpeedScale:Icon("\u{f04b}")
-    script.particleDrift = particleMotionGroup:Slider("Particle Drift", 0, 200, 35, "%d%%")
-    script.particleDrift:Icon("\u{f0ec}")
-    script.particleTwinkleSpeedScale = particleMotionGroup:Slider("Twinkle Speed", 0, 300, 100, "%d%%")
-    script.particleTwinkleSpeedScale:Icon("\u{f017}")
-    script.particleTwinkleAmount = particleMotionGroup:Slider("Twinkle Amount", 0, 100, 30, "%d%%")
-    script.particleTwinkleAmount:Icon("\u{f005}")
+    script.fadeInEffect = g_general:Switch("Fade In Effect", true, "\u{f04d}")
+    script.fadeInEffect:ToolTip("Smooth fade-in animation when the menu is opened")
 
-    -- Particles: Links
-    script.particleConnections = particleLinksGroup:Switch("Particle Links", true)
-    script.particleConnections:Icon("\u{f0c1}")
-    script.particleConnectionDist = particleLinksGroup:Slider("Link Distance", 40, 400, 150, "%d")
-    script.particleConnectionDist:Icon("\u{f07e}")
-    script.particleConnectionAlpha = particleLinksGroup:Slider("Link Opacity", 0, 150, 50, "%d")
-    script.particleConnectionAlpha:Icon("\u{f06e}")
-    script.particleConnectionWidth = particleLinksGroup:Slider("Link Width", 1, 3, 1, "%d")
-    script.particleConnectionWidth:Icon("\u{f068}")
-    script.particleMaxConnections = particleLinksGroup:Slider("Links per Particle", 0, 8, 3, "%d")
-    script.particleMaxConnections:Icon("\u{f00a}")
-    script.particleColoredLinks = particleLinksGroup:Switch("Colored Links", true)
-    script.particleColoredLinks:Icon("\u{f1fc}")
+    -- ═══════════════════════════════════════════════════════════════
+    --  Colors
+    -- ═══════════════════════════════════════════════════════════════
+    local g_colors = main:Create("Colors")
 
-    -- Particles: Cursor
-    script.particleCursorInteraction = particleCursorGroup:Switch("Cursor Interaction", true)
-    script.particleCursorInteraction:Icon("\u{f245}")
-    script.particleCursorMode = particleCursorGroup:Slider("Cursor Mode", 1, 3, 1, function(value)
+    script.shieldColor = g_colors:ColorPicker("Primary Color", DEFAULT_PRIMARY_COLOR)
+    script.shieldColor:ToolTip("Main accent color used for particles, glow, and color wash")
+
+    script.shieldColor2 = g_colors:ColorPicker("Secondary Color", DEFAULT_SECONDARY_COLOR)
+    script.shieldColor2:ToolTip("Second accent color — particles alternate between primary and secondary")
+
+    -- ═══════════════════════════════════════════════════════════════
+    --  Particles
+    -- ═══════════════════════════════════════════════════════════════
+    local g_particles = main:Create("Particles")
+
+    script.bgParticleCount = g_particles:Slider("Particle Count", 20, 500, 100, "%d")
+    script.bgParticleCount:ToolTip("Total number of floating particles on screen. Higher values look denser but cost more FPS")
+
+    script.shieldRadius = g_particles:Slider("Particle Size", 1, 8, 2, "%d")
+    script.shieldRadius:ToolTip("Base radius of each particle dot (pixels)")
+
+    script.particleBaseAlpha = g_particles:Slider("Particle Opacity", 10, 255, 150, "%d")
+    script.particleBaseAlpha:ToolTip("Base opacity of particles (10 = barely visible, 255 = fully opaque)")
+
+    script.particleSoftCore = g_particles:Switch("Soft Core", true, "\u{f111}")
+    script.particleSoftCore:ToolTip("Adds a soft halo ring around each particle core for a smoother look")
+
+    -- Glow sub-settings
+    script.particleGlow = g_particles:Switch("Particle Glow", true, "\u{f0eb}")
+    script.particleGlow:ToolTip("Enable a large colored glow aura behind every particle")
+
+    local glow_gear = script.particleGlow:Gear("Glow Settings")
+
+    script.particleGlowScale = glow_gear:Slider("Glow Size", 1, 8, 3, "%d")
+    script.particleGlowScale:ToolTip("Multiplier for the glow radius relative to particle size")
+
+    script.particleGlowAlpha = glow_gear:Slider("Glow Opacity", 0, 100, 30, "%d%%")
+    script.particleGlowAlpha:ToolTip("How visible the glow aura is (0%% = invisible, 100%% = very bright)")
+
+    -- ═══════════════════════════════════════════════════════════════
+    --  Particle Motion
+    -- ═══════════════════════════════════════════════════════════════
+    local g_motion = main:Create("Particle Motion")
+
+    script.particleSpeedScale = g_motion:Slider("Particle Speed", 10, 400, 100, "%d%%")
+    script.particleSpeedScale:ToolTip("How fast particles move across the screen (100%% = default speed)")
+
+    script.particleDrift = g_motion:Slider("Particle Drift", 0, 200, 35, "%d%%")
+    script.particleDrift:ToolTip("How much particles sway and wobble during movement")
+
+    script.particleTwinkleSpeedScale = g_motion:Slider("Twinkle Speed", 0, 300, 100, "%d%%")
+    script.particleTwinkleSpeedScale:ToolTip("Speed of the brightness pulsation (twinkle) effect")
+
+    script.particleTwinkleAmount = g_motion:Slider("Twinkle Amount", 0, 100, 30, "%d%%")
+    script.particleTwinkleAmount:ToolTip("Intensity of brightness variation — higher = more noticeable twinkle")
+
+    -- ═══════════════════════════════════════════════════════════════
+    --  Particle Links
+    -- ═══════════════════════════════════════════════════════════════
+    local g_links = main:Create("Particle Links")
+
+    script.particleConnections = g_links:Switch("Enable Links", true, "\u{f0c1}")
+    script.particleConnections:ToolTip("Draw thin lines between nearby particles creating a constellation web")
+
+    local links_gear = script.particleConnections:Gear("Link Settings")
+
+    script.particleConnectionDist = links_gear:Slider("Link Distance", 40, 400, 150, "%d")
+    script.particleConnectionDist:ToolTip("Maximum distance (px) at which two particles are connected by a line")
+
+    script.particleConnectionAlpha = links_gear:Slider("Link Opacity", 0, 150, 50, "%d")
+    script.particleConnectionAlpha:ToolTip("Base opacity of connection lines (fades with distance)")
+
+    script.particleConnectionWidth = links_gear:Slider("Link Width", 1, 3, 1, "%d")
+    script.particleConnectionWidth:ToolTip("Thickness of connection lines in pixels")
+
+    script.particleMaxConnections = links_gear:Slider("Links per Particle", 0, 8, 3, "%d")
+    script.particleMaxConnections:ToolTip("Max number of connections a single particle can have")
+
+    script.particleColoredLinks = links_gear:Switch("Colored Links", true, "\u{f1fc}")
+    script.particleColoredLinks:ToolTip("Tint connection lines with the particle colors instead of plain white")
+
+    -- ═══════════════════════════════════════════════════════════════
+    --  Cursor Interaction
+    -- ═══════════════════════════════════════════════════════════════
+    local g_cursor = main:Create("Cursor Interaction")
+
+    script.particleCursorInteraction = g_cursor:Switch("Enable Cursor Interaction", true, "\u{f245}")
+    script.particleCursorInteraction:ToolTip("Particles react to your mouse cursor movement")
+
+    local cursor_gear = script.particleCursorInteraction:Gear("Cursor Settings")
+
+    script.particleCursorMode = cursor_gear:Slider("Cursor Mode", 1, 3, 1, function(value)
         local mode = roundToInt(value)
         if mode == 1 then return "Repel" end
         if mode == 2 then return "Swipe" end
         if mode == 3 then return "Vortex" end
         return tostring(mode)
     end)
-    script.particleCursorMode:Icon("\u{f074}")
-    script.particleCursorRadius = particleCursorGroup:Slider("Cursor Radius", 40, 600, 180, "%d")
-    script.particleCursorRadius:Icon("\u{f192}")
-    script.particleCursorForce = particleCursorGroup:Slider("Cursor Force", 100, 12000, 3200, "%d")
-    script.particleCursorForce:Icon("\u{f0e7}")
-    script.particleCursorFalloff = particleCursorGroup:Slider("Cursor Falloff", 25, 300, 120, "%d%%")
-    script.particleCursorFalloff:Icon("\u{f201}")
-    script.particleCursorMotionBoost = particleCursorGroup:Slider("Cursor Motion Boost", 0, 300, 120, "%d%%")
-    script.particleCursorMotionBoost:Icon("\u{f061}")
-    script.particleCursorMoveThreshold = particleCursorGroup:Slider("Cursor Move Threshold", 0, 40, 1, "%d")
-    script.particleCursorMoveThreshold:Icon("\u{f2f1}")
-    script.particleCursorOnlyMoving = particleCursorGroup:Switch("Only While Moving", true)
-    script.particleCursorOnlyMoving:Icon("\u{f04b}")
-    script.particleCursorImpulseDamping = particleCursorGroup:Slider("Cursor Damping", 0, 300, 90, "%d%%")
-    script.particleCursorImpulseDamping:Icon("\u{f2f9}")
-    script.particleCursorSwirl = particleCursorGroup:Slider("Cursor Swirl", -100, 100, 60, "%d%%")
-    script.particleCursorSwirl:Icon("\u{f021}")
+    script.particleCursorMode:ToolTip("Repel — pushes particles away, Swipe — drags in cursor direction, Vortex — swirls around cursor")
 
-    -- Effects
-    script.backgroundBlur = effectsGroup:Switch("Background Blur", false)
-    script.backgroundBlur:Icon("\u{f0c9}")
-    script.blurIntensity = effectsGroup:Slider("Blur Intensity", 0, 20, 10, "%d")
-    script.blurIntensity:Icon("\u{f010}")
-    script.colorWash = effectsGroup:Switch("Color Wash", true)
-    script.colorWash:Icon("\u{f043}")
+    script.particleCursorRadius = cursor_gear:Slider("Cursor Radius", 40, 600, 180, "%d")
+    script.particleCursorRadius:ToolTip("Area of effect around the cursor (pixels)")
+
+    script.particleCursorForce = cursor_gear:Slider("Cursor Force", 100, 12000, 3200, "%d")
+    script.particleCursorForce:ToolTip("Strength of the push/pull force applied to particles")
+
+    script.particleCursorFalloff = cursor_gear:Slider("Cursor Falloff", 25, 300, 120, "%d%%")
+    script.particleCursorFalloff:ToolTip("How quickly the force weakens with distance from cursor (higher = sharper edge)")
+
+    script.particleCursorMotionBoost = cursor_gear:Slider("Cursor Motion Boost", 0, 300, 120, "%d%%")
+    script.particleCursorMotionBoost:ToolTip("Extra force multiplier when the cursor is moving fast")
+
+    script.particleCursorMoveThreshold = cursor_gear:Slider("Cursor Move Threshold", 0, 40, 1, "%d")
+    script.particleCursorMoveThreshold:ToolTip("Minimum cursor movement (px/frame) to trigger interaction")
+
+    script.particleCursorOnlyMoving = cursor_gear:Switch("Only While Moving", true, "\u{f04b}")
+    script.particleCursorOnlyMoving:ToolTip("Particles only react when the cursor is actively moving")
+
+    script.particleCursorImpulseDamping = cursor_gear:Slider("Cursor Damping", 0, 300, 90, "%d%%")
+    script.particleCursorImpulseDamping:ToolTip("How fast the cursor impulse fades — higher = particles slow down quicker")
+
+    script.particleCursorSwirl = cursor_gear:Slider("Cursor Swirl", -100, 100, 60, "%d%%")
+    script.particleCursorSwirl:ToolTip("Tangential swirl strength for Vortex mode (negative = reverse direction)")
+
+    -- ═══════════════════════════════════════════════════════════════
+    --  Visual Effects
+    -- ═══════════════════════════════════════════════════════════════
+    local g_effects = main:Create("Visual Effects")
+
+    script.backgroundBlur = g_effects:Switch("Background Blur", false, "\u{f0c9}")
+    script.backgroundBlur:ToolTip("Apply a gaussian-like blur to the game behind the menu overlay")
+
+    local blur_gear = script.backgroundBlur:Gear("Blur Settings")
+
+    script.blurIntensity = blur_gear:Slider("Blur Intensity", 0, 20, 5, "%d")
+    script.blurIntensity:ToolTip("Blur strength — uses multiple soft passes to avoid blocky artifacts")
+
+    script.colorWash = g_effects:Switch("Color Wash", true, "\u{f043}")
+    script.colorWash:ToolTip("Subtle colored gradient overlay using your primary and secondary colors")
+
     script.cloudCount = {Get = function() return 0 end}
-    script.stars = effectsGroup:Switch("Twinkling Stars", true)
-    script.stars:Icon("\u{f005}")
-    script.starCount = effectsGroup:Slider("Star Count", 100, 500, 200, "%d")
-    script.starCount:Icon("\u{f0d0}")
 
-    -- Advanced Effects
-    script.shootingStars = advancedEffects:Switch("Shooting Stars", true)
-    script.shootingStars:Icon("\u{f135}")
-    script.shootingStarFreq = advancedEffects:Slider("Shooting Star Frequency", 1, 10, 5, "%d")
-    script.shootingStarFreq:Icon("\u{f017}")
+    script.stars = g_effects:Switch("Twinkling Stars", true, "\u{f005}")
+    script.stars:ToolTip("Show small twinkling stars in the background")
+
+    local stars_gear = script.stars:Gear("Star Settings")
+
+    script.starCount = stars_gear:Slider("Star Count", 100, 500, 200, "%d")
+    script.starCount:ToolTip("Number of background stars (separate from particles)")
+
+    -- ═══════════════════════════════════════════════════════════════
+    --  Advanced Effects
+    -- ═══════════════════════════════════════════════════════════════
+    local g_advanced = main:Create("Advanced Effects")
+
+    script.shootingStars = g_advanced:Switch("Shooting Stars", true, "\u{f135}")
+    script.shootingStars:ToolTip("Occasional shooting stars streak across the screen")
+
+    local shooting_gear = script.shootingStars:Gear("Shooting Star Settings")
+
+    script.shootingStarFreq = shooting_gear:Slider("Frequency", 1, 10, 5, "%d")
+    script.shootingStarFreq:ToolTip("How often shooting stars appear (1 = rare, 10 = frequent)")
+
     script.auroraBorealis = {Get = function() return false end}
     script.auroraIntensity = {Get = function() return 0 end}
     script.galaxySpiral = {Get = function() return false end}
     script.spiralArms = {Get = function() return 0 end}
     script.wormholes = {Get = function() return false end}
     script.wormholeCount = {Get = function() return 0 end}
-
-    -- Colors
-    script.shieldColor = colorGroup:ColorPicker("Primary Color", DEFAULT_PRIMARY_COLOR)
-    script.shieldColor2 = colorGroup:ColorPicker("Secondary Color", DEFAULT_SECONDARY_COLOR)
-
-    -- Visual improvements
-    script.fadeInEffect = mainGroup:Switch("Fade In Effect", true)
-    script.fadeInEffect:Icon("\u{f04d}")
 end
 
 script.OnFrame = function()
@@ -860,9 +932,14 @@ function DrawBackgroundEffects(fadeInAlpha)
 
     if script.backgroundBlur and script.backgroundBlur:Get() and script.blurIntensity then
         local blurIntensity = script.blurIntensity:Get()
-        local strength = math.sqrt(blurIntensity) * 1.5
-        if strength > 0 then
-            Render.Blur(Vec2(0, 0), screenSize, strength)
+        if blurIntensity > 0 then
+            local maxPassStrength = 1.2
+            local totalStrength = blurIntensity * 0.15
+            local passCount = math.max(1, math.ceil(totalStrength / maxPassStrength))
+            local perPass = totalStrength / passCount
+            for _blurPass = 1, passCount do
+                Render.Blur(Vec2(0, 0), screenSize, perPass)
+            end
         end
     end
 
