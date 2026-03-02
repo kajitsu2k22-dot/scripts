@@ -69,8 +69,6 @@ local translation   = {
     items_to_use = "Usable Items",
     item_bottle = "Bottle",
     item_blink = "Blink Dagger",
-    item_shivas_guard = "Shiva's Guard",
-    item_dagon = "Dagon",
 
     auto_defense_matrix = "Auto Defense Matrix",
     gear_matrix_options = "Defense Matrix Settings",
@@ -83,18 +81,9 @@ local translation   = {
     gear_blink_behavior = "Blink Behavior",
     blink_travel = "Use for Traveling",
     blink_escape = "Use for Escaping",
+    blink_trees_lane = "Blink into Trees (Lane)",
     blink_hold_after_rearm = "Delay after Rearm",
     blink_hold_tp_lock = "Hold during TP Lock",
-
-    lane_logic_label = "Lane Logic",
-    gear_lane_logic = "Lane Logic Settings",
-    lane_advanced_logic = "Advanced Lane Logic",
-    lane_tree_blink_approach = "Tree Blink (Approach)",
-    lane_tree_blink_retreat = "Tree Blink (Retreat)",
-    lane_use_laser = "Use Laser on Lane Creeps",
-    lane_rotate_after_clear = "Rotate After Clear",
-    lane_dynamic_mix_priority = "Dynamic Jungle/Lane Priority",
-    lane_marches_per_wave = "Lane Marches",
 
     bottle_options_label = "Bottle Settings",
     gear_bottle_behavior = "Bottle Behavior",
@@ -108,7 +97,11 @@ local translation   = {
     march_medium = "Medium Camps",
     march_large = "Large Camps",
     march_ancient = "Ancient Camps",
+    march_lane = "Lane Creeps",
     march_count_fmt = "%d Marches",
+
+    lane_min_creeps_label = "Min Creeps to Farm Wave",
+    lane_min_creeps_fmt = "%d creeps",
 
     status_overlay = "Show Status Overlay",
     gear_overlay_options = "Overlay Settings",
@@ -152,6 +145,7 @@ local translation   = {
     gear_blink_behavior = "Поведение Блинка",
     blink_travel = "Использовать для перемещения",
     blink_escape = "Использовать при побеге",
+    blink_trees_lane = "Блинк в деревья (линия)",
     blink_hold_after_rearm = "Задержка после Rearm",
     blink_hold_tp_lock = "Блокировать при ТП‑локе",
 
@@ -167,7 +161,11 @@ local translation   = {
     march_medium = "Средние лагеря",
     march_large = "Большие лагеря",
     march_ancient = "Древние лагеря",
+    march_lane = "Крипы на линии",
     march_count_fmt = "%d каста",
+
+    lane_min_creeps_label = "Мин. крипов для фарма волны",
+    lane_min_creeps_fmt = "%d крипов",
 
     status_overlay = "Показывать оверлей статуса",
     gear_overlay_options = "Настройки оверлея",
@@ -229,9 +227,7 @@ Config             = {
   }, { L("target_ancients"), L("target_non_ancients") }),
   ItemsToUse = utilityMenu:MultiSelect(L("items_to_use"), {
     { L("item_bottle"), "panorama/images/items/bottle_png.vtex_c", true },
-    { L("item_blink"),  "panorama/images/items/blink_png.vtex_c",  true },
-    { L("item_shivas_guard"), "panorama/images/items/shivas_guard_png.vtex_c", true },
-    { L("item_dagon"), "panorama/images/items/dagon_png.vtex_c", false }
+    { L("item_blink"),  "panorama/images/items/blink_png.vtex_c",  true }
   }, true),
   AutoMatrix = utilityMenu:Switch(L("auto_defense_matrix"), true,
     "panorama/images/spellicons/tinker_defense_matrix_png.vtex_c"),
@@ -241,8 +237,6 @@ Config             = {
   Blink = {},
   BottleGroup = utilityMenu:Label(L("bottle_options_label"), "panorama/images/items/bottle_png.vtex_c"),
   Bottle = {},
-  LaneGroup = autoFarmMenu:Label(L("lane_logic_label"), "panorama/images/spellicons/tinker_laser_png.vtex_c"),
-  Lane = {},
   MarchControl = {},
   StatusOverlay = autoFarmMenu:Switch(L("status_overlay"), true, "\u{f2d2}"),
   Status = {},
@@ -276,25 +270,19 @@ do
   Config.MarchControl.Medium      = m:Slider(L("march_medium"), 1, 5, 3, L("march_count_fmt"))
   Config.MarchControl.Large       = m:Slider(L("march_large"), 1, 5, 3, L("march_count_fmt"))
   Config.MarchControl.Ancient     = m:Slider(L("march_ancient"), 1, 5, 4, L("march_count_fmt"))
+  Config.MarchControl.Lane        = m:Slider(L("march_lane"), 1, 5, 2, L("march_count_fmt"))
+  Config.MarchControl.LaneMinCreeps = m:Slider(L("lane_min_creeps_label"), 1, 8, 3, L("lane_min_creeps_fmt"))
 
   local bg                        = Config.BlinkGroup:Gear(L("gear_blink_behavior"))
   Config.Blink.Travel             = bg:Switch(L("blink_travel"), true, "\u{f70c}")
   Config.Blink.Escape             = bg:Switch(L("blink_escape"), true, "\u{f2f5}")
+  Config.Blink.TreesLane          = bg:Switch(L("blink_trees_lane"), true, "\u{f1bb}")
   Config.Blink.HoldAfterRearm     = bg:Switch(L("blink_hold_after_rearm"), true, "\u{f017}")
   Config.Blink.HoldTPLock         = bg:Switch(L("blink_hold_tp_lock"), true, "\u{f023}")
 
   local botg                      = Config.BottleGroup:Gear(L("gear_bottle_behavior"))
   Config.Bottle.UseHP             = botg:Switch(L("bottle_use_hp"), true, "\u{f004}")
   Config.Bottle.UseMana           = botg:Switch(L("bottle_use_mana"), true, "\u{f0d0}")
-
-  local lg                        = Config.LaneGroup:Gear(L("gear_lane_logic"))
-  Config.Lane.Advanced            = lg:Switch(L("lane_advanced_logic"), true, "\u{f0e8}")
-  Config.Lane.TreeBlinkApproach   = lg:Switch(L("lane_tree_blink_approach"), true, "\u{f6ff}")
-  Config.Lane.TreeBlinkRetreat    = lg:Switch(L("lane_tree_blink_retreat"), true, "\u{f6ff}")
-  Config.Lane.UseLaser            = lg:Switch(L("lane_use_laser"), true, "\u{f0e7}")
-  Config.Lane.RotateAfterClear    = lg:Switch(L("lane_rotate_after_clear"), true, "\u{f5aa}")
-  Config.Lane.DynamicMixPriority  = lg:Switch(L("lane_dynamic_mix_priority"), true, "\u{f201}")
-  Config.Lane.MarchesPerWave      = lg:Slider(L("lane_marches_per_wave"), 1, 5, 1, L("march_count_fmt"))
 end
 
 local function SyncMarchSlidersDisabled()
@@ -303,12 +291,13 @@ local function SyncMarchSlidersDisabled()
   Config.MarchControl.Medium:Disabled(not useCustom)
   Config.MarchControl.Large:Disabled(not useCustom)
   Config.MarchControl.Ancient:Disabled(not useCustom)
+  Config.MarchControl.Lane:Disabled(not useCustom)
+  Config.MarchControl.LaneMinCreeps:Disabled(not useCustom)
 end
 Constants = {
   MARCH_CAST_RANGE              = 900,
   MARCH_PAIR_COVERAGE_FRAC      = 1.1,
   TP_MIN_DISTANCE               = 2000,
-  BLINK_CAST_RANGE              = 1190,
   BLINK_MAX_RANGE               = 1200,
   POST_TP_LOCK_TIME             = 3.8,
   NO_REARM_AFTER_TP             = 1.6,
@@ -335,33 +324,6 @@ Constants = {
   SPOT_SCAN_INTERVAL            = 0.35,
   CAMP_CLEAR_DELAY              = 0.8,
   CAMP_CLEAR_CONFIRM_DELAY      = 2,
-  CAMP_ALIVE_SCAN_RADIUS        = 900,
-  CAMP_ALIVE_SCAN_RADIUS_ANCIENT = 1200,
-  CAMP_ALIVE_SCAN_CACHE_TTL     = 0.10,
-  NEUTRAL_SNAPSHOT_CACHE_TTL    = 0.10,
-  LANE_CREEP_SNAPSHOT_CACHE_TTL = 0.10,
-  LANE_CLUSTER_SEED_RADIUS      = 900,
-  LANE_TRACK_RADIUS             = 1000,
-  LANE_REACQUIRE_RADIUS         = 1800,
-  LANE_MIN_CREEPS               = 2,
-  LANE_SCORE_PER_CREEP          = 2.0,
-  LANE_SCORE_PER_SIEGE          = 1.0,
-  LANE_POS_BUCKET               = 320,
-  LANE_TREE_NEARBY_RADIUS       = 140,
-  LANE_TREE_MIN_WAVE_DIST       = 420,
-  LANE_TREE_MAX_WAVE_DIST       = 900,
-  LANE_TREE_CANDIDATE_RINGS     = { 460, 600, 760, 880 },
-  LANE_TREE_CANDIDATE_ANGLE_STEP = 20,
-  LANE_TREE_CACHE_TTL           = 0.20,
-  LANE_RETREAT_TREE_SEARCH_RADIUS = 1100,
-  LANE_BURST_GAP                = 0.10,
-  LANE_ROTATE_MIN_CREEPS_LEFT   = 1,
-  LANE_ROTATE_BYPASS_IDLE_DELAY = true,
-  LANE_DYNAMIC_SCORE_BIAS       = 1.5,
-  LANE_LASER_MIN_VALUE_CREEPS   = 3,
-  LANE_DAGON_USE_MAX_CREEPS     = 2,
-  LANE_DAGON_MIN_ROTATE_MANA_BUFFER = 35,
-  LANE_SPOT_RESELECT_COOLDOWN   = 2.0,
   MARCH_MIN_RECAST_GAP          = 0.6,
   REARM_MIN_GAP_AFTER_MARCH     = 0.35,
   HOLD_ACTIONS_DURING_CONFIRM   = true,
@@ -387,6 +349,25 @@ Constants = {
   PENDING_TP_MAX_AGE            = 2.5,
   MARCH_VERIFY_MAX_AGE          = 1.2,
   MARCH_VERIFY_COOLDOWN_EPS     = 0.01,
+  -- Lane farming
+  LANE_CLUSTER_RADIUS           = 900,
+  LANE_MIN_CREEPS               = 3,
+  LANE_GOLD_PER_CREEP           = 45,
+  LANE_SCORE_BIAS               = -5.0,
+  LANE_REFRESH_INTERVAL         = 0.5,
+  LANE_NO_CREEPS_TIMEOUT        = 2.0,
+  LANE_REFARM_COOLDOWN          = 12.0,
+  -- Tree blink (lane)
+  TREE_BLINK_SEARCH_RADIUS      = 1000,
+  TREE_BLINK_MIN_TREES          = 3,
+  TREE_BLINK_TREE_CHECK_RADIUS  = 200,
+  TREE_BLINK_MAX_WAVE_DIST      = 1350,
+  -- Adaptive lane bias
+  LANE_BIAS_EARLY               = 5.0,
+  LANE_BIAS_MID                 = 0.0,
+  LANE_BIAS_LATE                = -8.0,
+  LANE_BIAS_EARLY_TIME          = 900,
+  LANE_BIAS_LATE_TIME           = 1800,
 }
 State = {
   Hero = nil,
@@ -397,9 +378,6 @@ State = {
   March = nil,
   KeenTeleport = nil,
   Blink = nil,
-  Laser = nil,
-  Shiva = nil,
-  Dagon = nil,
 
   FarmState = "IDLE",
   CurrentFarmSpot = nil,
@@ -441,12 +419,6 @@ State = {
 
   CachedBestSpot = nil,
   AfterMarchCheck = nil,
-  CampAliveScanCache = {},
-  NeutralSnapshot = { at = 0, list = {} },
-  LaneCreepSnapshot = { at = 0, list = {} },
-  SessionSig = nil,
-  LastObservedGameTime = 0,
-  LastNeutralRespawnMinute = nil,
 
   LastHP = 0,
   LastHPTime = 0,
@@ -459,15 +431,6 @@ State = {
   SpotCommitUntil = 0,
   LastFarmTPAt = 0,
   JustClearedSpotAt = 0,
-  LastLaneBurstAt = 0,
-  LastLaneRetreatBlinkAt = 0,
-  PendingLaneRotate = false,
-  LastLaneSpotKey = nil,
-  LaneTreeBlinkCache = {},
-  LastLaneTreeSearchAt = 0,
-  LaneBurstTargets = {},
-  LastLaneSkipKey = nil,
-  LastLaneSkipUntil = 0,
 
   LastMarchCastAt = 0,
 
@@ -477,6 +440,12 @@ State = {
   MarchTotalCasts = 0,
   MarchModeWasCustom = false,
   PendingMarchVerify = nil,
+  -- Lane farming state
+  LaneWaveCreeps = nil,
+  LaneNoCreepsSince = nil,
+  LastLaneFarmPos = nil,
+  LastLaneFarmAt  = 0,
+  LaneTreeBlinkDone = false,
   StatusUI = {
     x = Render.ScreenSize().x / 1.35,
     y = Render.ScreenSize().y / 1.1,
@@ -491,9 +460,6 @@ State = {
 }
 
 local Utils = {}
-local Tinker = {}
-local RefreshLaneCamp
-local GetLaneMarchLimit
 
 local ORDER_NAME = {
   [Enum.UnitOrder.DOTA_UNIT_ORDER_NONE]             = "NONE",
@@ -516,11 +482,6 @@ end
 
 local function ShouldAllowOrder(order, ability, targetEntity, targetPos)
   local t = GameRules.GetGameTime()
-
-  -- Prevent accidental order spam from cancelling Rearm during cast point / early channel frames.
-  if State.RearmBlinkHoldPending and ability ~= State.Rearm then
-    return false, "rearmPendingLock"
-  end
 
   if (State.OrdersThisUpdate or 0) >= (Constants.ORDERS_PER_UPDATE or 1) then
     return false, "perUpdateCap"
@@ -622,33 +583,6 @@ function Utils.MoveTo(pos)
   return Utils.IssueOrder(Enum.UnitOrder.DOTA_UNIT_ORDER_MOVE_TO_POSITION, nil, pos)
 end
 
-local function CanExecuteAbility(ability)
-  if not ability then return false end
-  if Ability and Ability.CanBeExecuted then
-    return Ability.CanBeExecuted(ability) == -1
-  end
-  if Ability and Ability.IsReady then
-    return Ability.IsReady(ability)
-  end
-  if ability.IsReady then
-    return ability:IsReady()
-  end
-  return false
-end
-
-function Tinker.GetDagonItem()
-  if not State.Hero then return nil end
-  return NPC.GetItem(State.Hero, "item_dagon_5", true)
-      or NPC.GetItem(State.Hero, "item_dagon_4", true)
-      or NPC.GetItem(State.Hero, "item_dagon_3", true)
-      or NPC.GetItem(State.Hero, "item_dagon_2", true)
-      or NPC.GetItem(State.Hero, "item_dagon", true)
-end
-
-function Tinker.IsOverwhelmingBlink()
-  return State.Blink and Ability.GetName(State.Blink) == "item_overwhelming_blink"
-end
-
 local function FormatGold(n) return tostring(math.floor(n + 0.5)) .. "g" end
 
 local MarkRearmIssued = function(now)
@@ -696,7 +630,7 @@ local function IsBlinkLockedNow()
   return false
 end
 
-Tinker = Tinker or {}
+local Tinker = {}
 local function GetAbilityCooldownRemaining(ability)
   if not ability then return 0 end
   if Ability.GetCooldownTimeRemaining then
@@ -751,13 +685,14 @@ local function GetRequiredMarchesForCampType(campType)
     return mc.Large:Get()
   elseif campType == 4 then
     return mc.Ancient:Get()
+  elseif campType == 5 then
+    return mc.Lane:Get()
   end
   return 0
 end
 
 local function ComputeRequiredMarchesForSpot(spot)
   if not spot then return 0 end
-  if spot.kind == "lane" then return GetLaneMarchLimit() end
   local function req(c)
     if not c or not c.type then return 0 end
     return GetRequiredMarchesForCampType(c.type)
@@ -775,12 +710,6 @@ end
 
 local function MarkCampFarmed(camp, now)
   if not camp then return end
-  if camp.kind == "lane_wave" then
-    camp.farmed = true
-    camp.farmedAt = now
-    camp.respawnAt = nil
-    return
-  end
   camp.farmed = true
   camp.farmedAt = now
   camp.respawnAt = NextNeutralCampRespawnTime(now)
@@ -801,19 +730,19 @@ local function UpdateFarmedCampRespawns()
 end
 
 local function MarkSpotFarmedAndLeave()
-  local curSpot = State.CurrentFarmSpot
   local now = GameRules.GetGameTime()
-  if curSpot then
-    if curSpot.camp1 then MarkCampFarmed(curSpot.camp1, now) end
-    if (not curSpot.single) and curSpot.camp2 then
-      MarkCampFarmed(curSpot.camp2, now)
+  if State.CurrentFarmSpot then
+    if State.CurrentFarmSpot.isLane then
+      State.LastLaneFarmPos = State.CurrentFarmSpot.pos
+      State.LastLaneFarmAt  = now
+    else
+      if State.CurrentFarmSpot.camp1 then MarkCampFarmed(State.CurrentFarmSpot.camp1, now) end
+      if (not State.CurrentFarmSpot.single) and State.CurrentFarmSpot.camp2 then
+        MarkCampFarmed(State.CurrentFarmSpot.camp2, now)
+      end
     end
   end
   State.AfterMarchCheck          = nil
-  State.CurrentFarmSpot          = curSpot
-  if curSpot and curSpot.kind == "lane" and Tinker.TryRotateAfterLaneClear and Tinker.TryRotateAfterLaneClear(curSpot) then
-    return
-  end
   State.FarmState                = "IDLE"
   State.JustClearedSpotAt        = GameRules.GetGameTime()
   State.CurrentFarmSpot          = nil
@@ -1024,11 +953,6 @@ end
 
 local function RecenterSpot(spot)
   if not spot then return end
-  if spot.kind == "lane" and spot.camp1 then
-    RefreshLaneCamp(spot.camp1)
-    if spot.camp1.pos then spot.pos = spot.camp1.pos end
-    return
-  end
   if spot.single then
     if spot.camp1 and spot.camp1.pos then spot.pos = spot.camp1.pos end
   else
@@ -1038,440 +962,152 @@ local function RecenterSpot(spot)
   end
 end
 
-local function ClearCampScanCaches()
-  State.CampAliveScanCache = {}
-  State.NeutralSnapshot    = { at = 0, list = {} }
-  State.LaneCreepSnapshot  = { at = 0, list = {} }
-end
-
-local function ResetFarmedCampFlags(reason)
-  for _, camp in pairs(GetJungleSpots() or {}) do
-    if type(camp) == "table" then
-      camp.farmed    = false
-      camp.farmedAt  = nil
-      camp.respawnAt = nil
-    end
-  end
-  State.CachedBestSpot = nil
-  State.LastSpotScan   = 0
-  ClearCampScanCaches()
-  State.LastCampResetReason = reason or "manual"
-end
-
-local function MaybeResetCampStateForSession()
-  local matchId = (GameRules.GetMatchID and GameRules.GetMatchID()) or 0
-  local startAt = (GameRules.GetGameStartTime and GameRules.GetGameStartTime()) or 0
-  local sig     = tostring(matchId) .. "|" .. tostring(startAt)
-
-  if State.SessionSig ~= sig then
-    State.SessionSig = sig
-    ResetFarmedCampFlags("sessionChange")
-  end
-
-  local now = GameRules.GetGameTime() or 0
-  if (State.LastObservedGameTime or 0) > (now + 1.0) then
-    ResetFarmedCampFlags("timeRewind")
-  end
-  State.LastObservedGameTime = now
-
-  local dotaTime = (GameRules.GetDOTATime and GameRules.GetDOTATime()) or now
-  local minute   = math.floor(math.max(0, dotaTime) / 60)
-  if State.LastNeutralRespawnMinute == nil then
-    State.LastNeutralRespawnMinute = minute
-  elseif minute > State.LastNeutralRespawnMinute then
-    State.LastNeutralRespawnMinute = minute
-    State.CachedBestSpot = nil
-    State.LastSpotScan   = 0
-    ClearCampScanCaches()
-  elseif minute < State.LastNeutralRespawnMinute then
-    State.LastNeutralRespawnMinute = minute
-  end
-end
-
-local function GetNeutralSnapshot()
-  local ttl  = Constants.NEUTRAL_SNAPSHOT_CACHE_TTL or 0.10
-  local now  = GameRules.GetGameTime() or 0
-  local snap = State.NeutralSnapshot
-  if snap and (now - (snap.at or 0)) <= ttl and type(snap.list) == "table" then
-    return snap.list
-  end
-
-  local out = {}
-  for _, unit in ipairs(NPCs.GetAll() or {}) do
-    if unit and Entity.IsEntity(unit) and Entity.IsAlive(unit)
-        and NPC.IsCreep(unit)
-        and (NPC.IsNeutral and NPC.IsNeutral(unit))
-        and (not NPC.IsWaitingToSpawn or not NPC.IsWaitingToSpawn(unit)) then
-      table.insert(out, unit)
-    end
-  end
-
-  State.NeutralSnapshot = { at = now, list = out }
-  return out
-end
-
-local function CountCampAliveCreepsByScan(camp)
-  if not camp or not camp.pos then return 0 end
-
-  local key   = CampIndex(camp)
-  local now   = GameRules.GetGameTime() or 0
-  local cache = State.CampAliveScanCache and State.CampAliveScanCache[key] or nil
-  local ttl   = Constants.CAMP_ALIVE_SCAN_CACHE_TTL or 0.10
-  if cache and (now - (cache.at or 0)) <= ttl then
-    return cache.cnt or 0
-  end
-
-  local radius = (camp.type == 4) and (Constants.CAMP_ALIVE_SCAN_RADIUS_ANCIENT or 1200)
-      or (Constants.CAMP_ALIVE_SCAN_RADIUS or 900)
-  local cnt = 0
-  for _, unit in ipairs(GetNeutralSnapshot()) do
-    if unit and Entity.IsEntity(unit) then
-      local upos = Entity.GetAbsOrigin(unit)
-      if upos and upos:Distance(camp.pos) <= radius then
-        cnt = cnt + 1
-      end
-    end
-  end
-
-  State.CampAliveScanCache = State.CampAliveScanCache or {}
-  State.CampAliveScanCache[key] = { at = now, cnt = cnt }
-  return cnt
-end
-
-local function MaybeUnmarkFarmedCamp(camp)
-  if not camp or not camp.farmed then return end
-  if not (GameRules.IsCheatsEnabled and GameRules.IsCheatsEnabled()) then return end
-  if CountCampAliveCreepsByScan(camp) > 0 then
-    camp.farmed    = false
-    camp.farmedAt  = nil
-    camp.respawnAt = nil
-  end
-end
-
-local function GetCampTeam(camp)
-  if not camp then return nil end
-  if camp.team ~= nil then return camp.team end
-  if not camp.pos then return nil end
-  local dR = camp.pos:Distance(Constants.FOUNTAIN_RADIANT)
-  local dD = camp.pos:Distance(Constants.FOUNTAIN_DIRE)
-  return (dR <= dD) and 2 or 3
-end
-
-local function GetEnemyLaneCreepsSnapshot()
-  local ttl  = Constants.LANE_CREEP_SNAPSHOT_CACHE_TTL or 0.10
-  local now  = GameRules.GetGameTime() or 0
-  local snap = State.LaneCreepSnapshot
-  if snap and (now - (snap.at or 0)) <= ttl and type(snap.list) == "table" then
-    return snap.list
-  end
-
-  local raw = nil
-  if NPCs and NPCs.GetAll then
-    raw = NPCs.GetAll(Enum.UnitTypeFlags.TYPE_LANE_CREEP)
-    if type(raw) ~= "table" or #raw == 0 then
-      raw = NPCs.GetAll()
-    end
-  end
-  raw = raw or {}
-
-  local out = {}
-  for _, unit in ipairs(raw) do
-    if unit and Entity.IsEntity(unit) and Entity.IsAlive(unit)
-        and NPC.IsCreep(unit)
-        and (NPC.IsLaneCreep and NPC.IsLaneCreep(unit))
-        and Entity.GetTeamNum(unit) ~= State.HeroTeam
-        and (not Entity.IsDormant or not Entity.IsDormant(unit))
-        and (not NPC.IsWaitingToSpawn or not NPC.IsWaitingToSpawn(unit)) then
-      table.insert(out, unit)
-    end
-  end
-
-  State.LaneCreepSnapshot = { at = now, list = out }
-  return out
-end
-
-local function IsSiegeLikeLaneCreep(unit)
-  local name = (unit and Entity.GetUnitName(unit)) or ""
-  return string.find(name, "siege", 1, true) ~= nil or string.find(name, "catapult", 1, true) ~= nil
-end
-
-local function CollectLaneCreepsAround(center, creeps, radius)
-  if not center then return {}, nil, 0, 0 end
-  local picked = {}
-  local sx, sy, sz = 0, 0, 0
-  local siegeCnt = 0
-
-  for _, unit in ipairs(creeps or {}) do
-    if unit and Entity.IsEntity(unit) and Entity.IsAlive(unit) then
-      local p = Entity.GetAbsOrigin(unit)
-      if p and p:Distance(center) <= radius then
-        table.insert(picked, unit)
-        sx, sy, sz = sx + (p.x or 0), sy + (p.y or 0), sz + (p.z or 0)
-        if IsSiegeLikeLaneCreep(unit) then siegeCnt = siegeCnt + 1 end
-      end
-    end
-  end
-
-  local n = #picked
-  if n == 0 then return picked, nil, 0, 0 end
-
-  local avg = Vector(sx / n, sy / n, sz / n)
-  local maxDist = 0
-  for _, unit in ipairs(picked) do
-    local p = Entity.GetAbsOrigin(unit)
-    if p then
-      local d = p:Distance(avg)
-      if d > maxDist then maxDist = d end
-    end
-  end
-
-  return picked, avg, maxDist, siegeCnt
-end
-
-local function MakeLaneBucketIndex(pos)
-  local b = Constants.LANE_POS_BUCKET or 320
-  return string.format("lane:%d:%d", math.floor((pos.x or 0) / b), math.floor((pos.y or 0) / b))
-end
-
-RefreshLaneCamp = function(camp)
-  if not camp or camp.kind ~= "lane_wave" then return nil end
-  if not camp.pos then
-    camp.alive_creeps = {}
-    camp.farmed = true
-    return 0
-  end
-
-  local creeps = GetEnemyLaneCreepsSnapshot()
-  local trackR = camp.track_radius or Constants.LANE_TRACK_RADIUS or 1000
-  local reacqR = camp.reacquire_radius or Constants.LANE_REACQUIRE_RADIUS or 1800
-
-  local picked, avg, _, siegeCnt = CollectLaneCreepsAround(camp.pos, creeps, trackR)
-  if #picked == 0 then
-    local nearestPos, nearestDist = nil, math.huge
-    for _, unit in ipairs(creeps) do
-      local p = Entity.GetAbsOrigin(unit)
-      if p then
-        local d = p:Distance(camp.pos)
-        if d < nearestDist and d <= reacqR then
-          nearestDist, nearestPos = d, p
-        end
-      end
-    end
-    if nearestPos then
-      picked, avg, _, siegeCnt = CollectLaneCreepsAround(nearestPos, creeps, trackR)
-    end
-  end
-
-  camp.alive_creeps = picked or {}
-  if avg then
-    camp.pos = avg
-    camp.index = MakeLaneBucketIndex(avg)
-    camp.farmed = false
-    camp.creepCount = #camp.alive_creeps
-    camp.siegeCount = siegeCnt or 0
-  else
-    camp.farmed = true
-    camp.creepCount = 0
-    camp.siegeCount = 0
-  end
-
-  return #camp.alive_creeps
-end
-
-GetLaneMarchLimit = function()
-  if Config and Config.Lane and Config.Lane.MarchesPerWave and Config.Lane.MarchesPerWave.Get then
-    return math.max(1, Config.Lane.MarchesPerWave:Get() or 1)
-  end
-  return 1
-end
-
-local function IsLaneSpotTemporarilySkipped(spotKey)
-  if not spotKey then return false end
-  return State.LastLaneSkipKey == spotKey and (GameRules.GetGameTime() or 0) < (State.LastLaneSkipUntil or 0)
-end
-
-function Tinker.FindBestLaneCreepSpot(excludeSpotKey)
-  local creeps = GetEnemyLaneCreepsSnapshot()
-  if #creeps < (Constants.LANE_MIN_CREEPS or 2) then return nil end
-
-  local myPos    = Entity.GetAbsOrigin(State.Hero)
-  local enemyPts = Tinker.GetEnemyLastKnownPositions()
-  local bestSpot, bestScore = nil, math.huge
-
-  for _, seed in ipairs(creeps) do
-    local seedPos = Entity.GetAbsOrigin(seed)
-    if seedPos then
-      local _, center = CollectLaneCreepsAround(seedPos, creeps, Constants.LANE_CLUSTER_SEED_RADIUS or 900)
-      if center then
-        local cluster2, center2, maxDist, siegeCnt = CollectLaneCreepsAround(center, creeps,
-          Constants.MARCH_CAST_RANGE or 900)
-        local count = #cluster2
-        if count >= (Constants.LANE_MIN_CREEPS or 2) and center2 and maxDist <= (Constants.MARCH_CAST_RANGE or 900) then
-          local anchorPos = Tinker.IntendedKeenTPPos(center2)
-          local rSpot     = RiskAtPoint(center2, enemyPts)
-          local rAnchor   = RiskAtPoint(anchorPos, enemyPts)
-          local rPath     = PathRisk(anchorPos, center2, enemyPts)
-
-          local riskLimit = Constants.ENEMY_RISK_HARD_BLOCK
-          local blockR    = Constants.ENEMY_RISK_BLOCK_RADIUS
-          if not ((rSpot >= riskLimit) or (rAnchor >= riskLimit) or (rPath >= riskLimit)
-              or AnyEnemyWithin(anchorPos, enemyPts, blockR)) then
-            local distScore   = myPos:Distance(center2) / 100.0
-            local riskPenalty = (Constants.ENEMY_RISK_W_SPOT * rSpot
-                + Constants.ENEMY_RISK_W_ANCHOR * rAnchor
-                + Constants.ENEMY_RISK_W_PATH * rPath) * Constants.ENEMY_RISK_WEIGHT
-            local waveValue   = count * (Constants.LANE_SCORE_PER_CREEP or 2.0)
-                + siegeCnt * (Constants.LANE_SCORE_PER_SIEGE or 1.0)
-            local score       = distScore + riskPenalty - waveValue
-
-            if score < bestScore then
-              local camp = {
-                pos              = center2,
-                type             = 2,
-                index            = MakeLaneBucketIndex(center2),
-                alive_creeps     = cluster2,
-                farmed           = false,
-                kind             = "lane_wave",
-                creepCount       = count,
-                siegeCount       = siegeCnt or 0,
-                laneScoreRaw     = score,
-                track_radius     = Constants.LANE_TRACK_RADIUS or 1000,
-                reacquire_radius = Constants.LANE_REACQUIRE_RADIUS or 1800
-              }
-              local candidate = {
-                pos    = center2,
-                camp1  = camp,
-                single = true,
-                gold   = 0,
-                kind   = "lane",
-                creepCount = count,
-                siegeCount = siegeCnt or 0,
-                score = score
-              }
-              local cKey = SpotKey(candidate)
-              if (not excludeSpotKey or cKey ~= excludeSpotKey) and (not IsLaneSpotTemporarilySkipped(cKey)) then
-                bestScore = score
-                bestSpot = candidate
-              end
-            end
-          end
-        end
-      end
-    end
-  end
-
-  return bestSpot
-end
-
 local function IsCampAncient(camp) return camp and camp.type == 4 end
 local function ComputeMarchCastInfo(spot)
   if not spot then return nil end
-  if spot.kind == "lane" and spot.camp1 then
-    local cnt = RefreshLaneCamp(spot.camp1) or 0
-    if cnt <= 0 then return nil end
-
-    local castPos = spot.camp1.pos or spot.pos
-    if not castPos then return nil end
-
-    local alive = {}
-    local sx, sy, sz = 0, 0, 0
-    for _, unit in ipairs(spot.camp1.alive_creeps or {}) do
-      if unit and Entity.IsEntity(unit) and Entity.IsAlive(unit) then
-        local p = Entity.GetAbsOrigin(unit)
-        if p then
-          table.insert(alive, unit)
-          sx, sy, sz = sx + (p.x or 0), sy + (p.y or 0), sz + (p.z or 0)
-        end
-      end
-    end
-    if #alive == 0 then
-      spot.camp1.alive_creeps = {}
-      spot.camp1.farmed = true
-      return nil
-    end
-
-    castPos = Vector(sx / #alive, sy / #alive, sz / #alive)
-    spot.camp1.alive_creeps = alive
-    spot.camp1.pos = castPos
-    spot.camp1.creepCount = #alive
-    spot.pos = castPos
-    spot.creepCount = #alive
-
-    local maxDist = 0
-    local siegeCnt = 0
-    for _, unit in ipairs(alive) do
-      local p = Entity.GetAbsOrigin(unit)
-      if p then
-        local d = castPos:Distance(p)
-        if d > maxDist then maxDist = d end
-      end
-      if IsSiegeLikeLaneCreep(unit) then siegeCnt = siegeCnt + 1 end
-    end
-    spot.camp1.siegeCount = siegeCnt
-    spot.siegeCount = siegeCnt
-    return { pos = castPos, maxDist = maxDist, count = #alive, siegeCount = siegeCnt }
-  end
   local castPos = spot.pos
   local maxDist = 0
   if spot.camp1 and spot.camp1.pos then maxDist = math.max(maxDist, castPos:Distance(spot.camp1.pos)) end
   if spot.camp2 and spot.camp2.pos then maxDist = math.max(maxDist, castPos:Distance(spot.camp2.pos)) end
   return { pos = castPos, maxDist = maxDist }
 end
-function Tinker.FindBestJungleSpot(wantAncient, wantNonAnc)
-  local myPos = Entity.GetAbsOrigin(State.Hero)
-  if not (wantAncient or wantNonAnc) then return nil end
-  local allCamps, selectedSet = {}, {}
-  for _, camp in pairs(GetJungleSpots()) do
-    MaybeUnmarkFarmedCamp(camp)
-    if not camp.farmed and GetCampTeam(camp) == State.HeroTeam then
-      table.insert(allCamps, camp)
-      local isAnc = IsCampAncient(camp)
-      if (isAnc and wantAncient) or (not isAnc and wantNonAnc) then
-        selectedSet[camp] = true
+
+-- ────────────────────────────────────────────────────────────
+-- Lane wave detection
+-- ────────────────────────────────────────────────────────────
+
+-- Count alive enemy lane creeps near a given position.
+local function CountEnemyLaneCreepsNear(pos, radius)
+  local cnt = 0
+  for _, e in ipairs(NPCs.GetAll() or {}) do
+    if e and Entity.IsAlive(e)
+        and not Entity.IsDormant(e)
+        and Entity.GetTeamNum(e) ~= State.HeroTeam
+        and NPC.IsLaneCreep(e)
+        and not NPC.IsWaitingToSpawn(e) then
+      if Entity.GetAbsOrigin(e):Distance(pos) <= radius then
+        cnt = cnt + 1
       end
     end
   end
-  if #allCamps == 0 then return nil end
+  return cnt
+end
 
-  local coverageMax                           = Constants.MARCH_CAST_RANGE * Constants.MARCH_PAIR_COVERAGE_FRAC
-  local bountyK                               = Config.PreferBounty:Get() and Constants.BOUNTY_SCORE_FACTOR_HIGH or
-      Constants.BOUNTY_SCORE_FACTOR_LOW
+-- Gather alive enemy lane creeps visible on the map.
+local function GetEnemyLaneCreeps()
+  local out = {}
+  for _, e in ipairs(NPCs.GetAll() or {}) do
+    if e and Entity.IsAlive(e)
+        and not Entity.IsDormant(e)
+        and Entity.GetTeamNum(e) ~= State.HeroTeam
+        and NPC.IsLaneCreep(e)
+        and not NPC.IsWaitingToSpawn(e) then
+      table.insert(out, e)
+    end
+  end
+  return out
+end
 
-  local enemyPts                              = Tinker.GetEnemyLastKnownPositions()
-  local wSpot                                 = Constants.ENEMY_RISK_W_SPOT
-  local wAnchor                               = Constants.ENEMY_RISK_W_ANCHOR
-  local wPath                                 = Constants.ENEMY_RISK_W_PATH
-  local riskW                                 = Constants.ENEMY_RISK_WEIGHT
-  local bestPairScore, bestPair, bestPairGold = math.huge, nil, 0
-  if #allCamps >= 2 then
-    for i = 1, #allCamps do
-      for j = i + 1, #allCamps do
-        local campA, campB = allCamps[i], allCamps[j]
-        if selectedSet[campA] or selectedSet[campB] then
-          local AB = (campA.pos - campB.pos):Length()
-          if (AB * 0.5) <= coverageMax then
-            local center        = (campA.pos + campB.pos) / 2
-            local distScore     = myPos:Distance(center) / 100.0
-            local spreadPenalty = AB / 200.0
-            local gold          = (Camp.GetGoldBounty(campA, true) + Camp.GetGoldBounty(campB, true))
-            local bountyScore   = (gold / 50.0) * bountyK
+-- Find the best allied ranged lane creep near a position.
+-- Returns the entity (or nil).  Prefers ranged, falls back to any allied creep.
+local function FindAllyRangedCreepNear(pos, radius)
+  local bestRanged, bestRangedDist = nil, math.huge
+  local bestAny,    bestAnyDist    = nil, math.huge
+  for _, e in ipairs(NPCs.GetAll() or {}) do
+    if e and Entity.IsAlive(e)
+        and not Entity.IsDormant(e)
+        and Entity.GetTeamNum(e) == State.HeroTeam
+        and NPC.IsLaneCreep(e)
+        and not NPC.IsWaitingToSpawn(e) then
+      local d = Entity.GetAbsOrigin(e):Distance(pos)
+      if d <= radius then
+        if d < bestAnyDist then bestAny = e; bestAnyDist = d end
+        if NPC.IsRanged(e) and d < bestRangedDist then
+          bestRanged = e; bestRangedDist = d
+        end
+      end
+    end
+  end
+  return bestRanged or bestAny
+end
 
-            local anchorPos     = Tinker.IntendedKeenTPPos(center)
-            local rSpot         = RiskAtPoint(center, enemyPts)
-            local rAnchor       = RiskAtPoint(anchorPos, enemyPts)
-            local rPath         = PathRisk(anchorPos, center, enemyPts)
+-- ────────────────────────────────────────────────────────────
+-- Tree blink position finder (for lane farming)
+-- ────────────────────────────────────────────────────────────
+-- Finds a position among trees within blink range of heroPos
+-- from which March can still reach wavePos.
+-- Returns Vector or nil.
+function Tinker.FindTreeBlinkPos(heroPos, wavePos)
+  if not Trees then return nil end
+  local searchR   = Constants.TREE_BLINK_SEARCH_RADIUS or 1000
+  local checkR    = Constants.TREE_BLINK_TREE_CHECK_RADIUS or 200
+  local minTrees  = Constants.TREE_BLINK_MIN_TREES or 3
+  local maxWaveD  = Constants.TREE_BLINK_MAX_WAVE_DIST or 1350
+  local blinkMax  = Constants.BLINK_MAX_RANGE or 1200
+  local marchR    = Constants.MARCH_CAST_RANGE or 900
 
-            local score         = math.huge
-            local riskLimit     = Constants.ENEMY_RISK_HARD_BLOCK
-            local blockR        = Constants.ENEMY_RISK_BLOCK_RADIUS
-            if (rSpot >= riskLimit) or (rAnchor >= riskLimit) or (rPath >= riskLimit)
-                or AnyEnemyWithin(anchorPos, enemyPts, blockR) then
-            else
-              local riskPenalty = (wSpot * rSpot + wAnchor * rAnchor + wPath * rPath) * riskW
-              score             = distScore + spreadPenalty + riskPenalty - bountyScore
-            end
-            if score < bestPairScore then
-              bestPairScore, bestPair, bestPairGold = score, { campA, campB }, gold
+  -- Helper: safely get tree position (v1 procedural fallback)
+  local function getTreePos(t)
+    if Entity and Entity.GetAbsOrigin then return Entity.GetAbsOrigin(t) end
+    return nil
+  end
+  -- Helper: safely check if tree is active (not chopped)
+  local function treeActive(t)
+    local p = getTreePos(t)
+    if not p then return false end
+    if GridNav and GridNav.IsNearbyTree then
+      return GridNav.IsNearbyTree(p, 10)
+    end
+    return true
+  end
+
+  -- Determine "safe direction" — prefer tree spots on the hero's base side
+  local fountainPos = (State.HeroTeam == 2) and Constants.FOUNTAIN_RADIANT or Constants.FOUNTAIN_DIRE
+  local baseDir = (fountainPos - wavePos):Normalized()  -- direction from wave towards base
+
+  -- Get trees near the wave
+  local trees = Trees.InRadius(wavePos, searchR, 0, 0) or {}
+  if #trees < minTrees then return nil end
+
+  local bestPos   = nil
+  local bestScore = -math.huge
+
+  for _, tree in ipairs(trees) do
+    local tp = getTreePos(tree)
+    if tp and treeActive(tree) then
+      local heroD = tp:Distance(heroPos)
+      local waveD = tp:Distance(wavePos)
+
+      -- Must be within blink range, within March effective range, and not too close
+      if heroD <= blinkMax and waveD <= maxWaveD and waveD >= 250 and waveD <= marchR * 1.5 then
+        -- Count trees around this position
+        local nearby = Trees.InRadius(tp, checkR, 0, 0) or {}
+        local treeCount = #nearby
+
+        if treeCount >= minTrees then
+          local dir      = (wavePos - tp):Normalized()
+          local standPos = tp + dir * 80
+          local canStand = true
+          if GridNav and GridNav.IsTraversable then
+            canStand = GridNav.IsTraversable(standPos)
+          end
+
+          if canStand then
+            -- Score components:
+            -- 1) Tree density = safety
+            -- 2) Closer to wave = better March coverage
+            -- 3) On base side of wave = safer retreat
+            local treeScore = treeCount * 2.0
+            local distScore = -(waveD / 300.0)  -- prefer closer (but min 250)
+            -- Dot product: how much this direction aligns with base direction
+            local toTree    = (tp - wavePos):Normalized()
+            local baseDot   = toTree.x * baseDir.x + toTree.y * baseDir.y  -- [-1, 1]
+            local sideScore = baseDot * 4.0  -- strongly prefer base side
+
+            local score = treeScore + distScore + sideScore
+            if score > bestScore then
+              bestScore = score
+              bestPos   = standPos
             end
           end
         end
@@ -1479,71 +1115,151 @@ function Tinker.FindBestJungleSpot(wantAncient, wantNonAnc)
     end
   end
 
-  if bestPair then
-    return {
-      pos = (bestPair[1].pos + bestPair[2].pos) / 2,
-      camp1 = bestPair[1],
-      camp2 = bestPair[2],
-      gold = bestPairGold,
-      score = bestPairScore,
-      kind = "jungle"
-    }
-  end
-  local bestSingle, bestSingleScore, bestSingleGold = nil, math.huge, 0
-  for camp, _ in pairs(selectedSet) do
-    local distScore   = myPos:Distance(camp.pos) / 100.0
-    local gold        = Camp.GetGoldBounty(camp, true)
-    local bountyScore = (gold / 50.0) * bountyK
-
-    local anchorPos   = Tinker.IntendedKeenTPPos(camp.pos)
-    local rSpot       = RiskAtPoint(camp.pos, enemyPts)
-    local rAnchor     = RiskAtPoint(anchorPos, enemyPts)
-    local rPath       = PathRisk(anchorPos, camp.pos, enemyPts)
-
-    local riskLimit   = Constants.ENEMY_RISK_HARD_BLOCK
-    local blockR      = Constants.ENEMY_RISK_BLOCK_RADIUS
-    local score       = math.huge
-    if (rSpot >= riskLimit) or (rAnchor >= riskLimit) or (rPath >= riskLimit)
-        or AnyEnemyWithin(anchorPos, enemyPts, blockR) then
-    else
-      local riskPenalty = (wSpot * rSpot + wAnchor * rAnchor + wPath * rPath) * riskW
-      score             = distScore + riskPenalty - bountyScore
-    end
-    if score < bestSingleScore then
-      bestSingleScore, bestSingle, bestSingleGold = score, camp, gold
-    end
-  end
-  if bestSingle then
-    return {
-      pos = bestSingle.pos,
-      camp1 = bestSingle,
-      single = true,
-      gold = bestSingleGold,
-      score = bestSingleScore,
-      kind = "jungle"
-    }
-  end
-  return nil
+  return bestPos
 end
 
-local function GetLaneDynamicSpotScore(spot)
-  if not spot then return math.huge end
-  local score = spot.score or 0
-  local creepCount = spot.creepCount or (spot.camp1 and spot.camp1.creepCount) or 0
-  local siegeCount = spot.siegeCount or (spot.camp1 and spot.camp1.siegeCount) or 0
+-- ────────────────────────────────────────────────────────────
+-- Adaptive lane score bias
+-- ────────────────────────────────────────────────────────────
+-- Returns a dynamic bias value based on game time.
+-- Early game → positive (penalize lane, prefer jungle).
+-- Late game  → negative (prefer lane over jungle).
+function Tinker.GetAdaptiveLaneBias()
+  local dotaTime = 0
+  if GameRules and GameRules.GetDOTATime then
+    dotaTime = GameRules.GetDOTATime() or 0
+  end
+  if dotaTime < 0 then dotaTime = 0 end
 
-  score = score - (Constants.LANE_DYNAMIC_SCORE_BIAS or 0)
-  if State.PendingLaneRotate then
-    score = score - 2.0
+  local earlyT = Constants.LANE_BIAS_EARLY_TIME or 900   -- 15 min
+  local lateT  = Constants.LANE_BIAS_LATE_TIME  or 1800  -- 30 min
+  local earlyB = Constants.LANE_BIAS_EARLY      or 5.0
+  local midB   = Constants.LANE_BIAS_MID        or 0.0
+  local lateB  = Constants.LANE_BIAS_LATE       or -8.0
+
+  if dotaTime <= earlyT then
+    -- Lerp from earlyB to midB over [0, earlyT]
+    local f = dotaTime / earlyT
+    return earlyB + (midB - earlyB) * f
+  elseif dotaTime <= lateT then
+    -- Lerp from midB to lateB over [earlyT, lateT]
+    local f = (dotaTime - earlyT) / (lateT - earlyT)
+    return midB + (lateB - midB) * f
+  else
+    return lateB
   end
-  if creepCount <= 2 and siegeCount <= 0 then
-    score = score + 2.5
-  end
-  return score
 end
 
-function Tinker.FindBestFarmSpot(excludeSpotKey)
-  local enabledTargets = Config.ToFarm:ListEnabled() or {}
+-- ────────────────────────────────────────────────────────────
+-- Compute March cast target, capping distance to MARCH_CAST_RANGE
+-- ────────────────────────────────────────────────────────────
+-- When the hero blinked into trees, they may be far from spot.pos.
+-- March of the Machines travels from hero in cast direction, so we
+-- only need to AIM in the right direction within cast range.
+function Tinker.GetMarchTarget(spot)
+  if not State.Hero or not Entity.GetAbsOrigin then return spot.pos end
+  local heroPos = Entity.GetAbsOrigin(State.Hero)
+  if not heroPos then return spot.pos end
+  local dist = heroPos:Distance(spot.pos)
+  local castRange = Constants.MARCH_CAST_RANGE or 900
+  if dist <= castRange then
+    return spot.pos
+  end
+  -- Cap to cast range so hero doesn't walk
+  local dir = (spot.pos - heroPos):Normalized()
+  return heroPos + dir * (castRange - 50)
+end
+
+-- Simple greedy clustering of lane creeps.
+-- Returns list of { center = Vector, creeps = { entity… }, gold = number }.
+function Tinker.FindLaneWaves()
+  local creeps   = GetEnemyLaneCreeps()
+  if #creeps == 0 then return {} end
+  local used     = {}
+  local clusters = {}
+  local clRadius = Constants.LANE_CLUSTER_RADIUS
+
+  local minCreeps = Constants.LANE_MIN_CREEPS
+  if Config.MarchControl and Config.MarchControl.UseCustom:Get()
+      and Config.MarchControl.LaneMinCreeps then
+    minCreeps = Config.MarchControl.LaneMinCreeps:Get()
+  end
+
+  for i, seed in ipairs(creeps) do
+    if not used[i] then
+      local group    = { seed }
+      used[i]        = true
+      local seedPos  = Entity.GetAbsOrigin(seed)
+      for j = i + 1, #creeps do
+        if not used[j] then
+          local p = Entity.GetAbsOrigin(creeps[j])
+          if seedPos:Distance(p) <= clRadius then
+            table.insert(group, creeps[j])
+            used[j] = true
+          end
+        end
+      end
+      if #group >= minCreeps then
+        -- Compute center and gold.
+        local cx, cy, cz = 0, 0, 0
+        local gold = 0
+        for _, u in ipairs(group) do
+          local p = Entity.GetAbsOrigin(u)
+          cx = cx + p.x; cy = cy + p.y; cz = cz + p.z
+          local gmin = (NPC.GetGoldBountyMin and NPC.GetGoldBountyMin(u)) or 0
+          local gmax = (NPC.GetGoldBountyMax and NPC.GetGoldBountyMax(u)) or 0
+          gold = gold + ((gmin + gmax) > 0 and math.floor((gmin + gmax) / 2) or Constants.LANE_GOLD_PER_CREEP)
+        end
+        local n      = #group
+        local center = Vector(cx / n, cy / n, cz / n)
+        table.insert(clusters, { center = center, creeps = group, gold = gold })
+      end
+    end
+  end
+  return clusters
+end
+
+-- Refresh the position of a lane spot to match the live creep positions.
+function Tinker.RefreshLaneSpotPos(spot)
+  if not spot or not spot.isLane then return end
+  local alive = {}
+  for _, e in ipairs(spot.laneCreeps or {}) do
+    if e and Entity.IsEntity(e) and Entity.IsAlive(e) and not Entity.IsDormant(e) then
+      table.insert(alive, e)
+    end
+  end
+  -- Also pick up any new nearby enemy lane creeps.
+  local radius = Constants.LANE_CLUSTER_RADIUS
+  local center = spot.pos
+  for _, e in ipairs(NPCs.GetAll() or {}) do
+    if e and Entity.IsAlive(e)
+        and not Entity.IsDormant(e)
+        and Entity.GetTeamNum(e) ~= State.HeroTeam
+        and NPC.IsLaneCreep(e)
+        and not NPC.IsWaitingToSpawn(e)
+        and Entity.GetAbsOrigin(e):Distance(center) <= radius then
+      local found = false
+      for _, a in ipairs(alive) do if a == e then found = true; break end end
+      if not found then table.insert(alive, e) end
+    end
+  end
+  spot.laneCreeps = alive
+  if #alive == 0 then return end
+  local cx, cy, cz = 0, 0, 0
+  for _, u in ipairs(alive) do
+    local p = Entity.GetAbsOrigin(u)
+    cx = cx + p.x; cy = cy + p.y; cz = cz + p.z
+  end
+  local n = #alive
+  spot.pos       = Vector(cx / n, cy / n, cz / n)
+  spot.camp1.pos = spot.pos
+end
+
+-- ────────────────────────────────────────────────────────────
+
+function Tinker.FindBestFarmSpot()
+  local myPos                   = Entity.GetAbsOrigin(State.Hero)
+  local enabledTargets          = Config.ToFarm:ListEnabled() or {}
   local wantAncient, wantNonAnc, wantLane = false, false, false
   for _, name in ipairs(enabledTargets) do
     if name == L("target_ancients") then wantAncient = true end
@@ -1552,33 +1268,152 @@ function Tinker.FindBestFarmSpot(excludeSpotKey)
   end
   if not (wantAncient or wantNonAnc or wantLane) then return nil end
 
-  local laneSpot = wantLane and Tinker.FindBestLaneCreepSpot(excludeSpotKey) or nil
-  if not (wantAncient or wantNonAnc) then
-    return laneSpot
+  local enemyPts  = Tinker.GetEnemyLastKnownPositions()
+  local wSpot     = Constants.ENEMY_RISK_W_SPOT
+  local wAnchor   = Constants.ENEMY_RISK_W_ANCHOR
+  local wPath     = Constants.ENEMY_RISK_W_PATH
+  local riskW     = Constants.ENEMY_RISK_WEIGHT
+  local riskLimit = Constants.ENEMY_RISK_HARD_BLOCK
+  local blockR    = Constants.ENEMY_RISK_BLOCK_RADIUS
+  local bountyK   = Config.PreferBounty:Get() and Constants.BOUNTY_SCORE_FACTOR_HIGH or
+      Constants.BOUNTY_SCORE_FACTOR_LOW
+
+  -- ─── Jungle candidates ───
+  local bestJungleSpot = nil
+  local bestJungleScore = math.huge
+  if wantAncient or wantNonAnc then
+    local allCamps, selectedSet = {}, {}
+    for _, camp in pairs(GetJungleSpots()) do
+      if not camp.farmed and camp.team == State.HeroTeam then
+        table.insert(allCamps, camp)
+        local isAnc = IsCampAncient(camp)
+        if (isAnc and wantAncient) or (not isAnc and wantNonAnc) then
+          selectedSet[camp] = true
+        end
+      end
+    end
+
+    local coverageMax = Constants.MARCH_CAST_RANGE * Constants.MARCH_PAIR_COVERAGE_FRAC
+
+    -- Pairs
+    local bestPairScore, bestPair, bestPairGold = math.huge, nil, 0
+    if #allCamps >= 2 then
+      for i = 1, #allCamps do
+        for j = i + 1, #allCamps do
+          local campA, campB = allCamps[i], allCamps[j]
+          if selectedSet[campA] or selectedSet[campB] then
+            local AB = (campA.pos - campB.pos):Length()
+            if (AB * 0.5) <= coverageMax then
+              local center        = (campA.pos + campB.pos) / 2
+              local distScore     = myPos:Distance(center) / 100.0
+              local spreadPenalty = AB / 200.0
+              local gold          = (Camp.GetGoldBounty(campA, true) + Camp.GetGoldBounty(campB, true))
+              local bountyScore   = (gold / 50.0) * bountyK
+
+              local anchorPos = Tinker.IntendedKeenTPPos(center)
+              local rSpot_    = RiskAtPoint(center, enemyPts)
+              local rAnchor_  = RiskAtPoint(anchorPos, enemyPts)
+              local rPath_    = PathRisk(anchorPos, center, enemyPts)
+
+              local score = math.huge
+              if not ((rSpot_ >= riskLimit) or (rAnchor_ >= riskLimit) or (rPath_ >= riskLimit)
+                  or AnyEnemyWithin(anchorPos, enemyPts, blockR)) then
+                local riskPenalty = (wSpot * rSpot_ + wAnchor * rAnchor_ + wPath * rPath_) * riskW
+                score             = distScore + spreadPenalty + riskPenalty - bountyScore
+              end
+              if score < bestPairScore then
+                bestPairScore, bestPair, bestPairGold = score, { campA, campB }, gold
+              end
+            end
+          end
+        end
+      end
+    end
+
+    if bestPair then
+      bestJungleSpot  = { pos = (bestPair[1].pos + bestPair[2].pos) / 2, camp1 = bestPair[1], camp2 = bestPair[2], gold = bestPairGold }
+      bestJungleScore = bestPairScore
+    else
+      local bestSingle, bestSingleScore, bestSingleGold = nil, math.huge, 0
+      for camp, _ in pairs(selectedSet) do
+        local distScore   = myPos:Distance(camp.pos) / 100.0
+        local gold        = Camp.GetGoldBounty(camp, true)
+        local bountyScore = (gold / 50.0) * bountyK
+
+        local anchorPos = Tinker.IntendedKeenTPPos(camp.pos)
+        local rSpot_    = RiskAtPoint(camp.pos, enemyPts)
+        local rAnchor_  = RiskAtPoint(anchorPos, enemyPts)
+        local rPath_    = PathRisk(anchorPos, camp.pos, enemyPts)
+
+        local score = math.huge
+        if not ((rSpot_ >= riskLimit) or (rAnchor_ >= riskLimit) or (rPath_ >= riskLimit)
+            or AnyEnemyWithin(anchorPos, enemyPts, blockR)) then
+          local riskPenalty = (wSpot * rSpot_ + wAnchor * rAnchor_ + wPath * rPath_) * riskW
+          score             = distScore + riskPenalty - bountyScore
+        end
+        if score < bestSingleScore then
+          bestSingleScore, bestSingle, bestSingleGold = score, camp, gold
+        end
+      end
+      if bestSingle then
+        bestJungleSpot  = { pos = bestSingle.pos, camp1 = bestSingle, single = true, gold = bestSingleGold }
+        bestJungleScore = bestSingleScore
+      end
+    end
   end
 
-  local jungleSpot = Tinker.FindBestJungleSpot(wantAncient, wantNonAnc)
-  if jungleSpot and excludeSpotKey and SpotKey(jungleSpot) == excludeSpotKey then
-    jungleSpot = nil
+  -- ─── Lane wave candidates ───
+  local bestLaneSpot  = nil
+  local bestLaneScore = math.huge
+  if wantLane then
+    local waves = Tinker.FindLaneWaves()
+    local laneCooldown = Constants.LANE_REFARM_COOLDOWN or 12.0
+    for _, wave in ipairs(waves) do
+      -- Skip waves near the position we just finished farming (prevent re-pick loop).
+      if State.LastLaneFarmPos and (GameRules.GetGameTime() - (State.LastLaneFarmAt or 0)) < laneCooldown then
+        if wave.center:Distance(State.LastLaneFarmPos) < (Constants.LANE_CLUSTER_RADIUS or 900) then
+          goto continue_lane
+        end
+      end
+      local pos         = wave.center
+      local distScore   = myPos:Distance(pos) / 100.0
+      local gold        = wave.gold
+      local bountyScore = (gold / 50.0) * bountyK
+
+      local anchorPos = Tinker.IntendedKeenTPPos(pos)
+      local rSpot_    = RiskAtPoint(pos, enemyPts)
+      local rAnchor_  = RiskAtPoint(anchorPos, enemyPts)
+      local rPath_    = PathRisk(anchorPos, pos, enemyPts)
+
+      local score = math.huge
+      if not ((rSpot_ >= riskLimit) or (rAnchor_ >= riskLimit) or (rPath_ >= riskLimit)
+          or AnyEnemyWithin(anchorPos, enemyPts, blockR)) then
+        local riskPenalty = (wSpot * rSpot_ + wAnchor * rAnchor_ + wPath * rPath_) * riskW
+        score             = distScore + riskPenalty - bountyScore + Tinker.GetAdaptiveLaneBias()
+      end
+      if score < bestLaneScore then
+        bestLaneScore = score
+        bestLaneSpot  = {
+          pos        = pos,
+          camp1      = { pos = pos, type = 5, index = "lane_" .. tostring(#wave.creeps), farmed = false, isLane = true },
+          single     = true,
+          isLane     = true,
+          gold       = gold,
+          laneCreeps = wave.creeps,
+        }
+      end
+      ::continue_lane::
+    end
   end
 
-  if not wantLane then return jungleSpot end
-  if not jungleSpot then return laneSpot end
-  if not laneSpot then return jungleSpot end
-
-  local useDynamic = Config.Lane and Config.Lane.DynamicMixPriority and Config.Lane.DynamicMixPriority:Get()
-  if not useDynamic then
-    return jungleSpot or laneSpot
+  -- ─── Pick the best among jungle and lane ───
+  if bestJungleSpot and bestLaneSpot then
+    if bestLaneScore < bestJungleScore then return bestLaneSpot end
+    return bestJungleSpot
   end
-
-  local laneScore = GetLaneDynamicSpotScore(laneSpot)
-  local jungleScore = jungleSpot.score or math.huge
-  laneSpot.score = laneScore
-
-  if laneScore < jungleScore then
-    return laneSpot
-  end
-  return jungleSpot
+  if bestJungleSpot then return bestJungleSpot end
+  if bestLaneSpot then return bestLaneSpot end
+  return nil
 end
 
 function Tinker.GetBestFarmSpotCached()
@@ -1622,41 +1457,6 @@ function Tinker.HasManaForFullCampCycle()
   local need    = Tinker.GetCampCycleManaCost()
   if need > maxMana then return curMana >= (maxMana * 0.9) end
   return curMana >= need
-end
-
-local function GetLaneRotateManaCost()
-  if not (Config.Lane and Config.Lane.RotateAfterClear and Config.Lane.RotateAfterClear:Get()) then
-    return 0
-  end
-  local tpCost = State.KeenTeleport and (Ability.GetManaCost(State.KeenTeleport) or 0) or 0
-  if State.KeenTeleport and CanExecuteAbility(State.KeenTeleport) then
-    return tpCost
-  end
-  if State.Rearm and CanExecuteAbility(State.Rearm) then
-    return (Ability.GetManaCost(State.Rearm) or 0) + tpCost
-  end
-  return tpCost
-end
-
-function Tinker.HasManaForSpot(spot)
-  if not spot or spot.kind ~= "lane" then
-    return Tinker.HasManaForFullCampCycle()
-  end
-  if not State.March then return true end
-
-  local curMana     = NPC.GetMana(State.Hero) or 0
-  local marchCost   = Ability.GetManaCost(State.March) or 0
-  local laserCost   = (Config.Lane and Config.Lane.UseLaser and Config.Lane.UseLaser:Get() and State.Laser and
-      (Ability.GetManaCost(State.Laser) or 0)) or 0
-  local escapeMana  = Tinker.GetEscapeManaCost()
-  local rotateCost  = GetLaneRotateManaCost()
-  local needStart   = marchCost + escapeMana
-  local needPrefer  = needStart + math.min(laserCost, 80) + math.min(rotateCost, 120)
-  local maxMana     = NPC.GetMaxMana(State.Hero) or 0
-
-  if curMana >= needStart then return true end
-  if needStart > maxMana and curMana >= math.min(needPrefer, maxMana * 0.9) then return true end
-  return false
 end
 
 function Tinker.NeedsToReturnToFountain()
@@ -1805,21 +1605,31 @@ function Tinker.RequestTeleportToSpot(spot, force)
     if not wantForce and now < (State.SpotCommitUntil or 0) then return false end
   end
 
-  if not Tinker.ShouldRequestTeleport(spot.pos, wantForce) and not wantForce then return false end
+  -- For lane spots, prefer TPing to the allied ranged creep (mage) so the
+  -- anchor survives the TP channel.  Fall back to spot.pos if none found.
+  local tpPos = spot.pos
+  if spot.isLane then
+    local rangedCreep = FindAllyRangedCreepNear(spot.pos, Constants.LANE_CLUSTER_RADIUS or 900)
+    if rangedCreep then
+      tpPos = Entity.GetAbsOrigin(rangedCreep)
+    end
+  end
+
+  if not Tinker.ShouldRequestTeleport(tpPos, wantForce) and not wantForce then return false end
 
   if State.KeenTeleport and Ability.CanBeExecuted(State.KeenTeleport) == -1 then
-    local started = Tinker.TryTeleportTo(spot.pos, wantForce)
+    local started = Tinker.TryTeleportTo(tpPos, wantForce)
     if started then
       State.TargetSpotKey   = key
       State.SpotCommitUntil = now + Constants.SPOT_COMMIT_TIME
       if State.FarmState == "MOVING_TO_SPOT" then
         State.BlockTPThisSpot = true
-        State.LastSpotTelePos = Tinker.IntendedKeenTPPos(spot.pos)
+        State.LastSpotTelePos = Tinker.IntendedKeenTPPos(tpPos)
       end
       State.LastFarmTPAt = now
       return true
     else
-      State.PendingTPPos   = spot.pos
+      State.PendingTPPos   = tpPos
       State.PendingTPSince = now
       State.PendingTPForce = wantForce
       return true
@@ -1831,7 +1641,7 @@ function Tinker.RequestTeleportToSpot(spot, force)
       and Ability.CanBeExecuted(State.KeenTeleport) ~= -1 then
     local needMana = (Ability.GetManaCost(State.Rearm) or 0) + (Ability.GetManaCost(State.KeenTeleport) or 0)
     if (NPC.GetMana(State.Hero) or 0) >= needMana then
-      State.PendingTPPos   = spot.pos
+      State.PendingTPPos   = tpPos
       State.PendingTPSince = now
       State.PendingTPForce = false
       if Utils.CastAbility(State.Rearm, Enum.UnitOrder.DOTA_UNIT_ORDER_CAST_NO_TARGET, nil) then
@@ -1875,399 +1685,14 @@ function Tinker.HandleAutoBottle()
 end
 
 local function CountCampAliveCreeps(camp)
-  if not camp then return 0 end
-  if camp.kind == "lane_wave" then
-    return RefreshLaneCamp(camp) or 0
-  end
-
-  if type(camp.alive_creeps) == "table" then
-    local cnt = 0
-    for _, unit in pairs(camp.alive_creeps) do
-      if unit and Entity.IsEntity(unit) and Entity.IsAlive(unit) then
-        cnt = cnt + 1
-      end
-    end
-
-    if cnt > 0 then
-      return cnt
-    end
-
-    if not (GameRules.IsCheatsEnabled and GameRules.IsCheatsEnabled()) then
-      return 0
+  if not camp or type(camp.alive_creeps) ~= "table" then return 0 end
+  local cnt = 0
+  for _, unit in pairs(camp.alive_creeps) do
+    if unit and Entity.IsAlive(unit) then
+      cnt = cnt + 1
     end
   end
-
-  return CountCampAliveCreepsByScan(camp)
-end
-
-local function GetBlinkCastRangeLimit()
-  return Constants.BLINK_CAST_RANGE or Constants.BLINK_MAX_RANGE or 1200
-end
-
-local function GetLaneHeroPos()
-  return State.Hero and Entity.GetAbsOrigin(State.Hero) or nil
-end
-
-local function GetLaneValueUnits(spot)
-  if not spot or spot.kind ~= "lane" or not spot.camp1 then
-    return {}, { count = 0, siege = 0, ranged = 0, hasSiege = false, hasRanged = false, best = nil }
-  end
-
-  RefreshLaneCamp(spot.camp1)
-
-  local rows = {}
-  local stats = { count = 0, siege = 0, ranged = 0, hasSiege = false, hasRanged = false, best = nil }
-  for _, unit in ipairs(spot.camp1.alive_creeps or {}) do
-    if unit and Entity.IsEntity(unit) and Entity.IsAlive(unit) then
-      local p = Entity.GetAbsOrigin(unit)
-      if p then
-        local isSiege = IsSiegeLikeLaneCreep(unit)
-        local isRanged = (NPC.IsRanged and NPC.IsRanged(unit)) or false
-        local hp = Entity.GetHealth(unit) or 0
-        local row = { unit = unit, pos = p, hp = hp, isSiege = isSiege, isRanged = isRanged }
-        table.insert(rows, row)
-        stats.count = stats.count + 1
-        if isSiege then
-          stats.siege = stats.siege + 1
-          stats.hasSiege = true
-        end
-        if isRanged then
-          stats.ranged = stats.ranged + 1
-          stats.hasRanged = true
-        end
-      end
-    end
-  end
-
-  local function rank(row)
-    if row.isSiege then return 3000 + row.hp end
-    if row.isRanged then return 2000 + row.hp end
-    return 1000 + row.hp
-  end
-
-  for _, row in ipairs(rows) do
-    if (not stats.best) or rank(row) > rank(stats.best) then
-      stats.best = row
-    end
-  end
-
-  spot.creepCount = stats.count
-  spot.siegeCount = stats.siege
-  if spot.camp1 then
-    spot.camp1.creepCount = stats.count
-    spot.camp1.siegeCount = stats.siege
-  end
-
-  return rows, stats
-end
-
-local function AbilityTargetRange(ability)
-  local base = (ability and Ability.GetCastRange and Ability.GetCastRange(ability)) or 0
-  local bonus = (State.Hero and NPC.GetCastRangeBonus and NPC.GetCastRangeBonus(State.Hero)) or 0
-  return (base or 0) + (bonus or 0)
-end
-
-local function LaneRotateReserveMana()
-  local reserve = GetLaneRotateManaCost()
-  if reserve <= 0 then return 0 end
-  return reserve
-end
-
-local function FindNearestEnemyPoint(pt, enemyPts)
-  local bestPos, bestDist = nil, math.huge
-  for _, ep in ipairs(enemyPts or {}) do
-    local d = pt:Distance(ep)
-    if d < bestDist then
-      bestDist = d
-      bestPos = ep
-    end
-  end
-  return bestPos, bestDist
-end
-
-local function GetLaneBlinkPreferredDir(castPos, mode, enemyPts)
-  local heroPos = GetLaneHeroPos()
-  local ref = nil
-  local nearestEnemy = FindNearestEnemyPoint(castPos, enemyPts)
-
-  if mode == "retreat" then
-    if nearestEnemy then
-      ref = castPos - nearestEnemy
-    else
-      local fountainPos = (State.HeroTeam == 2) and Constants.FOUNTAIN_RADIANT or Constants.FOUNTAIN_DIRE
-      ref = fountainPos - castPos
-    end
-  else
-    if nearestEnemy then
-      ref = castPos - nearestEnemy
-    elseif heroPos then
-      ref = heroPos - castPos
-    end
-  end
-
-  if not ref then return nil end
-  local len = ref:Length()
-  if len < 1 then return nil end
-  return ref:Normalized()
-end
-
-local function IsLaneTreeCandidateValid(candidate, castPos, mode, enemyPts)
-  if not candidate or not castPos or not State.Hero then return false end
-  if not (GridNav and GridNav.IsTraversable and GridNav.IsBlocked and GridNav.IsNearbyTree) then return false end
-  if not GridNav.IsTraversable(candidate) then return false end
-  if GridNav.IsBlocked(candidate) then return false end
-  if not GridNav.IsNearbyTree(candidate, Constants.LANE_TREE_NEARBY_RADIUS or 140) then return false end
-
-  local myPos = Entity.GetAbsOrigin(State.Hero)
-  if myPos:Distance(candidate) > (GetBlinkCastRangeLimit() + 24) then return false end
-
-  local dWave = candidate:Distance(castPos)
-  local minWave = Constants.LANE_TREE_MIN_WAVE_DIST or 420
-  local maxWave = (mode == "retreat") and (Constants.LANE_RETREAT_TREE_SEARCH_RADIUS or 1100) or
-      (Constants.LANE_TREE_MAX_WAVE_DIST or 900)
-  if dWave < minWave or dWave > maxWave then return false end
-
-  if mode == "approach" and dWave > (Constants.MARCH_CAST_RANGE or 900) then return false end
-
-  local riskLimit = Constants.ENEMY_RISK_HARD_BLOCK or 0.45
-  local blockR = Constants.ENEMY_RISK_BLOCK_RADIUS or 1000
-  if RiskAtPoint(candidate, enemyPts or {}) >= riskLimit then return false end
-  if AnyEnemyWithin(candidate, enemyPts or {}, blockR) then return false end
-
-  return true
-end
-
-local function FindLaneTreeBlinkPos(castPos, mode)
-  if not castPos or not State.Hero or not State.Blink then return nil end
-  if not (GridNav and GridNav.IsTraversable and GridNav.IsBlocked and GridNav.IsNearbyTree) then return nil end
-
-  local now = GameRules.GetGameTime()
-  local myPos = Entity.GetAbsOrigin(State.Hero)
-  local enemyPts = Tinker.GetEnemyLastKnownPositions()
-  local cacheKey = string.format("%s:%s", tostring(mode or "approach"), MakeLaneBucketIndex(castPos))
-  State.LaneTreeBlinkCache = State.LaneTreeBlinkCache or {}
-  local cached = State.LaneTreeBlinkCache[cacheKey]
-  if cached and (now - (cached.at or 0)) <= (Constants.LANE_TREE_CACHE_TTL or 0.20) then
-    if cached.pos and IsLaneTreeCandidateValid(cached.pos, castPos, mode, enemyPts) then
-      return cached.pos
-    end
-  end
-
-  local prefDir = GetLaneBlinkPreferredDir(castPos, mode, enemyPts)
-  local desiredWaveDist = (mode == "retreat") and 760 or 620
-  local blinkRange = GetBlinkCastRangeLimit()
-  local rings = Constants.LANE_TREE_CANDIDATE_RINGS or { 460, 600, 760, 880 }
-  local stepDeg = Constants.LANE_TREE_CANDIDATE_ANGLE_STEP or 20
-  local bestPos, bestScore = nil, math.huge
-
-  for _, r in ipairs(rings) do
-    local deg = 0
-    while deg < 360 do
-      local rad = math.rad(deg)
-      local candidate = Vector((castPos.x or 0) + math.cos(rad) * r, (castPos.y or 0) + math.sin(rad) * r, castPos.z or 0)
-      if myPos:Distance(candidate) <= (blinkRange + 24)
-          and IsLaneTreeCandidateValid(candidate, castPos, mode, enemyPts) then
-        local v = candidate - castPos
-        local vLen = v:Length()
-        local dirPenalty = 0
-        if prefDir and vLen > 0 then
-          local vd = v / vLen
-          local dot = (vd.x or 0) * (prefDir.x or 0) + (vd.y or 0) * (prefDir.y or 0)
-          dirPenalty = (1 - dot) * 60
-        end
-        local risk = RiskAtPoint(candidate, enemyPts)
-        local waveDist = candidate:Distance(castPos)
-        local score = risk * 1000
-            + math.abs(waveDist - desiredWaveDist) * 0.25
-            + dirPenalty
-            + myPos:Distance(candidate) * (mode == "approach" and -0.03 or 0.02)
-        if score < bestScore then
-          bestScore = score
-          bestPos = candidate
-        end
-      end
-      deg = deg + stepDeg
-    end
-  end
-
-  State.LastLaneTreeSearchAt = now
-  State.LaneTreeBlinkCache[cacheKey] = { at = now, pos = bestPos }
-  return bestPos
-end
-
-local function TryLaneRetreatBlink(spot, castInfo)
-  if not (spot and spot.kind == "lane" and castInfo and castInfo.pos) then return false end
-  if not (Config.Lane and Config.Lane.Advanced and Config.Lane.Advanced:Get()) then return false end
-  if not (Config.Lane.TreeBlinkRetreat and Config.Lane.TreeBlinkRetreat:Get()) then return false end
-  if State.PendingTPPos ~= nil then return false end
-  if HasFountainBuff() then return false end
-
-  local holdBlink = IsBlinkLockedNow()
-  if holdBlink then return false end
-  if not (Config.ItemsToUse:Get(L("item_blink")) and Config.Blink and Config.Blink.Travel and Config.Blink.Travel:Get()) then
-    return false
-  end
-  if not (State.Blink and CanExecuteAbility(State.Blink)) then return false end
-
-  local _, stats = GetLaneValueUnits(spot)
-  local nearClear = stats.count <= math.max(2, (Constants.LANE_ROTATE_MIN_CREEPS_LEFT or 1) + 1)
-      or (stats.count <= 3 and not stats.hasSiege and not stats.hasRanged)
-  if not nearClear then return false end
-
-  local now = GameRules.GetGameTime()
-  if (now - (State.LastLaneRetreatBlinkAt or 0)) < 0.45 then return false end
-
-  local pos = FindLaneTreeBlinkPos(castInfo.pos, "retreat")
-  if not pos then return false end
-
-  if Utils.CastAbility(State.Blink, Enum.UnitOrder.DOTA_UNIT_ORDER_CAST_POSITION, pos) then
-    State.LastLaneRetreatBlinkAt = now
-    return true
-  end
-  return false
-end
-
-local function TryLaneBurstAction(spot, castInfo)
-  if not (spot and spot.kind == "lane" and castInfo and castInfo.pos) then return false end
-  if not (Config.Lane and Config.Lane.Advanced and Config.Lane.Advanced:Get()) then return false end
-  if State.IsChanneling then return false end
-
-  local now = GameRules.GetGameTime()
-  if (now - (State.LastLaneBurstAt or 0)) < (Constants.LANE_BURST_GAP or 0.10) then return false end
-
-  local rows, stats = GetLaneValueUnits(spot)
-  if stats.count <= 0 then return false end
-
-  local myPos = Entity.GetAbsOrigin(State.Hero)
-  local curMana = NPC.GetMana(State.Hero) or 0
-  local escapeReserve = Tinker.GetEscapeManaCost()
-  local rotateReserve = LaneRotateReserveMana()
-  local canMarchNow = State.March and CanExecuteAbility(State.March)
-
-  local wantShiva = Config.ItemsToUse:Get(L("item_shivas_guard"))
-  if wantShiva and State.Shiva and CanExecuteAbility(State.Shiva) then
-    local shivaRad = (Ability.GetAOERadius and Ability.GetAOERadius(State.Shiva)) or 900
-    local shivaCost = Ability.GetManaCost(State.Shiva) or 0
-    local canAfford = (curMana - shivaCost) >= escapeReserve
-    local waveValuable = stats.count >= 3 or stats.hasSiege
-    if canAfford and waveValuable and myPos:Distance(castInfo.pos) <= math.max(700, shivaRad - 60) then
-      if Utils.CastAbility(State.Shiva, Enum.UnitOrder.DOTA_UNIT_ORDER_CAST_NO_TARGET, nil) then
-        State.LastLaneBurstAt = now
-        return true
-      end
-    end
-  end
-
-  local target = stats.best and stats.best.unit or nil
-  local targetPos = target and Entity.GetAbsOrigin(target) or nil
-
-  if Config.Lane.UseLaser and Config.Lane.UseLaser:Get()
-      and State.Laser and target and targetPos
-      and CanExecuteAbility(State.Laser) then
-    local laserCost = Ability.GetManaCost(State.Laser) or 0
-    local laserRange = math.max(600, AbilityTargetRange(State.Laser))
-    local targetDist = myPos:Distance(targetPos)
-    local holdForMarch = canMarchNow and stats.count >= (Constants.LANE_LASER_MIN_VALUE_CREEPS or 3) and not stats.hasSiege
-    if not holdForMarch and targetDist <= (laserRange + 32) and (curMana - laserCost) >= escapeReserve then
-      if Utils.CastAbility(State.Laser, Enum.UnitOrder.DOTA_UNIT_ORDER_CAST_TARGET, target) then
-        State.LastLaneBurstAt = now
-        return true
-      end
-    end
-  end
-
-  if Config.ItemsToUse:Get(L("item_dagon"))
-      and State.Dagon and target and targetPos
-      and CanExecuteAbility(State.Dagon) then
-    local dagonCost = Ability.GetManaCost(State.Dagon) or 0
-    local dagonRange = math.max(600, AbilityTargetRange(State.Dagon))
-    local targetDist = myPos:Distance(targetPos)
-    local maxCreeps = Constants.LANE_DAGON_USE_MAX_CREEPS or 2
-    local needReserve = escapeReserve + (Config.Lane.RotateAfterClear:Get() and
-        (rotateReserve + (Constants.LANE_DAGON_MIN_ROTATE_MANA_BUFFER or 35)) or 0)
-    if stats.count <= maxCreeps and targetDist <= (dagonRange + 32) and (curMana - dagonCost) >= needReserve then
-      if Utils.CastAbility(State.Dagon, Enum.UnitOrder.DOTA_UNIT_ORDER_CAST_TARGET, target) then
-        State.LastLaneBurstAt = now
-        return true
-      end
-    end
-  end
-
-  return false
-end
-
-local function LaneSpotShouldRotate(spot)
-  if not (spot and spot.kind == "lane" and spot.camp1) then return false end
-  local alive = CountCampAliveCreeps(spot.camp1)
-  if alive <= (Constants.LANE_ROTATE_MIN_CREEPS_LEFT or 1) then
-    return true
-  end
-
-  local _, stats = GetLaneValueUnits(spot)
-  if stats.count <= 0 then return true end
-  if stats.count <= 2 and (not stats.hasSiege) and (not stats.hasRanged) then return true end
-  return false
-end
-
-function Tinker.TryRotateAfterLaneClear(spot)
-  if not (Config.Lane and Config.Lane.Advanced and Config.Lane.Advanced:Get()) then return false end
-  if not (Config.Lane.RotateAfterClear and Config.Lane.RotateAfterClear:Get()) then return false end
-
-  local curSpot = spot or State.CurrentFarmSpot
-  if not (curSpot and curSpot.kind == "lane") then return false end
-  if not LaneSpotShouldRotate(curSpot) then return false end
-
-  local now = GameRules.GetGameTime()
-  local curKey = SpotKey(curSpot)
-  State.PendingLaneRotate = true
-  State.LastLaneSpotKey = curKey
-  State.CachedBestSpot = nil
-  State.LastSpotScan = 0
-
-  local nextSpot = Tinker.FindBestFarmSpot(curKey)
-  State.PendingLaneRotate = false
-
-  if not nextSpot then
-    return false
-  end
-
-  if not Tinker.HasManaForSpot(nextSpot) then
-    State.FarmState                = "RETURNING_TO_FOUNTAIN"
-    State.CurrentFarmSpot          = nil
-    State.AfterMarchCheck          = nil
-    State.TargetSpotKey            = nil
-    State.SpotCommitUntil          = 0
-    State.CurrentSpotMarchCasts    = 0
-    State.CurrentSpotMarchRequired = nil
-    return true
-  end
-
-  State.CurrentFarmSpot       = nextSpot
-  State.TargetSpotKey         = SpotKey(nextSpot)
-  State.SpotCommitUntil       = now + Constants.SPOT_COMMIT_TIME
-  State.BlockTPThisSpot       = false
-  State.LastSpotTelePos       = nil
-  State.MovingAfterTeleport   = false
-  State.RecalcAfterTP         = false
-  State.AfterMarchCheck       = nil
-  State.LastMarchCastAt       = 0
-  State.CurrentSpotMarchCasts = 0
-  if Config.MarchControl.UseCustom:Get() then
-    State.CurrentSpotMarchRequired = ComputeRequiredMarchesForSpot(nextSpot)
-    if (State.CurrentSpotMarchRequired or 0) <= 0 then
-      State.CurrentSpotMarchRequired = nil
-      return false
-    end
-  else
-    State.CurrentSpotMarchRequired = nil
-  end
-  if Constants.LANE_ROTATE_BYPASS_IDLE_DELAY then
-    State.JustClearedSpotAt = 0
-  else
-    State.JustClearedSpotAt = now
-  end
-  State.FarmState = "MOVING_TO_SPOT"
-  return true
+  return cnt
 end
 
 function Tinker.ProcessAfterMarchCheck()
@@ -2311,12 +1736,8 @@ function Tinker.ProcessAfterMarchCheck()
       and ((not am.camp2) or (am.camp2 and am.camp2.farmed))
 
   if cleared then
-    local clearedSpot = State.CurrentFarmSpot
     State.AfterMarchCheck = nil
     if State.FarmState == "FARMING_SPOT" then
-      if clearedSpot and clearedSpot.kind == "lane" and Tinker.TryRotateAfterLaneClear(clearedSpot) then
-        return
-      end
       State.FarmState                = "IDLE"
       State.CurrentFarmSpot          = nil
       State.JustClearedSpotAt        = GameRules.GetGameTime()
@@ -2407,9 +1828,8 @@ function Tinker.HandlePanic()
     local myPos      = Entity.GetAbsOrigin(State.Hero)
     local toFountain = (fountainPos - myPos)
     local dist       = toFountain:Length()
-    local blinkRange = GetBlinkCastRangeLimit()
-    local blinkPos   = dist > blinkRange
-        and (myPos + toFountain:Normalized() * blinkRange) or fountainPos
+    local blinkPos   = dist > Constants.BLINK_MAX_RANGE
+        and (myPos + toFountain:Normalized() * Constants.BLINK_MAX_RANGE) or fountainPos
     Utils.CastAbility(State.Blink, Enum.UnitOrder.DOTA_UNIT_ORDER_CAST_POSITION, blinkPos)
   end
 
@@ -2425,7 +1845,7 @@ local function ComputeSafeBlinkPos(targetPos)
   if dist <= Constants.BLINK_MIN_DISTANCE then return nil end
   local ndir     = dir:Normalized()
   local standOff = Constants.BLINK_SAFE_STANDOFF
-  local maxStep  = GetBlinkCastRangeLimit()
+  local maxStep  = Constants.BLINK_MAX_RANGE
   local desired  = math.max(dist - standOff, 0)
   local step     = math.min(maxStep, desired > 0 and desired or dist)
   return myPos + ndir * step
@@ -2441,6 +1861,8 @@ function Tinker.HandleFarming()
   end
   if Tinker.HandlePanic() then return end
   if State.IsChanneling then return end
+  -- Guard: Rearm was just issued but channel hasn't registered yet
+  if State.RearmBlinkHoldPending then return end
   if State.PendingTPPos then
     local age = GameRules.GetGameTime() - (State.PendingTPSince or 0)
     if age > (Constants.PENDING_TP_MAX_AGE or 2.5) then
@@ -2468,10 +1890,6 @@ function Tinker.HandleFarming()
           end
         end
       end
-    end
-    if State.PendingTPPos then
-      -- Do not wander / issue extra orders while we are waiting to finish Rearm->TP or retry TP.
-      return
     end
   end
   local usingCustom = Config.MarchControl.UseCustom:Get()
@@ -2512,7 +1930,7 @@ function Tinker.HandleFarming()
 
     local bestSpot = Tinker.GetBestFarmSpotCached()
     if bestSpot then
-      if not Tinker.HasManaForSpot(bestSpot) then
+      if not Tinker.HasManaForFullCampCycle() then
         State.FarmState       = "RETURNING_TO_FOUNTAIN"
         State.CurrentFarmSpot = nil
         State.AfterMarchCheck = nil
@@ -2523,7 +1941,6 @@ function Tinker.HandleFarming()
 
       State.CurrentFarmSpot       = bestSpot
       State.TargetSpotKey         = SpotKey(bestSpot)
-      State.LastLaneSpotKey       = (bestSpot.kind == "lane") and State.TargetSpotKey or State.LastLaneSpotKey
       State.SpotCommitUntil       = GameRules.GetGameTime() + Constants.SPOT_COMMIT_TIME
 
       State.BlockTPThisSpot       = false
@@ -2534,8 +1951,16 @@ function Tinker.HandleFarming()
       State.AfterMarchCheck       = nil
       State.LastMarchCastAt       = 0
       State.CurrentSpotMarchCasts = 0
-      State.PendingLaneRotate     = false
-      if Config.MarchControl.UseCustom:Get() then
+      State.LaneNoCreepsSince = nil
+      State.LaneTreeBlinkDone = false
+      if bestSpot.isLane then
+        -- Lane spots always use custom march count.
+        State.CurrentSpotMarchRequired = ComputeRequiredMarchesForSpot(bestSpot)
+        if (State.CurrentSpotMarchRequired or 0) <= 0 then
+          MarkSpotFarmedAndLeave()
+          return
+        end
+      elseif Config.MarchControl.UseCustom:Get() then
         State.CurrentSpotMarchRequired = ComputeRequiredMarchesForSpot(bestSpot)
         if (State.CurrentSpotMarchRequired or 0) <= 0 then
           MarkSpotFarmedAndLeave()
@@ -2549,13 +1974,28 @@ function Tinker.HandleFarming()
     end
   elseif State.FarmState == "MOVING_TO_SPOT" then
     local spot = State.CurrentFarmSpot
-    if not spot or not spot.camp1 or spot.camp1.farmed then
+    if not spot or not spot.camp1 then
+      State.FarmState = "IDLE"
+      return
+    end
+    -- Lane spots: refresh positions, invalidate if creeps gone.
+    if spot.isLane then
+      Tinker.RefreshLaneSpotPos(spot)
+      if not spot.laneCreeps or #spot.laneCreeps == 0 then
+        MarkSpotFarmedAndLeave()
+        return
+      end
+    elseif spot.camp1.farmed then
       State.FarmState = "IDLE"
       return
     end
 
     if State.RecalcAfterTP and (GameRules.GetGameTime() - (State.LastTeleportAt or 0)) > 0.2 then
-      RecenterSpot(spot)
+      if spot.isLane then
+        Tinker.RefreshLaneSpotPos(spot)
+      else
+        RecenterSpot(spot)
+      end
       State.RecalcAfterTP = false
     end
     if Config.MarchControl.UseCustom:Get() and (State.CurrentSpotMarchRequired or 0) <= 0 then
@@ -2563,7 +2003,7 @@ function Tinker.HandleFarming()
       return
     end
 
-    if not Tinker.HasManaForSpot(spot) then
+    if not Tinker.HasManaForFullCampCycle() then
       State.FarmState                = "RETURNING_TO_FOUNTAIN"
       State.CurrentFarmSpot          = nil
       State.AfterMarchCheck          = nil
@@ -2577,9 +2017,6 @@ function Tinker.HandleFarming()
     local myPos    = Entity.GetAbsOrigin(State.Hero)
     local castInfo = ComputeMarchCastInfo(spot)
     if not castInfo then
-      if spot and spot.kind == "lane" and Tinker.TryRotateAfterLaneClear(spot) then
-        return
-      end
       State.FarmState = "IDLE"
       return
     end
@@ -2591,7 +2028,10 @@ function Tinker.HandleFarming()
     if castInfo.maxDist <= allowedMax and myPos:Distance(castInfo.pos) <= Constants.MARCH_CAST_RANGE then
       State.MovingAfterTeleport = false
       State.FarmState           = "FARMING_SPOT"
-      if Config.MarchControl.UseCustom:Get() then
+      if spot.isLane then
+        Tinker.RefreshLaneSpotPos(spot)
+      end
+      if Config.MarchControl.UseCustom:Get() or spot.isLane then
         if (State.CurrentSpotMarchRequired or 0) <= (State.CurrentSpotMarchCasts or 0) then
           MarkSpotFarmedAndLeave()
           return
@@ -2626,32 +2066,68 @@ function Tinker.HandleFarming()
         and Config.Blink.Travel:Get()
         and State.Blink
         and Ability.CanBeExecuted(State.Blink) == -1 then
-      local blinkPos = nil
-      if spot.kind == "lane"
-          and Config.Lane and Config.Lane.Advanced and Config.Lane.Advanced:Get()
-          and Config.Lane.TreeBlinkApproach and Config.Lane.TreeBlinkApproach:Get() then
-        blinkPos = FindLaneTreeBlinkPos(castInfo.pos, "approach")
+      -- Blink directly to the spot (no standoff — farm efficiency)
+      local blinkDist = myPos:Distance(castInfo.pos)
+      if blinkDist > Constants.BLINK_MIN_DISTANCE then
+        local blinkPos = blinkDist <= Constants.BLINK_MAX_RANGE
+            and castInfo.pos
+            or (myPos + (castInfo.pos - myPos):Normalized() * Constants.BLINK_MAX_RANGE)
+        if Utils.CastAbility(State.Blink, Enum.UnitOrder.DOTA_UNIT_ORDER_CAST_POSITION, blinkPos) then return end
       end
-      if not blinkPos then
-        blinkPos = ComputeSafeBlinkPos(castInfo.pos)
-      end
-      if blinkPos and Utils.CastAbility(State.Blink, Enum.UnitOrder.DOTA_UNIT_ORDER_CAST_POSITION, blinkPos) then return end
     end
 
     Utils.MoveTo(castInfo.pos)
   elseif State.FarmState == "FARMING_SPOT" then
     local spot = State.CurrentFarmSpot
-    if not spot or (spot.camp1.farmed and (spot.single or spot.camp2.farmed)) then
-      if spot and spot.kind == "lane" and Tinker.TryRotateAfterLaneClear(spot) then
-        return
-      end
+    -- Jungle: done when camp(s) marked farmed
+    if not spot or (not spot.isLane and spot.camp1.farmed and (spot.single or spot.camp2.farmed)) then
       State.FarmState                = "IDLE"
       State.AfterMarchCheck          = nil
       State.CurrentSpotMarchCasts    = 0
       State.CurrentSpotMarchRequired = nil
       return
     end
-    if Config.MarchControl.UseCustom:Get() then
+
+    local t = GameRules.GetGameTime()
+
+    -- ── Lane-specific refresh & timeout ──
+    if spot.isLane then
+      Tinker.RefreshLaneSpotPos(spot)
+      local laneAlive = spot.laneCreeps and #spot.laneCreeps or 0
+      if laneAlive == 0 then
+        State.LaneNoCreepsSince = State.LaneNoCreepsSince or t
+        if (t - State.LaneNoCreepsSince) >= Constants.LANE_NO_CREEPS_TIMEOUT then
+          MarkSpotFarmedAndLeave()
+          return
+        end
+      else
+        State.LaneNoCreepsSince = nil
+      end
+
+      -- ── Tree blink: blink into nearby trees before first March ──
+      if not State.LaneTreeBlinkDone
+          and Config.Blink.TreesLane and Config.Blink.TreesLane:Get()
+          and Config.ItemsToUse:Get(L("item_blink"))
+          and State.Blink
+          and Ability.CanBeExecuted(State.Blink) == -1
+          and not IsBlinkLockedNow()
+          and (State.CurrentSpotMarchCasts or 0) == 0 then
+        local myPos    = Entity.GetAbsOrigin(State.Hero)
+        local treePos  = Tinker.FindTreeBlinkPos(myPos, spot.pos)
+        if treePos then
+          if Utils.CastAbility(State.Blink, Enum.UnitOrder.DOTA_UNIT_ORDER_CAST_POSITION, treePos) then
+            State.LaneTreeBlinkDone = true
+            return
+          end
+        else
+          -- No good tree spot found, skip trying again this spot
+          State.LaneTreeBlinkDone = true
+        end
+      end
+    end
+
+    -- Count-based exit (used for UseCustom AND lane spots)
+    if Config.MarchControl.UseCustom:Get() or spot.isLane then
       local req = State.CurrentSpotMarchRequired or 0
       if req > 0 and (State.CurrentSpotMarchCasts or 0) >= req then
         MarkSpotFarmedAndLeave()
@@ -2660,35 +2136,20 @@ function Tinker.HandleFarming()
     end
 
     local escapeMana  = Tinker.GetEscapeManaCost()
-    local t           = GameRules.GetGameTime()
-    local am          = Config.MarchControl.UseCustom:Get() and nil or State.AfterMarchCheck
+    local am          = (Config.MarchControl.UseCustom:Get() or spot.isLane) and nil or State.AfterMarchCheck
     local minGap      = Constants.MARCH_MIN_RECAST_GAP
     local rearmGap    = Constants.REARM_MIN_GAP_AFTER_MARCH
     local canMarchNow = State.March and Ability.CanBeExecuted(State.March) == -1
     local canRearmNow = State.Rearm and Ability.CanBeExecuted(State.Rearm) == -1
     local justTPedAgo = t - (State.LastTeleportAt or 0)
 
-    local c1          = spot.camp1 and CountCampAliveCreeps(spot.camp1) or 0
-    local c2          = (not spot.single and spot.camp2 and CountCampAliveCreeps(spot.camp2)) or 0
-    local anyAlive    = (c1 > 0) or (c2 > 0)
-
-    if spot.kind == "lane" and Config.Lane and Config.Lane.Advanced and Config.Lane.Advanced:Get() then
-      local laneCastInfo = ComputeMarchCastInfo(spot)
-      if not laneCastInfo then
-        if Tinker.TryRotateAfterLaneClear(spot) then return end
-        State.FarmState                = "IDLE"
-        State.CurrentFarmSpot          = nil
-        State.AfterMarchCheck          = nil
-        State.TargetSpotKey            = nil
-        State.SpotCommitUntil          = 0
-        State.CurrentSpotMarchCasts    = 0
-        State.CurrentSpotMarchRequired = nil
-        return
-      else
-        if TryLaneRetreatBlink(spot, laneCastInfo) then return end
-        if TryLaneBurstAction(spot, laneCastInfo) then return end
-        if Tinker.TryRotateAfterLaneClear(spot) then return end
-      end
+    local anyAlive
+    if spot.isLane then
+      anyAlive = spot.laneCreeps and #spot.laneCreeps > 0
+    else
+      local c1 = spot.camp1 and CountCampAliveCreeps(spot.camp1) or 0
+      local c2 = (not spot.single and spot.camp2 and CountCampAliveCreeps(spot.camp2)) or 0
+      anyAlive = (c1 > 0) or (c2 > 0)
     end
 
     if am then
@@ -2704,7 +2165,8 @@ function Tinker.HandleFarming()
       if anyAlive and canMarchNow then
         local marchCost = Ability.GetManaCost(State.March) or 0
         if (t - (State.LastMarchCastAt or 0)) >= minGap and ((NPC.GetMana(State.Hero) or 0) - marchCost) >= escapeMana then
-          Utils.CastAbility(State.March, Enum.UnitOrder.DOTA_UNIT_ORDER_CAST_POSITION, spot.pos)
+          local marchTarget = Tinker.GetMarchTarget(spot)
+          Utils.CastAbility(State.March, Enum.UnitOrder.DOTA_UNIT_ORDER_CAST_POSITION, marchTarget)
         end
         return
       end
@@ -2735,8 +2197,9 @@ function Tinker.HandleFarming()
     if canMarchNow then
       local marchCost = Ability.GetManaCost(State.March) or 0
       if ((NPC.GetMana(State.Hero) or 0) - marchCost) >= escapeMana then
-        if Utils.CastAbility(State.March, Enum.UnitOrder.DOTA_UNIT_ORDER_CAST_POSITION, spot.pos) then
-          if not Config.MarchControl.UseCustom:Get() then
+        local marchTarget = Tinker.GetMarchTarget(spot)
+        if Utils.CastAbility(State.March, Enum.UnitOrder.DOTA_UNIT_ORDER_CAST_POSITION, marchTarget) then
+          if not Config.MarchControl.UseCustom:Get() and not spot.isLane then
             State.AfterMarchCheck = {
               startedAt  = t,
               zeroSince1 = nil,
@@ -2844,9 +2307,8 @@ function Tinker.HandleFarming()
       local myPos      = Entity.GetAbsOrigin(State.Hero)
       local toFountain = (fountainPos - myPos)
       local dist       = toFountain:Length()
-      local blinkRange = GetBlinkCastRangeLimit()
-      local blinkPos   = dist > blinkRange and
-          (myPos + toFountain:Normalized() * blinkRange) or fountainPos
+      local blinkPos   = dist > Constants.BLINK_MAX_RANGE and
+          (myPos + toFountain:Normalized() * Constants.BLINK_MAX_RANGE) or fountainPos
       if Utils.CastAbility(State.Blink, Enum.UnitOrder.DOTA_UNIT_ORDER_CAST_POSITION, blinkPos) then return end
     end
 
@@ -3003,7 +2465,6 @@ local function DrawWorldSpotNeo(spot)
   local castPos    = spot.pos
   local heroPos    = Entity.GetAbsOrigin(State.Hero)
   local castInfo   = ComputeMarchCastInfo(spot)
-  if castInfo and castInfo.pos then castPos = castInfo.pos end
   local allowedMax = Constants.MARCH_CAST_RANGE * (spot.single and 1.0 or Constants.MARCH_PAIR_COVERAGE_FRAC)
   local now        = GameRules.GetGameTime()
 
@@ -3016,7 +2477,7 @@ local function DrawWorldSpotNeo(spot)
   local castAlpha = math.floor(Pulse(now, 3.0, 110, 165))
   WorldRing(castPos, Constants.MARCH_CAST_RANGE, Color(Theme.ringCast.r, Theme.ringCast.g, Theme.ringCast.b, castAlpha),
     2.0, 60)
-  if (not spot.single) and castInfo then
+  if not spot.single then
     local fit = castInfo.maxDist <= allowedMax
     local col = fit and Theme.ringPair or Theme.ringFail
     WorldRing(castPos, allowedMax, col, 1.6, 56)
@@ -3049,10 +2510,9 @@ local function DrawWorldSpotMinimal(spot)
   local castPos    = spot.pos
   local heroPos    = Entity.GetAbsOrigin(State.Hero)
   local castInfo   = ComputeMarchCastInfo(spot)
-  if castInfo and castInfo.pos then castPos = castInfo.pos end
   local allowedMax = Constants.MARCH_CAST_RANGE * (spot.single and 1.0 or Constants.MARCH_PAIR_COVERAGE_FRAC)
   WorldRing(castPos, Constants.MARCH_CAST_RANGE, Color(120, 255, 120, 150), 1.6, 48)
-  if (not spot.single) and castInfo then
+  if not spot.single then
     local fit = castInfo.maxDist <= allowedMax
     WorldRing(castPos, allowedMax, fit and Color(120, 180, 255, 140) or Color(255, 120, 120, 140), 1.4, 48)
   end
@@ -3096,7 +2556,7 @@ local function DrawDockOverlay()
     local spot       = State.CurrentFarmSpot
     local castInfo   = ComputeMarchCastInfo(spot)
     local allowedMax = Constants.MARCH_CAST_RANGE * (spot.single and 1.0 or Constants.MARCH_PAIR_COVERAGE_FRAC)
-    local fit        = castInfo and (castInfo.maxDist <= allowedMax) or false
+    local fit        = castInfo.maxDist <= allowedMax
 
     table.insert(lines, { "Spot",
       string.format("key=%s  commitRem=%.1f  lastFarmTP=%.1f",
@@ -3110,25 +2570,38 @@ local function DrawDockOverlay()
     end
 
     if Config.Debug.Spot:Get() then
-      table.insert(lines, { "Type",
-        spot.single and "single" or ("pair (" .. math.floor(Constants.MARCH_PAIR_COVERAGE_FRAC * 100) .. "% cover)"),
-        Theme.dim })
-      if castInfo then
-        table.insert(lines,
-          { "Max Camp Dist", string.format("%.0f / %.0f", castInfo.maxDist, allowedMax), fit and Theme.good or Theme.bad })
-        table.insert(lines,
-          { "Hero->Cast", string.format("%.0f / %d", Entity.GetAbsOrigin(State.Hero):Distance(castInfo.pos),
-            Constants.MARCH_CAST_RANGE), Theme.dim })
+      local spotTypeStr
+      if spot.isLane then
+        local lc = spot.laneCreeps and #spot.laneCreeps or 0
+        spotTypeStr = "lane (" .. lc .. " creeps)"
+      elseif spot.single then
+        spotTypeStr = "single"
       else
-        table.insert(lines, { "Spot Metrics", "N/A (target moved/despawned)", Theme.warn })
+        spotTypeStr = "pair (" .. math.floor(Constants.MARCH_PAIR_COVERAGE_FRAC * 100) .. "% cover)"
       end
+      table.insert(lines, { "Type", spotTypeStr, spot.isLane and Theme.accent or Theme.dim })
+      table.insert(lines,
+        { "Max Camp Dist", string.format("%.0f / %.0f", castInfo.maxDist, allowedMax), fit and Theme.good or Theme.bad })
+      table.insert(lines,
+        { "Hero->Cast", string.format("%.0f / %d", Entity.GetAbsOrigin(State.Hero):Distance(castInfo.pos),
+          Constants.MARCH_CAST_RANGE), Theme.dim })
     end
-    local mode = Config.MarchControl.UseCustom:Get() and "Custom Count" or "Until Cleared"
+    local isCountMode = Config.MarchControl.UseCustom:Get() or (spot.isLane)
+    local mode = spot.isLane and "Lane Count" or (Config.MarchControl.UseCustom:Get() and "Custom Count" or "Until Cleared")
     table.insert(lines, { "March Mode", mode, Theme.accent })
-    if Config.MarchControl.UseCustom:Get() then
+    if isCountMode then
       local req = State.CurrentSpotMarchRequired or 0
       local have = State.CurrentSpotMarchCasts or 0
       table.insert(lines, { "Marches", string.format("%d / %d", have, req), (have >= req and Theme.good or Theme.dim) })
+    end
+    if spot.isLane then
+      local bias = Tinker.GetAdaptiveLaneBias()
+      table.insert(lines, { "Lane Bias", string.format("%.1f", bias), bias < 0 and Theme.good or Theme.warn })
+      if State.LaneTreeBlinkDone then
+        table.insert(lines, { "Tree Blink", "Done", Theme.good })
+      elseif Config.Blink.TreesLane and Config.Blink.TreesLane:Get() then
+        table.insert(lines, { "Tree Blink", "Pending", Theme.warn })
+      end
     end
   end
 
@@ -3295,9 +2768,8 @@ script.OnUpdate = function()
 
   State.Hero             = Heroes.GetLocal()
   State.Player           = Players.GetLocal()
-  if not State.Hero or not Entity.IsEntity(State.Hero) then return end
   if Entity.GetUnitName(State.Hero) ~= "npc_dota_hero_tinker" then return end
-  if not Entity.IsAlive(State.Hero) then
+  if not State.Hero or not Entity.IsAlive(State.Hero) then
     State.FarmState                = "IDLE"
     State.CurrentFarmSpot          = nil
     State.AfterMarchCheck          = nil
@@ -3306,32 +2778,21 @@ script.OnUpdate = function()
     State.CurrentSpotMarchCasts    = 0
     State.CurrentSpotMarchRequired = nil
     State.PendingMarchVerify       = nil
-    State.CampAliveScanCache       = {}
-    State.NeutralSnapshot          = { at = 0, list = {} }
-    State.LaneCreepSnapshot        = { at = 0, list = {} }
-    State.PendingLaneRotate        = false
-    State.LaneTreeBlinkCache       = {}
-    State.LaneBurstTargets         = {}
     return
   end
 
   State.HeroTeam     = Entity.GetTeamNum(State.Hero)
   State.IsChanneling = NPC.IsChannellingAbility(State.Hero)
+  UpdateRearmBlinkHold()
   State.Rearm        = NPC.GetAbility(State.Hero, "tinker_rearm")
   State.March        = NPC.GetAbility(State.Hero, "tinker_march_of_the_machines")
-  State.Laser        = NPC.GetAbility(State.Hero, "tinker_laser")
   State.KeenTeleport = NPC.GetAbility(State.Hero, "tinker_keen_teleport")
   State.Blink        = NPC.GetItem(State.Hero, "item_blink", true)
       or NPC.GetItem(State.Hero, "item_overwhelming_blink", true)
       or NPC.GetItem(State.Hero, "item_swift_blink", true)
       or NPC.GetItem(State.Hero, "item_arcane_blink", true)
-  State.Shiva        = NPC.GetItem(State.Hero, "item_shivas_guard", true)
-  State.Dagon        = Tinker.GetDagonItem()
-  MaybeResetCampStateForSession()
-  UpdateRearmBlinkHold()
 
-  local autoOn   = Config.AutoFarm:IsToggled()
-  local autoWasOn = State.AutoFarmWasOn
+  local autoOn = Config.AutoFarm:IsToggled()
 
   -- If автофарм только что выключили биндом – один раз отправляем героя на фонтан и выходим.
   if not autoOn then
@@ -3344,7 +2805,6 @@ script.OnUpdate = function()
       end
     end
     State.AutoFarmWasOn = false
-    State.PendingLaneRotate = false
 
     -- Полностью сбрасываем внутреннее состояние фарма
     if State.FarmState ~= "IDLE" then
@@ -3356,14 +2816,8 @@ script.OnUpdate = function()
       State.CurrentSpotMarchCasts    = 0
       State.CurrentSpotMarchRequired = nil
       State.PendingMarchVerify       = nil
-      State.PendingLaneRotate        = false
-      State.CachedBestSpot           = nil
-      State.LaneTreeBlinkCache       = {}
     end
     return
-  end
-  if not autoWasOn then
-    ResetFarmedCampFlags("autofarmToggleOn")
   end
   State.AutoFarmWasOn = true
 
