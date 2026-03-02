@@ -1635,7 +1635,7 @@ local HERO_SPECIFIC_ITEMS = {
     npc_dota_hero_lina = {
         good_items = {
             "item_aether_lens", "item_octarine_core", "item_sheepstick",
-            "item_sphere", "item_black_king_bar", "item_agonys_scepter",
+            "item_sphere", "item_black_king_bar", "item_aghanims_scepter",
             "item_dagon", "item_kaya_and_sange"
         },
         bad_items = {
@@ -2410,6 +2410,43 @@ local COUNTER_RULES = {
 }
 
 --------------------------------------------------------------------------------
+-- PANEL POSITION PERSISTENCE (io.open — matching broodmother pattern)
+--------------------------------------------------------------------------------
+local function GetConfigPath()
+    return "item_helper_panel.ini"
+end
+
+local function LoadPanelPosition()
+    local configPath = GetConfigPath()
+    local x, y = 100.0, 100.0
+    local ok, res = pcall(function()
+        local file = io.open(configPath, "r")
+        if file then
+            for line in file:lines() do
+                local xMatch = line:match("pos_x=([%d%.%-]+)")
+                local yMatch = line:match("pos_y=([%d%.%-]+)")
+                if xMatch then x = tonumber(xMatch) or x end
+                if yMatch then y = tonumber(yMatch) or y end
+            end
+            file:close()
+        end
+    end)
+    return x, y
+end
+
+local function SavePanelPosition(px, py)
+    pcall(function()
+        local file = io.open(GetConfigPath(), "w")
+        if file then
+            file:write(string.format("pos_x=%d\npos_y=%d\n", px, py))
+            file:close()
+        end
+    end)
+end
+
+local _loadedPanelX, _loadedPanelY = LoadPanelPosition()
+
+--------------------------------------------------------------------------------
 -- MENU
 --------------------------------------------------------------------------------
 local UI = {}
@@ -2417,46 +2454,97 @@ local UI = {}
 function script.OnScriptsLoaded()
     local tab = Menu.Create("General", "Main", "Item Helper")
     tab:Icon("\u{f085}")
-    local mainTab = tab:Create("Settings")
-    local analysisTab = mainTab:Create("Analysis")
-    local panelTab = mainTab:Create("Panel")
-    local dataTab = mainTab:Create("Data/Filters")
-    local debugTab = mainTab:Create("Debug")
+    local main = tab:Create("Настройки")
 
-    UI.enabled       = analysisTab:Switch("Enable Helper", true, "\u{f00c}")
-    UI.autoAnalyze   = analysisTab:Switch("Auto Analyze", true)
-    UI.maxItems      = analysisTab:Slider("Max Suggestions", 3, 10, 6, "%d")
-    UI.showReasons   = analysisTab:Switch("Show Reasons", true)
-    UI.showThreats   = analysisTab:Switch("Show Threat Analysis", true)
-    UI.trackEnemyItems = analysisTab:Switch("Track Enemy Items", true)
-    UI.showHeroCounters = analysisTab:Switch("Show Hero Counters", true)
-    UI.showNetWorth   = analysisTab:Switch("Show Net Worth Analysis", true)
-    UI.showEnemyFocus = analysisTab:Switch("Show Enemy Focus Rows", true)
-    UI.enemyFocusRows = analysisTab:Slider("Enemy Focus Rows", 1, 6, 3, "%d")
-    UI.showNeutrals  = analysisTab:Switch("Show Neutral Items", true)
+    -- === ОБЩЕЕ ===
+    local g_main = main:Create("Общее")
 
-    UI.showPanel     = panelTab:Switch("Show Panel", true)
-    UI.showOwned     = panelTab:Switch("Highlight Owned", true)
-    UI.showGoldHeader = panelTab:Switch("Show Gold in Header", true)
-    UI.scale      = panelTab:Slider("Panel Scale %", 60, 150, 100, "%d")
-    UI.offX       = panelTab:Slider("Offset X", -800, 800, 0, "%d")
-    UI.offY       = panelTab:Slider("Offset Y", -600, 600, 0, "%d")
-    UI.opacity    = panelTab:Slider("Opacity %", 20, 100, 85, "%d")
-    UI.panelSide  = panelTab:Combo("Panel Side", {"Left", "Right"}, 0)
-    UI.visMode    = panelTab:Combo("Show Mode", {"Always", "Cheat Menu Only", "Shop Only", "Menu or Shop"}, 0)
+    UI.enabled = g_main:Switch("Включить помощник", true, "\u{f00c}")
+    UI.enabled:ToolTip("Включить/выключить весь функционал скрипта")
 
-    UI.enemyFilterMode = dataTab:Combo("Enemy Filter Mode",
-        {"Use All Enemies", "Only Selected", "Exclude Selected"}, 0)
-    UI.enemyFilterMode:ToolTip("Control whether analysis uses every detected enemy, only heroes you pick below, or excludes them.")
-    UI.enemyFilterList = dataTab:MultiSelect("Filter Enemy Heroes", {}, false)
-    UI.enemyFilterList:ToolTip("Icons appear once enemy heroes are detected. Toggle heroes to focus on or remove from analysis.")
+    UI.showPanel = g_main:Switch("Показать панель", true, "\u{f06e}")
+    UI.showPanel:ToolTip("Отображение информационной панели с рекомендациями предметов")
 
-    UI.showCategoryBadges = debugTab:Switch("Show Category Badges", true)
-    UI.showScoreBreakdown = debugTab:Switch("Show Score Breakdown", true)
-    UI.breakdownChipCount = debugTab:Slider("Breakdown Chips", 1, 4, 2, "%d")
-    UI.showScoreBreakdown:ToolTip("Shows compact scoring contribution chips on item cards.")
-    UI.showCategoryBadges:ToolTip("Shows MUST / SITUATIONAL / LUXURY category on item cards.")
-    UI.showGoldHeader:ToolTip("Disable if local gold reading is incorrect on your build.")
+    UI.toggleKey = g_main:Bind("Клавиша панели", Enum.ButtonCode.KEY_NONE, "\u{f11c}")
+    UI.toggleKey:ToolTip("Открыть/закрыть панель по нажатию (Alt / Ctrl / любая клавиша)")
+
+    UI.panelMode = g_main:Combo("Режим панели", {"Расширенный", "Минимальный"}, 0)
+    UI.panelMode:ToolTip("Расширенный — полная информация. Минимальный — только предметы и против кого")
+
+    -- === АНАЛИЗ ===
+    local g_analysis = main:Create("Анализ")
+
+    UI.autoAnalyze = g_analysis:Switch("Авто-анализ", true, "\u{f021}")
+    UI.autoAnalyze:ToolTip("Автоматический анализ вражеского пика каждые 2 секунды")
+
+    UI.maxItems = g_analysis:Slider("Макс. предложений", 3, 10, 6, "%d")
+    UI.maxItems:ToolTip("Максимальное количество предметов в списке предложений")
+
+    UI.showReasons = g_analysis:Switch("Показать причины", true, "\u{f05a}")
+    UI.showReasons:ToolTip("Показывать причину рекомендации каждого предмета")
+
+    UI.showThreats = g_analysis:Switch("Анализ угроз", true, "\u{f071}")
+    UI.showThreats:ToolTip("Показать теги угроз вражеского пика (silence, stun, burst...)")
+
+    UI.trackEnemyItems = g_analysis:Switch("Трекинг предметов врагов", true, "\u{f06d}")
+    UI.trackEnemyItems:ToolTip("Отслеживать предметы вражеских героев для точности анализа")
+
+    UI.showHeroCounters = g_analysis:Switch("Контр-пик предметы", true, "\u{f0e7}")
+    UI.showHeroCounters:ToolTip("Рекомендации предметов на основе контр-пика героев")
+
+    UI.showNetWorth = g_analysis:Switch("Анализ нетворса", true, "\u{f155}")
+    UI.showNetWorth:ToolTip("Шкала сравнения нетворса команд")
+
+    UI.showEnemyFocus = g_analysis:Switch("Строки фокуса", true, "\u{f05b}")
+    UI.showEnemyFocus:ToolTip("Детализированные строки фокуса на вражеских героев")
+
+    local focus_gear = UI.showEnemyFocus:Gear("Настройки фокуса")
+    UI.enemyFocusRows = focus_gear:Slider("Строк фокуса", 1, 6, 3, "%d")
+    UI.enemyFocusRows:ToolTip("Количество строк с вражескими героями для отображения")
+
+    UI.showNeutrals = g_analysis:Switch("Нейтральные предметы", true, "\u{f06c}")
+    UI.showNeutrals:ToolTip("Рекомендации нейтральных предметов текущего тира")
+
+    -- === НАСТРОЙКИ ПАНЕЛИ ===
+    local g_panel = main:Create("Настройки панели")
+
+    UI.scale = g_panel:Slider("Масштаб панели %", 60, 200, 100, "%d")
+    UI.scale:ToolTip("Масштаб всей панели: шрифт, отступы, размер. Увеличьте для 2K/4K мониторов")
+
+    UI.opacity = g_panel:Slider("Прозрачность %", 20, 100, 85, "%d")
+    UI.opacity:ToolTip("Прозрачность панели. 100% = полностью непрозрачная")
+
+    UI.showOwned = g_panel:Switch("Подсветка купленных", true, "\u{f00c}")
+    UI.showOwned:ToolTip("Подсвечивать предметы, которые уже куплены вами")
+
+    UI.showGoldHeader = g_panel:Switch("Золото в заголовке", true, "\u{f155}")
+    UI.showGoldHeader:ToolTip("Отключите если значение золота отображается некорректно")
+
+    UI.visMode = g_panel:Combo("Показывать панель", {"Всегда", "Только CheatMenu", "Только в магазине", "Меню или магазин"}, 0)
+    UI.visMode:ToolTip("Когда отображать панель на экране")
+
+    -- === ФИЛЬТР ВРАГОВ ===
+    local g_filter = main:Create("Фильтр врагов")
+
+    UI.enemyFilterMode = g_filter:Combo("Режим фильтра",
+        {"Все враги", "Только выбранные", "Исключить выбранных"}, 0)
+    UI.enemyFilterMode:ToolTip("Управление: анализировать всех врагов, только выбранных или исключить выбранных")
+
+    UI.enemyFilterList = g_filter:MultiSelect("Фильтр героев", {}, false)
+    UI.enemyFilterList:ToolTip("Иконки появятся после обнаружения вражеских героев")
+
+    -- === ОТЛАДКА ===
+    local g_debug = main:Create("Отладка")
+
+    UI.showCategoryBadges = g_debug:Switch("Бейджи категорий", true, "\u{f02b}")
+    UI.showCategoryBadges:ToolTip("Показывать MUST / SITUATIONAL / LUXURY на карточках предметов")
+
+    UI.showScoreBreakdown = g_debug:Switch("Разбор оценки", true, "\u{f080}")
+    UI.showScoreBreakdown:ToolTip("Компактные чипы с вкладом в общую оценку предмета")
+
+    local breakdown_gear = UI.showScoreBreakdown:Gear("Настройки разбора")
+    UI.breakdownChipCount = breakdown_gear:Slider("Количество чипов", 1, 4, 2, "%d")
+    UI.breakdownChipCount:ToolTip("Сколько чипов оценки показывать на каждом предмете")
 end
 
 --------------------------------------------------------------------------------
@@ -2502,6 +2590,15 @@ local S = {
     hoveredRegion    = nil,     -- current hovered click region
     panelVisible     = false,   -- last panel draw visibility state
     panelRect        = nil,     -- last panel bounds for hit-tests
+    -- Drag-to-move state
+    panelPos         = {x = _loadedPanelX, y = _loadedPanelY},
+    isDragging       = false,
+    dragOffset       = {x = 0, y = 0},
+    -- Toggle key state
+    toggleState      = true,
+    toggleKeyWasDown = false,
+    -- Draw scale (computed each frame for 2K/4K support)
+    drawScale        = 1.0,
 }
 
 --------------------------------------------------------------------------------
@@ -2548,6 +2645,9 @@ local function clamp(v, lo, hi) return math.max(lo, math.min(hi, v)) end
 local function col(r, g, b, a) return Color(r, g, b, F(clamp(a or 255, 0, 255))) end
 local function colA(c, a) return Color(c.r, c.g, c.b, F(clamp(a, 0, 255))) end
 
+-- Scale helper: multiplies a pixel value by the current draw scale
+local function sc(v) return F(v * (S.drawScale or 1.0)) end
+
 local function sg(widget, fallback)
     local ok, v = pcall(function() return widget:Get() end)
     if ok and v ~= nil then return v end
@@ -2561,54 +2661,39 @@ local function gst()
     local ok, v = pcall(GameRules.GetGameStartTime); return ok and v or 0
 end
 
--- Detect game mode from GameRules
+-- Detect game mode from GameRules using Enum.GameMode
 local function detectGameMode()
     local ok, mode = pcall(GameRules.GetGameMode)
-    if not ok or not mode then return GAME_MODE.UNKNOWN end
-    
-    -- Game mode IDs from Dota 2
-    local GAME_MODE_IDS = {
-        [0] = GAME_MODE.UNKNOWN,       -- None
-        [1] = GAME_MODE.ALL_PICK,      -- All Pick
-        [2] = GAME_MODE.CAPTAINS_MODE, -- Captain's Mode
-        [3] = GAME_MODE.SINGLE_DRAFT,  -- Single Draft
-        [4] = GAME_MODE.ALL_RANDOM,    -- All Random
-        [5] = GAME_MODE.UNKNOWN,       -- Random Draft (treated as normal)
-        [6] = GAME_MODE.UNKNOWN,       -- Intro
-        [7] = GAME_MODE.UNKNOWN,       -- Diretide
-        [8] = GAME_MODE.UNKNOWN,       -- Reverse Captain's Mode
-        [9] = GAME_MODE.UNKNOWN,       -- Greeviling
-        [10] = GAME_MODE.UNKNOWN,      -- Tutorial
-        [11] = GAME_MODE.UNKNOWN,      -- Mid Only
-        [12] = GAME_MODE.UNKNOWN,      -- Least Played
-        [13] = GAME_MODE.UNKNOWN,      -- Limited Heroes
-        [14] = GAME_MODE.UNKNOWN,      -- Compendium Matchmaking
-        [15] = GAME_MODE.UNKNOWN,      -- Custom
-        [16] = GAME_MODE.CAPTAINS_MODE,-- Captain's Draft
-        [17] = GAME_MODE.UNKNOWN,      -- Balanced Draft
-        [18] = GAME_MODE.ABILITY_DRAFT,-- Ability Draft
-        [19] = GAME_MODE.UNKNOWN,      -- Event
-        [20] = GAME_MODE.ALL_RANDOM,   -- All Random Death Match
-        [21] = GAME_MODE.TURBO,        -- Turbo Mode (1vs1 Mid but also used for Turbo)
-        [22] = GAME_MODE.TURBO,        -- Turbo Mode
-        [23] = GAME_MODE.UNKNOWN,      -- Mutation
-    }
-    
-    local detectedMode = GAME_MODE_IDS[mode] or GAME_MODE.UNKNOWN
-    
-    -- Check for Turbo specifically via console variable or game rules
-    local ok2, isTurbo = pcall(GameRules.IsTurboMode)
-    if ok2 and isTurbo then
-        return GAME_MODE.TURBO
-    end
-    
-    -- Check for Ranked via IsRankedMatch
-    local ok3, isRanked = pcall(GameRules.IsRankedMatch)
-    if ok3 and isRanked then
-        return GAME_MODE.RANKED
-    end
-    
-    return detectedMode
+    if not ok or mode == nil then return GAME_MODE.UNKNOWN end
+
+    -- Use Enum.GameMode values directly (RANKED_AP, TURBO, AP, CM, etc.)
+    local E = Enum.GameMode or {}
+
+    -- Ranked AP has its own enum — check FIRST (before generic AP)
+    if E.RANKED_AP and mode == E.RANKED_AP then return GAME_MODE.RANKED end
+
+    -- Turbo
+    if E.TURBO and mode == E.TURBO then return GAME_MODE.TURBO end
+
+    -- All Pick (non-ranked)
+    if E.AP and mode == E.AP then return GAME_MODE.ALL_PICK end
+
+    -- Captain's Mode / Captain's Draft
+    if (E.CM and mode == E.CM) or (E.CD and mode == E.CD) then return GAME_MODE.CAPTAINS_MODE end
+
+    -- Single Draft / Random Draft
+    if (E.SD and mode == E.SD) or (E.RD and mode == E.RD) then return GAME_MODE.SINGLE_DRAFT end
+
+    -- All Random / ARDM
+    if (E.AR and mode == E.AR) or (E.ARDM and mode == E.ARDM) then return GAME_MODE.ALL_RANDOM end
+
+    -- Ability Draft
+    if (E.ABILITY_DRAFT and mode == E.ABILITY_DRAFT) or (E.AD and mode == E.AD) then return GAME_MODE.ABILITY_DRAFT end
+
+    -- Custom / sandbox (mode 15 in old numbering)
+    if E.CUSTOM and mode == E.CUSTOM then return GAME_MODE.UNKNOWN end
+
+    return GAME_MODE.UNKNOWN
 end
 
 local function prettyHero(name)
@@ -3356,12 +3441,13 @@ local function dBorder(x, y, w, h, c, rnd, t)
 end
 
 local function dText(sz, txt, x, y, c)
-    local f = getFont(sz); if not f then return end
+    local scaledSz = sc(sz)
+    local f = getFont(scaledSz); if not f then return end
     txt = tostring(txt)
     local pos = V(F(x), F(y))
     local ok = pcall(function()
         -- Legacy signature used by original script/build.
-        Render.Text(f, sz, txt, pos, c)
+        Render.Text(f, scaledSz, txt, pos, c)
     end)
     if not ok then
         pcall(Render.Text, f, pos, txt, c)
@@ -3377,18 +3463,19 @@ local textSizeCacheCount = 0
 local clearTextCache
 
 tSz = function(sz, txt)
-    local key = sz .. "_" .. tostring(txt)
+    local scaledSz = sc(sz)
+    local key = scaledSz .. "_" .. tostring(txt)
     local cached = textSizeCache[key]
     if cached then return cached end
     
-    local f = getFont(sz)
+    local f = getFont(scaledSz)
     local result
     if not f then 
-        result = {x = sz * #tostring(txt) * 0.55, y = sz}
+        result = {x = scaledSz * #tostring(txt) * 0.55, y = scaledSz}
     else
         local ok, r1, r2 = pcall(function()
             if Render.TextSize then
-                return Render.TextSize(f, sz, tostring(txt))
+                return Render.TextSize(f, scaledSz, tostring(txt))
             end
             if Render.GetTextSize then
                 return Render.GetTextSize(f, tostring(txt))
@@ -3396,13 +3483,13 @@ tSz = function(sz, txt)
         end)
         if ok and r1 then
             if type(r1) == "number" then
-                result = {x = r1, y = r2 or sz}
+                result = {x = r1, y = r2 or scaledSz}
             elseif type(r1) == "table" or type(r1) == "userdata" then
-                result = {x = r1.x or 0, y = r1.y or sz}
+                result = {x = r1.x or 0, y = r1.y or scaledSz}
             end
         end
         if not result then
-            result = {x = sz * #tostring(txt) * 0.55, y = sz}
+            result = {x = scaledSz * #tostring(txt) * 0.55, y = scaledSz}
         end
     end
     
@@ -3485,13 +3572,17 @@ local function registerClickRegion(x, y, w, h, itemName, section, priorityIndex,
 end
 
 local function getCursorPos2D()
-    local pos = safeStatic(Engine, "GetCursorPos")
-    if not pos and Engine.GetCursorPos then
-        local ok, p = pcall(Engine.GetCursorPos)
-        if ok then pos = p end
+    -- Primary: Input.GetCursorPos() returns two numbers (x, y) — used by broodmother
+    if Input and Input.GetCursorPos then
+        local ok, x, y = pcall(Input.GetCursorPos)
+        if ok and x and y then return x, y end
     end
-    if pos and (type(pos) == "userdata" or type(pos) == "table") then
-        return pos.x or 0, pos.y or 0
+    -- Fallback: Engine.GetCursorPos() returns Vec2
+    local ok2, pos = pcall(Engine.GetCursorPos)
+    if ok2 and pos then
+        if type(pos) == "userdata" or type(pos) == "table" then
+            return pos.x or 0, pos.y or 0
+        end
     end
     return nil, nil
 end
@@ -4097,10 +4188,13 @@ end
 local function drawHeader(x, y, w, alpha)
     local acc = TC.accent
     local textC = colA(TC.text, alpha)
-    dRect(x, y, w, 2, colA(acc, alpha * 0.8), 0)
-    dText(14, L("title"), x + 8, y + 10, textC)
+    dRect(x, y, w, sc(2), colA(acc, alpha * 0.8), 0)
+    dText(14, L("title"), x + sc(8), y + sc(10), textC)
 
-    -- Game mode badge (new)
+    -- Drag hint icon
+    dText(8, "\u{f0b2}", x + w - sc(20), y + sc(6), colA(TC.dim, alpha * 0.4))
+
+    -- Game mode badge
     local modeKeys = {
         [GAME_MODE.UNKNOWN] = "mode_unknown",
         [GAME_MODE.ALL_PICK] = "mode_allpick",
@@ -4124,8 +4218,8 @@ local function drawHeader(x, y, w, alpha)
     local mc = modeColors[S.gameMode] or {100, 100, 100}
     local mName = L(modeKeys[S.gameMode] or "mode_unknown")
     local ms = tSz(8, mName)
-    dRect(x + 8, y + 28, ms.x + 8, 14, col(mc[1], mc[2], mc[3], F(alpha * 0.15)), 3)
-    dText(8, mName, x + 12, y + 29, col(mc[1], mc[2], mc[3], F(alpha * 0.85)))
+    dRect(x + sc(8), y + sc(28), ms.x + sc(8), sc(14), col(mc[1], mc[2], mc[3], F(alpha * 0.15)), sc(3))
+    dText(8, mName, x + sc(12), y + sc(29), col(mc[1], mc[2], mc[3], F(alpha * 0.85)))
 
     -- Test context badge (lobby / Try Hero custom sandbox)
     if S.testContextKind then
@@ -4134,10 +4228,10 @@ local function drawHeader(x, y, w, alpha)
             or "test_custom"
         local tTxt = L(tKey)
         local ts = tSz(7, tTxt)
-        local tx = x + 8 + ms.x + 16
-        local tw = ts.x + 8
-        dRect(tx, y + 29, tw, 12, col(255, 170, 60, F(alpha * 0.16)), 3)
-        dText(7, tTxt, tx + 4, y + 30, col(255, 190, 90, F(alpha * 0.85)))
+        local tx = x + sc(8) + ms.x + sc(16)
+        local tw = ts.x + sc(8)
+        dRect(tx, y + sc(29), tw, sc(12), col(255, 170, 60, F(alpha * 0.16)), sc(3))
+        dText(7, tTxt, tx + sc(4), y + sc(30), col(255, 190, 90, F(alpha * 0.85)))
     end
 
     -- Phase badge
@@ -4146,20 +4240,20 @@ local function drawHeader(x, y, w, alpha)
     local pc = phaseColors[S.gamePhase]
     local pName = L(phaseKeys[S.gamePhase])
     local ps = tSz(10, pName)
-    local bx = x + w - ps.x - 14
-    dRect(bx, y + 10, ps.x + 10, 18, col(pc[1], pc[2], pc[3], F(alpha * 0.15)), 4)
-    dText(10, pName, bx + 5, y + 12, col(pc[1], pc[2], pc[3], F(alpha * 0.9)))
+    local bx = x + w - ps.x - sc(14)
+    dRect(bx, y + sc(10), ps.x + sc(10), sc(18), col(pc[1], pc[2], pc[3], F(alpha * 0.15)), sc(4))
+    dText(10, pName, bx + sc(5), y + sc(12), col(pc[1], pc[2], pc[3], F(alpha * 0.9)))
 
-    -- Gold (optional; some builds may report incorrect value)
+    -- Gold (optional)
     if sg(UI.showGoldHeader, true) then
         local goldTxt = (S.myGoldKnown and (F(S.myGold) .. "g")) or L("gold_unknown")
         local goldSz = tSz(9, goldTxt)
         local goldColor = S.myGoldKnown and col(255, 215, 0, F(alpha * 0.7)) or colA(TC.dim, alpha * 0.65)
-        dText(9, goldTxt, x + w - goldSz.x - 8, y + 30, goldColor)
+        dText(9, goldTxt, x + w - goldSz.x - sc(8), y + sc(30), goldColor)
     end
 
-    dRect(x + 4, y + CFG.HEADER_H - 1, w - 8, 1, colA(TC.dim, alpha * 0.2), 0)
-    return CFG.HEADER_H
+    dRect(x + sc(4), y + sc(CFG.HEADER_H) - 1, w - sc(8), 1, colA(TC.dim, alpha * 0.2), 0)
+    return sc(CFG.HEADER_H)
 end
 
 --------------------------------------------------------------------------------
@@ -4464,15 +4558,15 @@ end
 
 local function buildItemCardLayout(suggestion, w)
     local item = suggestion.item
-    local nameXOffset = 26 + 26 + 8
-    local textAreaW = w - nameXOffset - 6
-    local h = 20
+    local nameXOffset = sc(26) + sc(26) + sc(8)
+    local textAreaW = w - nameXOffset - sc(6)
+    local h = sc(20)
     local reasonLines = {}
     local breakdownChips = getBreakdownChips(suggestion)
     local showCategory = sg(UI.showCategoryBadges, true)
 
     if showCategory then
-        h = h + 13
+        h = h + sc(13)
     end
 
     if sg(UI.showReasons, true) then
@@ -4483,13 +4577,13 @@ local function buildItemCardLayout(suggestion, w)
         if reason ~= "" then
             reasonLines = wrapTextLines(10, reason, textAreaW)
             if #reasonLines > 0 then
-                h = h + #reasonLines * 13 + 2
+                h = h + #reasonLines * sc(13) + sc(2)
             end
         end
     end
 
     if #breakdownChips > 0 then
-        h = h + 14
+        h = h + sc(14)
     end
 
     local hasTriggers = false
@@ -4501,8 +4595,8 @@ local function buildItemCardLayout(suggestion, w)
             end
         end
     end
-    if hasTriggers then h = h + 14 end
-    h = math.max(h, showCategory and 44 or 36)
+    if hasTriggers then h = h + sc(14) end
+    h = math.max(h, showCategory and sc(44) or sc(36))
 
     return {
         h = h,
@@ -4534,36 +4628,36 @@ local function drawItemCard(x, y, w, suggestion, idx, alpha)
     -- Card background
     local bgA = F(alpha * 0.35)
     if owned then
-        dRect(x, y, w, h, col(18, 35, 25, bgA), 6)
+        dRect(x, y, w, h, col(18, 35, 25, bgA), sc(6))
     else
-        dRect(x, y, w, h, col(16, 18, 30, bgA), 6)
+        dRect(x, y, w, h, col(16, 18, 30, bgA), sc(6))
     end
 
     -- Left accent line
     if owned then
-        dRect(x, y + 3, 2, h - 6, col(50, 200, 100, F(alpha * 0.7)), 1)
+        dRect(x, y + sc(3), sc(2), h - sc(6), col(50, 200, 100, F(alpha * 0.7)), 1)
     elseif canAfford then
-        dRect(x, y + 3, 2, h - 6, colA(acc, alpha * 0.5), 1)
+        dRect(x, y + sc(3), sc(2), h - sc(6), colA(acc, alpha * 0.5), 1)
     else
-        dRect(x, y + 3, 2, h - 6, colA(TC.dim, alpha * 0.2), 1)
+        dRect(x, y + sc(3), sc(2), h - sc(6), colA(TC.dim, alpha * 0.2), 1)
     end
 
     -- Priority number
     local numC = idx <= 2 and colA(acc, alpha * 0.9) or colA(TC.dim, alpha * 0.55)
-    dText(10, "#" .. idx, x + 6, y + 4, numC)
+    dText(10, "#" .. idx, x + sc(6), y + sc(4), numC)
 
     -- Item icon
-    local iconSz = 26
-    local iconX = x + 26
-    local iconY = y + F((math.min(h, 46) - iconSz) / 2)
+    local iconSz = sc(26)
+    local iconX = x + sc(26)
+    local iconY = y + F((math.min(h, sc(46)) - iconSz) / 2)
     local iImg = itemIcon(item.name)
-    dRect(iconX, iconY, iconSz, iconSz, col(22, 25, 40, F(alpha * 0.5)), 4)
+    dRect(iconX, iconY, iconSz, iconSz, col(22, 25, 40, F(alpha * 0.5)), sc(4))
     if iImg then
-        dImg(iImg, iconX, iconY, iconSz, iconSz, col(255, 255, 255, F(alpha * (owned and 0.4 or 1))), 4)
+        dImg(iImg, iconX, iconY, iconSz, iconSz, col(255, 255, 255, F(alpha * (owned and 0.4 or 1))), sc(4))
     else
         -- Show first letter if icon not loaded
         local firstChar = item.display:sub(1, 1)
-        dText(10, firstChar, iconX + 8, iconY + 6, colA(TC.dim, alpha * 0.5))
+        dText(10, firstChar, iconX + sc(8), iconY + sc(6), colA(TC.dim, alpha * 0.5))
     end
 
     -- Top-right badges (score + cost) for cleaner alignment
@@ -4571,23 +4665,23 @@ local function drawItemCard(x, y, w, suggestion, idx, alpha)
     local scoreTxt = "S " .. tostring(suggestion.score or 0)
     local costSz = tSz(8, costTxt)
     local scoreSz = tSz(8, scoreTxt)
-    local costBadgeW = costSz.x + 8
-    local scoreBadgeW = scoreSz.x + 8
-    local badgeGap = 4
-    local costBx = x + w - costBadgeW - 6
+    local costBadgeW = costSz.x + sc(8)
+    local scoreBadgeW = scoreSz.x + sc(8)
+    local badgeGap = sc(4)
+    local costBx = x + w - costBadgeW - sc(6)
     local scoreBx = costBx - scoreBadgeW - badgeGap
-    local badgeY = y + 4
+    local badgeY = y + sc(4)
 
     local scoreC = categoryVis.color
-    dRect(scoreBx, badgeY, scoreBadgeW, 12, col(scoreC[1], scoreC[2], scoreC[3], F(alpha * 0.14)), 3)
-    dText(8, scoreTxt, scoreBx + 4, badgeY + 1, col(scoreC[1], scoreC[2], scoreC[3], F(alpha * 0.9)))
+    dRect(scoreBx, badgeY, scoreBadgeW, sc(12), col(scoreC[1], scoreC[2], scoreC[3], F(alpha * 0.14)), sc(3))
+    dText(8, scoreTxt, scoreBx + sc(4), badgeY + sc(1), col(scoreC[1], scoreC[2], scoreC[3], F(alpha * 0.9)))
 
     local costC
     if owned then costC = col(80, 200, 120, F(alpha * 0.65))
     elseif canAfford then costC = col(255, 215, 0, F(alpha * 0.85))
     else costC = col(150, 85, 85, F(alpha * 0.7)) end
-    dRect(costBx, badgeY, costBadgeW, 12, col(costC.r, costC.g, costC.b, F(alpha * 0.10)), 3)
-    dText(8, costTxt, costBx + 4, badgeY + 1, costC)
+    dRect(costBx, badgeY, costBadgeW, sc(12), col(costC.r, costC.g, costC.b, F(alpha * 0.10)), sc(3))
+    dText(8, costTxt, costBx + sc(4), badgeY + sc(1), costC)
 
     -- Item name
     local nameC
@@ -4598,48 +4692,48 @@ local function drawItemCard(x, y, w, suggestion, idx, alpha)
     else
         nameC = colA(TC.text, alpha)
     end
-    local nameMaxW = math.max(40, scoreBx - nameX - 6)
-    dText(11, shortTextByWidth(11, item.display, nameMaxW), nameX, y + 4, nameC)
+    local nameMaxW = math.max(sc(40), scoreBx - nameX - sc(6))
+    dText(11, shortTextByWidth(11, item.display, nameMaxW), nameX, y + sc(4), nameC)
 
-    local curTextY = y + 20
+    local curTextY = y + sc(20)
     if showCategory then
         local catTxt = L(categoryVis.labelKey)
         local catSz = tSz(7, catTxt)
-        local catW = catSz.x + 8
-        dRect(nameX, curTextY, catW, 11, col(categoryVis.color[1], categoryVis.color[2], categoryVis.color[3], F(alpha * 0.14)), 3)
-        dText(7, catTxt, nameX + 4, curTextY + 1, col(categoryVis.color[1], categoryVis.color[2], categoryVis.color[3], F(alpha * 0.85)))
-        curTextY = curTextY + 13
+        local catW = catSz.x + sc(8)
+        dRect(nameX, curTextY, catW, sc(11), col(categoryVis.color[1], categoryVis.color[2], categoryVis.color[3], F(alpha * 0.14)), sc(3))
+        dText(7, catTxt, nameX + sc(4), curTextY + sc(1), col(categoryVis.color[1], categoryVis.color[2], categoryVis.color[3], F(alpha * 0.85)))
+        curTextY = curTextY + sc(13)
     end
 
     -- Reason text (multi-line)
     for _, rLine in ipairs(reasonLines) do
         dText(10, rLine, nameX, curTextY, colA(TC.text, alpha * 0.85))
-        curTextY = curTextY + 13
+        curTextY = curTextY + sc(13)
     end
 
     -- Score breakdown chips (compact transparency)
     if #breakdownChips > 0 then
         local chipX = nameX
         local chipY = curTextY
-        local maxRight = x + w - 4
+        local maxRight = x + w - sc(4)
         for _, chip in ipairs(breakdownChips) do
             local chipText = chip.text
             local chipSz = tSz(7, chipText)
-            local chipW = chipSz.x + 6
+            local chipW = chipSz.x + sc(6)
             if chipX + chipW > maxRight then break end
             local pos = (chip.delta or 0) >= 0
             local cc = pos and {92, 205, 140} or {235, 120, 120}
-            dRect(chipX, chipY, chipW, 11, col(cc[1], cc[2], cc[3], F(alpha * 0.10)), 3)
-            dText(7, chipText, chipX + 3, chipY + 1, col(cc[1], cc[2], cc[3], F(alpha * 0.78)))
-            chipX = chipX + chipW + 3
+            dRect(chipX, chipY, chipW, sc(11), col(cc[1], cc[2], cc[3], F(alpha * 0.10)), sc(3))
+            dText(7, chipText, chipX + sc(3), chipY + sc(1), col(cc[1], cc[2], cc[3], F(alpha * 0.78)))
+            chipX = chipX + chipW + sc(3)
         end
-        curTextY = curTextY + 14
+        curTextY = curTextY + sc(14)
     end
 
     -- Trigger tags
     if hasTriggers then
         local tagX = nameX
-        local tagY = curTextY + 1
+        local tagY = curTextY + sc(1)
         local shownTags = 0
         for _, tr in ipairs(item.triggers) do
             if shownTags >= 3 then break end
@@ -4647,11 +4741,11 @@ local function drawItemCard(x, y, w, suggestion, idx, alpha)
                 local tc = getTTagColor(tr)
                 local tt = tr:upper()
                 local tts = tSz(7, tt)
-                local tw = tts.x + 6
-                if tagX + tw > x + w - 4 then break end
-                dRect(tagX, tagY, tw, 11, col(tc[1], tc[2], tc[3], F(alpha * 0.12)), 3)
-                dText(7, tt, tagX + 3, tagY + 1, col(tc[1], tc[2], tc[3], F(alpha * 0.5)))
-                tagX = tagX + tw + 2
+                local tw = tts.x + sc(6)
+                if tagX + tw > x + w - sc(4) then break end
+                dRect(tagX, tagY, tw, sc(11), col(tc[1], tc[2], tc[3], F(alpha * 0.12)), sc(3))
+                dText(7, tt, tagX + sc(3), tagY + sc(1), col(tc[1], tc[2], tc[3], F(alpha * 0.5)))
+                tagX = tagX + tw + sc(2)
                 shownTags = shownTags + 1
             end
         end
@@ -4667,40 +4761,40 @@ end
 --------------------------------------------------------------------------------
 local function drawSuggestions(x, y, w, alpha)
     local curY = y
-    dText(10, L("recommended"), x + 4, curY, colA(TC.accent, alpha * 0.9))
+    dText(10, L("recommended"), x + sc(4), curY, colA(TC.accent, alpha * 0.9))
     local recTitleW = tSz(10, L("recommended")).x
-    dRect(x + 8 + recTitleW, curY + 7, math.max(0, w - recTitleW - 16), 1, colA(TC.dim, alpha * 0.14), 0)
+    dRect(x + sc(8) + recTitleW, curY + sc(7), math.max(0, w - recTitleW - sc(16)), 1, colA(TC.dim, alpha * 0.14), 0)
     if #S.suggestions > 0 then
         local counts = {must_have = 0, situational = 0, luxury = 0}
         for _, sug in ipairs(S.suggestions) do
             counts[sug.category or "situational"] = (counts[sug.category or "situational"] or 0) + 1
         end
-        local bx = x + w - 4
+        local bx = x + w - sc(4)
         for _, cat in ipairs({"luxury", "situational", "must_have"}) do
             local cnt = counts[cat] or 0
             if cnt > 0 then
                 local vis = getCategoryVis(cat)
                 local txt = L(vis.labelKey) .. " " .. cnt
                 local ts = tSz(7, txt)
-                local bw = ts.x + 8
+                local bw = ts.x + sc(8)
                 bx = bx - bw
-                dRect(bx, curY + 1, bw, 11, col(vis.color[1], vis.color[2], vis.color[3], F(alpha * 0.12)), 3)
-                dText(7, txt, bx + 4, curY + 2, col(vis.color[1], vis.color[2], vis.color[3], F(alpha * 0.8)))
-                bx = bx - 3
+                dRect(bx, curY + sc(1), bw, sc(11), col(vis.color[1], vis.color[2], vis.color[3], F(alpha * 0.12)), sc(3))
+                dText(7, txt, bx + sc(4), curY + sc(2), col(vis.color[1], vis.color[2], vis.color[3], F(alpha * 0.8)))
+                bx = bx - sc(3)
             end
         end
     end
-    curY = curY + 18
+    curY = curY + sc(18)
 
     if #S.suggestions == 0 then
-        dText(9, L("analyzing"), x + 4, curY, colA(TC.dim, alpha * 0.4))
-        curY = curY + 18
+        dText(9, L("analyzing"), x + sc(4), curY, colA(TC.dim, alpha * 0.4))
+        curY = curY + sc(18)
         return curY - y
     end
 
     for i, sug in ipairs(S.suggestions) do
         local cardH = drawItemCard(x, curY, w, sug, i, alpha)
-        curY = curY + cardH + 3
+        curY = curY + cardH + sc(3)
     end
     return curY - y
 end
@@ -4784,45 +4878,6 @@ end
 --------------------------------------------------------------------------------
 -- DRAW: FOOTER
 --------------------------------------------------------------------------------
-local function drawFooter(x, y, w, alpha)
-    local curY = y
-    dRect(x + 4, curY, w - 8, 1, colA(TC.dim, alpha * 0.15), 0)
-    curY = curY + 6
-
-    local tip, tipC = nil, {150, 158, 185}
-    if S.enemyTags["invis"] and S.enemyTags["invis"] >= 2 then
-        tip = L("tip_invis"); tipC = {255, 200, 80}
-    elseif S.enemyTags["magic_burst"] and S.enemyTags["magic_burst"] >= 3 then
-        tip = L("tip_magic"); tipC = {120, 80, 255}
-    elseif S.enemyTags["heal"] and S.enemyTags["heal"] >= 2 then
-        tip = L("tip_heal"); tipC = {80, 220, 120}
-    elseif S.enemyTags["phys_dps"] and S.enemyTags["phys_dps"] >= 3 then
-        tip = L("tip_phys"); tipC = {255, 130, 50}
-    elseif S.enemyTags["illusions"] and S.enemyTags["illusions"] >= 2 then
-        tip = L("tip_illusions"); tipC = {200, 150, 255}
-    elseif S.enemyTags["disable"] and S.enemyTags["disable"] >= 3 then
-        tip = L("tip_disable"); tipC = {255, 220, 50}
-    end
-
-    if tip then
-        local lines = wrapTextLines(9, tip, w - 12)
-        local tipH = #lines * 13 + 6
-        dRect(x + 2, curY, w - 4, tipH, col(tipC[1], tipC[2], tipC[3], F(alpha * 0.06)), 4)
-        for _, ln in ipairs(lines) do
-            dText(9, ln, x + 8, curY + 3, col(tipC[1], tipC[2], tipC[3], F(alpha * 0.65)))
-            curY = curY + 13
-        end
-        curY = curY + 4
-    end
-
-    dText(8, "v3.2", x + w - 26, curY, col(40, 44, 60, F(alpha * 0.25)))
-    curY = curY + 12
-    return curY - y
-end
-
---------------------------------------------------------------------------------
--- PANEL MEASURE / OVERLAYS
---------------------------------------------------------------------------------
 local function getFooterTipData()
     local tip, tipC = nil, {150, 158, 185}
     if S.enemyTags["invis"] and S.enemyTags["invis"] >= 2 then
@@ -4841,60 +4896,87 @@ local function getFooterTipData()
     return tip, tipC
 end
 
+local function drawFooter(x, y, w, alpha)
+    local curY = y
+    dRect(x + sc(4), curY, w - sc(8), 1, colA(TC.dim, alpha * 0.15), 0)
+    curY = curY + sc(6)
+
+    local tip, tipC = getFooterTipData()
+
+    if tip then
+        local lines = wrapTextLines(9, tip, w - sc(12))
+        local tipH = #lines * sc(13) + sc(6)
+        dRect(x + sc(2), curY, w - sc(4), tipH, col(tipC[1], tipC[2], tipC[3], F(alpha * 0.06)), sc(4))
+        for _, ln in ipairs(lines) do
+            dText(9, ln, x + sc(8), curY + sc(3), col(tipC[1], tipC[2], tipC[3], F(alpha * 0.65)))
+            curY = curY + sc(13)
+        end
+        curY = curY + sc(4)
+    end
+
+    dText(8, "v3.2", x + w - sc(26), curY, col(40, 44, 60, F(alpha * 0.25)))
+    curY = curY + sc(12)
+    return curY - y
+end
+
+--------------------------------------------------------------------------------
+-- PANEL MEASURE / OVERLAYS
+--------------------------------------------------------------------------------
+
 local function measureEnemySectionHeight(w)
-    local h = 16 + 24 + 6
+    local h = sc(16) + sc(24) + sc(6)
     if sg(UI.showThreats, true) and #S.threatCounts > 0 then
         local tagRowY = 0
-        local tagX = 4
+        local tagX = sc(4)
         local shown = 0
-        local maxRight = w - 4
+        local maxRight = w - sc(4)
         for _, tc in ipairs(S.threatCounts) do
             if shown >= 10 then break end
             if tc.count > 0 then
                 local txt = tc.tag:upper()
                 if tc.count > 1 then txt = txt .. " x" .. tc.count end
-                local tagW = tSz(8, txt).x + 10
-                if tagX + tagW > maxRight and tagX > 4 then
-                    tagX = 4
-                    tagRowY = tagRowY + 17
+                local tagW = tSz(8, txt).x + sc(10)
+                if tagX + tagW > maxRight and tagX > sc(4) then
+                    tagX = sc(4)
+                    tagRowY = tagRowY + sc(17)
                 end
-                tagX = tagX + tagW + 3
+                tagX = tagX + tagW + sc(3)
                 shown = shown + 1
             end
         end
-        h = h + 14 + tagRowY + 19
+        h = h + sc(14) + tagRowY + sc(19)
     end
-    h = h + 6 -- separator spacing
+    h = h + sc(6)
     return h
 end
 
 local function measureNetWorthBarHeight()
     if not sg(UI.showNetWorth, true) then return 0 end
     local totalNW = S.myTeamNetWorth + S.enemyTeamNetWorth
-    if totalNW == 0 then return 24 end
-    return 32
+    if totalNW == 0 then return sc(24) end
+    return sc(32)
 end
 
 local function measureHeroCountersHeight()
     if not sg(UI.showHeroCounters, true) then return 0 end
     if #S.heroCounterSuggestions == 0 then return 0 end
-    return 16 + math.min(#S.heroCounterSuggestions, 5) * 22
+    return sc(16) + math.min(#S.heroCounterSuggestions, 5) * sc(22)
 end
 
 local function measureEnemyFocusHeight()
     if not sg(UI.showEnemyFocus, true) then return 0 end
     if not S.enemyFocus or #S.enemyFocus == 0 then return 0 end
     local rows = clamp(sg(UI.enemyFocusRows, 3), 1, 6)
-    return 16 + math.min(rows, #S.enemyFocus) * 32
+    return sc(16) + math.min(rows, #S.enemyFocus) * sc(32)
 end
 
 local function measureSuggestionsHeight(w)
-    local h = 18
+    local h = sc(18)
     if #S.suggestions == 0 then
-        return h + 18
+        return h + sc(18)
     end
     for _, sug in ipairs(S.suggestions) do
-        h = h + buildItemCardLayout(sug, w).h + 3
+        h = h + buildItemCardLayout(sug, w).h + sc(3)
     end
     return h
 end
@@ -4902,23 +4984,23 @@ end
 local function measureNeutralSectionHeight()
     if not sg(UI.showNeutrals, true) then return 0 end
     if S.neutralTier == 0 or #S.neutralSuggestions == 0 then return 0 end
-    return 6 + 16 + (#S.neutralSuggestions * 24)
+    return sc(6) + sc(16) + (#S.neutralSuggestions * sc(24))
 end
 
 local function measureFooterHeight(w)
-    local h = 6
+    local h = sc(6)
     local tip = getFooterTipData()
     if tip then
-        local lines = wrapTextLines(9, tip, w - 12)
-        h = h + (#lines * 13) + 4
+        local lines = wrapTextLines(9, tip, w - sc(12))
+        h = h + (#lines * sc(13)) + sc(4)
     end
-    h = h + 12
+    h = h + sc(12)
     return h
 end
 
 local function measurePanelHeight(innerW)
-    local contentH = CFG.PAD
-    contentH = contentH + CFG.HEADER_H + 4
+    local contentH = sc(CFG.PAD)
+    contentH = contentH + sc(CFG.HEADER_H) + sc(4)
     contentH = contentH + measureEnemySectionHeight(innerW)
     contentH = contentH + measureNetWorthBarHeight()
     contentH = contentH + measureHeroCountersHeight()
@@ -4941,6 +5023,208 @@ local function drawHoverOverlay()
 end
 
 --------------------------------------------------------------------------------
+-- PANEL DRAG INPUT
+--------------------------------------------------------------------------------
+local function HandlePanelInput()
+    if not S.panelRect then return end
+
+    local cx, cy = getCursorPos2D()
+    if not cx or not cy then return end
+
+    local pr = S.panelRect
+    local headerH = sc(CFG.HEADER_H)
+    local isInHeader = cx >= pr.x and cx <= pr.x + pr.w and
+                       cy >= pr.y and cy <= pr.y + headerH
+
+    local mouseDown = Input.IsKeyDown(Enum.ButtonCode.KEY_MOUSE1)
+
+    if isInHeader and mouseDown and not S.isDragging then
+        S.isDragging = true
+        S.dragOffset.x = cx - S.panelPos.x
+        S.dragOffset.y = cy - S.panelPos.y
+    end
+
+    if S.isDragging then
+        if mouseDown then
+            S.panelPos.x = cx - S.dragOffset.x
+            S.panelPos.y = cy - S.dragOffset.y
+            local sw, sh = screenSz()
+            local pw = S.panelRect and S.panelRect.w or sc(CFG.PW)
+            local ph = S.panelRect and S.panelRect.h or 400
+            S.panelPos.x = clamp(S.panelPos.x, 0, sw - pw)
+            S.panelPos.y = clamp(S.panelPos.y, 0, sh - ph)
+        else
+            S.isDragging = false
+            SavePanelPosition(S.panelPos.x, S.panelPos.y)
+        end
+    end
+end
+
+--------------------------------------------------------------------------------
+-- MINIMAL MODE: Helper to find which enemies an item counters
+--------------------------------------------------------------------------------
+local function getCounteredEnemies(itemDef)
+    if not itemDef then return {} end
+    local enemies = {}
+
+    -- Check if item is a direct counter via HERO_COUNTERS
+    for _, enemy in ipairs(S.enemyHeroes) do
+        if enemy.included then
+            local cd = HERO_COUNTERS[enemy.name]
+            if cd and cd.items then
+                for _, iName in ipairs(cd.items) do
+                    if iName == itemDef.name then
+                        table.insert(enemies, prettyHero(enemy.name))
+                        break
+                    end
+                end
+            end
+        end
+    end
+
+    -- Check trigges matching enemy tags
+    if #enemies == 0 and itemDef.triggers then
+        for _, enemy in ipairs(S.enemyHeroes) do
+            if enemy.included and enemy.tagCounts then
+                for _, trigger in ipairs(itemDef.triggers) do
+                    if enemy.tagCounts[trigger] and enemy.tagCounts[trigger] > 0 then
+                        local name = prettyHero(enemy.name)
+                        local found = false
+                        for _, e in ipairs(enemies) do
+                            if e == name then found = true; break end
+                        end
+                        if not found then
+                            table.insert(enemies, name)
+                        end
+                        break
+                    end
+                end
+            end
+        end
+    end
+
+    return enemies
+end
+
+--------------------------------------------------------------------------------
+-- MINIMAL MODE: Simplified header
+--------------------------------------------------------------------------------
+local function drawHeaderMinimal(x, y, w, alpha)
+    local acc = TC.accent
+    local textC = colA(TC.text, alpha)
+    dRect(x, y, w, sc(2), colA(acc, alpha * 0.8), 0)
+    dText(12, L("title"), x + sc(8), y + sc(8), textC)
+
+    -- Drag hint
+    dText(8, "\u{f0b2}", x + w - sc(20), y + sc(8), colA(TC.dim, alpha * 0.4))
+
+    return sc(28)
+end
+
+--------------------------------------------------------------------------------
+-- MINIMAL MODE: Items with "vs WHO" labels
+--------------------------------------------------------------------------------
+local function drawSuggestionsMinimal(x, y, w, alpha)
+    local curY = y
+    dText(10, L("recommended"), x + sc(4), curY, colA(TC.accent, alpha * 0.9))
+    curY = curY + sc(18)
+
+    if #S.suggestions == 0 then
+        dText(9, L("no_data"), x + sc(4), curY, colA(TC.dim, alpha * 0.5))
+        return sc(36)
+    end
+
+    for idx, suggestion in ipairs(S.suggestions) do
+        local item = suggestion.item
+        local owned = sg(UI.showOwned, true) and S.ownedItems[item.name]
+        local canAfford = S.myGoldKnown and S.myGold >= item.cost
+        local cardH = sc(34)
+
+        -- Card background
+        local bgA = F(alpha * 0.35)
+        if owned then
+            dRect(x, curY, w, cardH, col(18, 35, 25, bgA), sc(6))
+        else
+            dRect(x, curY, w, cardH, col(16, 18, 30, bgA), sc(6))
+        end
+
+        -- Left accent
+        if owned then
+            dRect(x, curY + sc(3), sc(2), cardH - sc(6), col(50, 200, 100, F(alpha * 0.7)), 1)
+        elseif canAfford then
+            dRect(x, curY + sc(3), sc(2), cardH - sc(6), colA(TC.accent, alpha * 0.5), 1)
+        end
+
+        -- Item icon
+        local iconSz = sc(24)
+        local iconX = x + sc(6)
+        local iconY = curY + F((cardH - iconSz) / 2)
+        dRect(iconX, iconY, iconSz, iconSz, col(22, 25, 40, F(alpha * 0.5)), sc(4))
+        local iImg = itemIcon(item.name)
+        if iImg then
+            dImg(iImg, iconX, iconY, iconSz, iconSz, col(255, 255, 255, F(alpha * (owned and 0.4 or 1))), sc(4))
+        end
+
+        -- Item name
+        local nameX = x + sc(36)
+        local nameC
+        if owned then nameC = col(80, 200, 120, F(alpha * 0.7))
+        elseif canAfford then nameC = col(255, 215, 0, F(alpha * 0.95))
+        else nameC = colA(TC.text, alpha) end
+        dText(10, shortTextByWidth(10, item.display, w * 0.45), nameX, curY + sc(3), nameC)
+
+        -- Cost badge
+        local costTxt = owned and L("owned") or (item.cost .. "g")
+        local costSz = tSz(8, costTxt)
+        local costBx = x + w - costSz.x - sc(12)
+        local costC
+        if owned then costC = col(80, 200, 120, F(alpha * 0.65))
+        elseif canAfford then costC = col(255, 215, 0, F(alpha * 0.85))
+        else costC = col(150, 85, 85, F(alpha * 0.7)) end
+        dText(8, costTxt, costBx, curY + sc(4), costC)
+
+        -- "vs WHO" line
+        local countered = getCounteredEnemies(item)
+        if #countered > 0 then
+            local vsText = "vs " .. table.concat(countered, ", ")
+            if tSz(8, vsText).x > w - sc(42) then
+                vsText = "vs " .. countered[1]
+                if #countered > 1 then vsText = vsText .. " +" .. (#countered - 1) end
+            end
+            dText(8, vsText, nameX, curY + sc(18), col(255, 180, 80, F(alpha * 0.7)))
+        else
+            -- Show top reason instead
+            if suggestion.topReasons and #suggestion.topReasons > 0 then
+                dText(8, suggestion.topReasons[1], nameX, curY + sc(18), colA(TC.dim, alpha * 0.6))
+            end
+        end
+
+        registerClickRegion(x, curY, w, cardH, item.name, "main", idx, true)
+        curY = curY + cardH + sc(3)
+    end
+
+    return curY - y
+end
+
+--------------------------------------------------------------------------------
+-- MINIMAL MODE: Panel height measurement
+--------------------------------------------------------------------------------
+local function measurePanelHeightMinimal(innerW)
+    local h = sc(CFG.PAD)
+    h = h + sc(28) + sc(4) -- header
+    h = h + sc(18) -- "recommended" title
+    if #S.suggestions == 0 then
+        h = h + sc(36)
+    else
+        for _ in ipairs(S.suggestions) do
+            h = h + sc(34) + sc(3) -- card + gap
+        end
+    end
+    h = h + measureFooterHeight(innerW)
+    return F(h)
+end
+
+--------------------------------------------------------------------------------
 -- DRAW: MAIN PANEL
 --------------------------------------------------------------------------------
 local function drawPanel()
@@ -4953,19 +5237,30 @@ local function drawPanel()
     syncThemeColors()
 
     local sw, sh = screenSz()
-    local scale = clamp(sg(UI.scale, 100), 60, 150) / 100
-    local opac = clamp(sg(UI.opacity, 85), 20, 100) / 100
-    local offX = clamp(sg(UI.offX, 0), -800, 800)
-    local offY = clamp(sg(UI.offY, 0), -600, 600)
-    local panelSide = sg(UI.panelSide, 0)
-    local pw = F(CFG.PW * scale)
 
-    local innerW = pw - CFG.PAD * 2
-    local ph = measurePanelHeight(innerW)
-    local px, py
-    if panelSide == 0 then px = CFG.MARGIN + offX
-    else px = sw - pw - CFG.MARGIN + offX end
-    py = CFG.MARGIN + 80 + offY
+    -- Auto-detect high-res and adjust base scale
+    local autoScale = 1.0
+    if sh >= 2160 then autoScale = 1.6       -- 4K
+    elseif sh >= 1440 then autoScale = 1.25  -- 2K / 1440p
+    end
+
+    local userScale = clamp(sg(UI.scale, 100), 60, 200) / 100
+    local scale = userScale * autoScale
+    S.drawScale = scale  -- set BEFORE any drawing/measuring
+
+    local opac = clamp(sg(UI.opacity, 85), 20, 100) / 100
+    local pw = F(CFG.PW * scale)
+    local pad = sc(CFG.PAD)
+    local margin = sc(CFG.MARGIN)
+    local rounding = sc(CFG.ROUNDING)
+
+    local innerW = pw - pad * 2
+    local isMinimal = sg(UI.panelMode, 0) == 1
+    local ph = isMinimal and measurePanelHeightMinimal(innerW) or measurePanelHeight(innerW)
+
+    -- Use drag position instead of sliders
+    local px = F(S.panelPos.x)
+    local py = F(S.panelPos.y)
     px = clamp(px, 4, sw - pw - 4)
     py = clamp(py, 4, sh - ph - 4)
 
@@ -4981,39 +5276,49 @@ local function drawPanel()
 
     dBlur(px, py, pw, ph)
     local themeBg = TC.bg
-    dRect(px, py, pw, ph, col(themeBg.r, themeBg.g, themeBg.b, F(210 * alpha / 255)), CFG.ROUNDING)
+    dRect(px, py, pw, ph, col(themeBg.r, themeBg.g, themeBg.b, F(210 * alpha / 255)), rounding)
     local bdrC = TC.border
-    dBorder(px, py, pw, ph, col(bdrC.r, bdrC.g, bdrC.b, F(40 * alpha / 255)), CFG.ROUNDING, 1)
+    dBorder(px, py, pw, ph, col(bdrC.r, bdrC.g, bdrC.b, F(40 * alpha / 255)), rounding, 1)
 
-    local curY = py + CFG.PAD
-    local clipPushed = false -- disabled on this build: some Render variants accept PushClip but clip everything incorrectly
+    local curY = py + pad
+    local clipPushed = false
 
-    local hH = drawHeader(px + CFG.PAD, curY, innerW, alpha)
-    curY = curY + hH + 4
-    local eH = drawEnemySection(px + CFG.PAD, curY, innerW, alpha)
-    curY = curY + eH
-    -- Draw net worth bar
-    if sg(UI.showNetWorth, true) then
-        local nwH = drawNetWorthBar(px + CFG.PAD, curY, innerW, alpha)
-        curY = curY + nwH
+    if isMinimal then
+        -- Minimal mode: simplified header + suggestions only + footer
+        local hH = drawHeaderMinimal(px + pad, curY, innerW, alpha)
+        curY = curY + hH + sc(4)
+        local sH = drawSuggestionsMinimal(px + pad, curY, innerW, alpha)
+        curY = curY + sH
+        drawFooter(px + pad, curY, innerW, alpha)
+    else
+        -- Extended mode: full layout
+        local hH = drawHeader(px + pad, curY, innerW, alpha)
+        curY = curY + hH + sc(4)
+        local eH = drawEnemySection(px + pad, curY, innerW, alpha)
+        curY = curY + eH
+        if sg(UI.showNetWorth, true) then
+            local nwH = drawNetWorthBar(px + pad, curY, innerW, alpha)
+            curY = curY + nwH
+        end
+        if sg(UI.showHeroCounters, true) then
+            local hcH = drawHeroCounters(px + pad, curY, innerW, alpha)
+            curY = curY + hcH
+        end
+        local focusH = drawEnemyFocus(px + pad, curY, innerW, alpha)
+        curY = curY + focusH
+        local sH = drawSuggestions(px + pad, curY, innerW, alpha)
+        curY = curY + sH
+        local nH = drawNeutralSection(px + pad, curY, innerW, alpha)
+        curY = curY + nH
+        drawFooter(px + pad, curY, innerW, alpha)
     end
-    -- Draw hero counters
-    if sg(UI.showHeroCounters, true) then
-        local hcH = drawHeroCounters(px + CFG.PAD, curY, innerW, alpha)
-        curY = curY + hcH
-    end
-    local focusH = drawEnemyFocus(px + CFG.PAD, curY, innerW, alpha)
-    curY = curY + focusH
-    local sH = drawSuggestions(px + CFG.PAD, curY, innerW, alpha)
-    curY = curY + sH
-    local nH = drawNeutralSection(px + CFG.PAD, curY, innerW, alpha)
-    curY = curY + nH
-    drawFooter(px + CFG.PAD, curY, innerW, alpha)
+
     if clipPushed and Render.PopClip then pcall(Render.PopClip) end
 
     S.panelVisible = true
     S.panelRect = {x = px, y = py, w = pw, h = ph}
     drawHoverOverlay()
+    HandlePanelInput()
 end
 
 --------------------------------------------------------------------------------
@@ -5052,7 +5357,23 @@ function script.OnDraw()
             clearClickRegions()
             return
         end
+
         if not sg(UI.showPanel, true) then
+            S.panelVisible = false
+            S.panelRect = nil
+            clearClickRegions()
+            return
+        end
+
+        -- Toggle key: use :IsPressed() for edge detection (like broodmother)
+        if UI.toggleKey then
+            local ok2, pressed = pcall(function() return UI.toggleKey:IsPressed() end)
+            if ok2 and pressed then
+                S.toggleState = not S.toggleState
+            end
+        end
+
+        if not S.toggleState then
             S.panelVisible = false
             S.panelRect = nil
             clearClickRegions()
@@ -5118,6 +5439,12 @@ function script.OnGameEnd()
     S.gameTempo = "even"
     -- Reset hero counters
     S.heroCounterSuggestions = {}
+    -- Reset drag/toggle state
+    S.isDragging = false
+    S.dragOffset = {x = 0, y = 0}
+    S.toggleState = true
+    S.toggleKeyWasDown = false
+    S.drawScale = 1.0
     -- Reset shop detection state
     _shopCache = false
     _shopCacheT = 0
