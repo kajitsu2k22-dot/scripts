@@ -13,13 +13,11 @@ local ORDER_INTERVAL_FOLLOW  = 2.8   -- сек между ордерами "сл
 local ORDER_INTERVAL_CHASE   = 2.4   -- сек между ордерами "атаковать врага"
 local ORDER_INTERVAL_FARM   = 2.0   -- сек между ордерами "фармить крипов"
 local ORDER_INTERVAL_FAR    = 3.2   -- сек между ордерами для далеких пауков
+local ORDER_INTERVAL_JUGGLE = 0.45  -- сек между ордерами "развести"
+local JUGGLE_REISSUE_DISTANCE = 140 -- переотправлять ордер только если паук заметно ушёл с точки
 local SPIDER_CACHE_TTL       = 0.12  -- кэш списка пауков (сек), меньше вызовов NPCs.GetAll()
-local STACK_TIME_START       = 52.5  -- окно стака: с какой секунды минуты (0-60)
-local STACK_TIME_END         = 55.5  -- до какой секунды
-local STACK_COOLDOWN         = 58    -- не слать стак в тот же камп чаще чем раз в 58 сек
 -- Тайминг первого удара и сдвиг по стакам (из Auto Stacker By GLTM)
 local STACK_FIRST_HIT_MELEE  = 53
-local STACK_FIRST_HIT_RANGED = 53
 local STACK_PER_STACK_SHIFT  = 0.4   -- секунд на стак (40 centi)
 
 -- Точки wait/pull для стака нейтралов (координаты из Auto Stacker By GLTM)
@@ -64,7 +62,6 @@ local stackCampStacks     = {}
 local stackCampStacksMinute = {}
 local stackLastCampStacks = {}
 local stackTimeline       = {}
-local STACK_MODIFIERS     = { "modifier_stacked_neutral" }
 
 -- ═══════════════════════════════════════════════════════════════════════════
 --  Lane Pull: точки линий, время подхода крипов
@@ -96,7 +93,6 @@ local PullState = {
     assignments = {},
     cachedTowers = nil,
     cachedTowersTime = 0,
-    cachedCamps = nil,
     lastDispatchClock = -999,
 }
 
@@ -253,39 +249,41 @@ local function InitializeUI()
     local g_manual = main:Create("Ручное управление пауками")
     
     UI.GatherKey = g_manual:Bind("Собрать пауков", Enum.ButtonCode.KEY_NONE, "\u{f0c0}")
-    UI.GatherKey:ToolTip("Скрипт собирает всех пауков в одном месте (на курсоре)")
+    UI.GatherKey:ToolTip("Отправляет всех пауков в точку курсора")
     
     local gather_gear = UI.GatherKey:Gear("Настройки сбора")
     UI.GatherDelay = gather_gear:Slider("Задержка команд (мс)", 30, 300, 50, "%d")
     UI.GatherDelay:ToolTip("Задержка между командами для каждого паука при сборе")
     
     UI.JuggleKey = g_manual:Bind("Развести пауков", Enum.ButtonCode.KEY_NONE, "\u{f0e8}")
-    UI.JuggleKey:ToolTip("Развод пауков по радиусу для вижена и контроля территории")
+    UI.JuggleKey:ToolTip("Разводит пауков по кругу вокруг героя")
     
     local juggle_gear = UI.JuggleKey:Gear("Настройки развода")
-    UI.JuggleRadius = juggle_gear:Slider("Радиус развода", 100, 2000, 885, "%d")
-    UI.JuggleRadius:ToolTip("Радиус, по которому будут распределены пауки вокруг героя")
+    UI.JuggleMode = juggle_gear:Combo("Режим кнопки", {"Зажатие (Hold)", "Переключение (Toggle)"}, 0)
+    UI.JuggleMode:ToolTip("Hold: работает, пока кнопка зажата. Toggle: первое нажатие включает, второе выключает")
+    UI.JuggleRadius = juggle_gear:Slider("Радиус круга", 100, 2000, 885, "%d")
+    UI.JuggleRadius:ToolTip("Расстояние от героя до точек, куда разводятся пауки")
     
-    UI.JuggleCount = juggle_gear:Slider("Количество пауков", 1, 10, 5, "%d")
-    UI.JuggleCount:ToolTip("Сколько пауков будет разведено по кругу")
+    UI.JuggleCount = juggle_gear:Slider("Макс. пауков", 1, 10, 5, "%d")
+    UI.JuggleCount:ToolTip("Сколько пауков максимум участвует в разводе")
     
     -- === АВТОМАТИЧЕСКОЕ УПРАВЛЕНИЕ ===
-    local g_auto = main:Create("Авто-управление")
+    local g_auto = main:Create("Авто-управление пауками")
     
     -- Авто-следование
     UI.AutoFollow = g_auto:Switch("Авто-следование за героем", true, "\u{f0b2}")
-    UI.AutoFollow:ToolTip("Скрипт будет автоматически выделять выбранное кол-во пауков и отправлять их за героем")
+    UI.AutoFollow:ToolTip("Выделяет часть пауков в роль сопровождения и держит их рядом с героем")
     
     local follow_gear = UI.AutoFollow:Gear("Настройки следования")
-    UI.AutoFollowCount = follow_gear:Slider("Пауков следует", 0, 15, 2, "%d")
-    UI.AutoFollowCount:ToolTip("Количество пауков, которые будут следовать за героем")
+    UI.AutoFollowCount = follow_gear:Slider("Пауков в следовании", 0, 15, 2, "%d")
+    UI.AutoFollowCount:ToolTip("Сколько пауков одновременно держать рядом с героем")
     
     UI.AutoFollowRadius = follow_gear:Slider("Радиус следования", 100, 600, 300, "%d")
     UI.AutoFollowRadius:ToolTip("Радиус вокруг героя, в котором будут находиться следующие пауки")
     
     -- Авто-чейз
-    UI.AutoChase = g_auto:Switch("Авто-атака врагов", true, "\u{f05b}")
-    UI.AutoChase:ToolTip("Пауки автоматически атакуют ближайших врагов в радиусе")
+    UI.AutoChase = g_auto:Switch("Авто-атака героев", true, "\u{f05b}")
+    UI.AutoChase:ToolTip("Пауки автоматически переключаются на ближайших вражеских героев")
     
     local chase_gear = UI.AutoChase:Gear("Настройки атаки")
     UI.AutoChaseRadius = chase_gear:Slider("Радиус атаки", 800, 2000, 1200, "%d")
@@ -296,12 +294,12 @@ local function InitializeUI()
     UI.AutoSplit:ToolTip("Автоматически распределяет пауков по разным целям для эффективного фокуса")
     
     local split_gear = UI.AutoSplit:Gear("Настройки распределения")
-    UI.AutoSplitMax = split_gear:Slider("Макс. на цель", 3, 20, 6, "%d")
-    UI.AutoSplitMax:ToolTip("Максимальное количество пауков на одну цель")
+    UI.AutoSplitMax = split_gear:Slider("Макс. пауков на цель", 3, 20, 6, "%d")
+    UI.AutoSplitMax:ToolTip("Лимит пауков, назначаемых на одного врага при сплите")
     
     -- Авто-фарм
-    UI.AutoFarmCreeps = g_auto:Switch("Авто-фарм крипов", false, "\u{f0ec}")
-    UI.AutoFarmCreeps:ToolTip("Пауки автоматически фармят крипов в радиусе от героя")
+    UI.AutoFarmCreeps = g_auto:Switch("Авто-фарм пауками", false, "\u{f0ec}")
+    UI.AutoFarmCreeps:ToolTip("Пауки автоматически фармят крипов и нейтралов рядом с героем")
     
     local farm_gear = UI.AutoFarmCreeps:Gear("Настройки фарма")
     UI.AutoFarmRadius = farm_gear:Slider("Радиус фарма", 600, 2000, 1200, "%d")
@@ -311,24 +309,24 @@ local function InitializeUI()
     UI.AutoFarmCampRange:ToolTip("Дополнительный радиус для поиска нейтральных кемпов")
     
     -- Переопределение игроком
-    UI.PlayerOverride = g_auto:Slider("Длительность ручного контроля", 0.5, 5.0, 3.0, "%.1f")
-    UI.PlayerOverride:ToolTip("Время (в секундах), на которое паук переходит под ручное управление после вашей команды")
+    UI.PlayerOverride = g_auto:Slider("Приоритет ручного контроля (сек)", 0.5, 5.0, 3.0, "%.1f")
+    UI.PlayerOverride:ToolTip("После вашей команды паук игнорирует авто-логику указанное время")
     
     -- === АВТО-СТАК ===
     local g_stack = main:Create("Авто-стак нейтралов")
     
-    UI.AutoStackCamps = g_stack:Switch("Включить стак по кнопке", true, "\u{f0c0}")
-    UI.AutoStackCamps:ToolTip("Пауки автоматически стакают нейтральные лагеря по нажатию кнопки")
+    UI.AutoStackCamps = g_stack:Switch("Стак по кнопке", true, "\u{f0c0}")
+    UI.AutoStackCamps:ToolTip("Включает режим стака: пауки назначаются по кемпам и стакают их по таймингу")
     
     local stack_gear = UI.AutoStackCamps:Gear("Настройки стака")
     UI.StackKey = stack_gear:Bind("Кнопка стака", Enum.ButtonCode.KEY_NONE)
-    UI.StackKey:ToolTip("Нажмите для включения/выключения режима стака. Пауки будут назначены на ближайшие кемпы")
+    UI.StackKey:ToolTip("Переключает режим стака вкл/выкл")
     
-    UI.StackRadius = stack_gear:Slider("Макс. дистанция до кемпа", 2000, 6000, 4000, "%d")
-    UI.StackRadius:ToolTip("Максимальное расстояние от паука до кемпа для назначения на стак")
+    UI.StackRadius = stack_gear:Slider("Макс. дистанция назначения", 2000, 6000, 4000, "%d")
+    UI.StackRadius:ToolTip("Пауки назначаются только в кемпы в пределах этой дистанции")
     
     -- === ПРЕДМЕТЫ ===
-    local g_items = main:Create("Использование предметов")
+    local g_items = main:Create("Предметы")
     
     UI.AutoSoulRing = g_items:Switch("Авто Soul Ring", true, "panorama/images/items/soul_ring_png.vtex_c")
     UI.AutoSoulRing:ToolTip("Автоматически использует Soul Ring при касте Spawn Spiderlings")
@@ -361,11 +359,11 @@ local function InitializeUI()
     -- === LANE PULL (ПУЛЛ КРИПОВ ПАУКАМИ) ===
     local g_pull = main:Create("Пулл крипов пауками")
     
-    UI.PullEnabled = g_pull:Switch("Включить Lane Pull", true, "\u{f0c1}")
-    UI.PullEnabled:ToolTip("Отправляет паука на линию, чтобы он агрил вражескую волну крипов и уводил её к вашему герою. Паук сам обходит вражеские вышки")
+    UI.PullEnabled = g_pull:Switch("Включить lane pull", true, "\u{f0c1}")
+    UI.PullEnabled:ToolTip("Отправляет паука на линию для агра вражеской волны и отвода к герою; учитывает вражеские вышки")
     
     UI.PullKey = g_pull:Bind("Кнопка пулла", Enum.ButtonCode.KEY_NONE, "\u{f11c}")
-    UI.PullKey:ToolTip("Нажмите кнопку для отправки паука на ближайшую линию. Режим работы зависит от настройки Hold/Toggle ниже")
+    UI.PullKey:ToolTip("Запускает pull. Поведение кнопки задаётся режимом ниже (Hold/Toggle)")
     
     local pull_gear = UI.PullKey:Gear("Настройки пулла")
     
@@ -373,7 +371,7 @@ local function InitializeUI()
     UI.PullMode:ToolTip("Hold — пулл работает пока кнопка зажата. Toggle — одно нажатие включает, второе выключает")
     
     UI.PullLaneCount = pull_gear:Slider("Количество линий", 1, 3, 2, "%d")
-    UI.PullLaneCount:ToolTip("На сколько ближайших линий одновременно отправлять пауков. 1 = только ближайшая, 2 = две ближайшие, 3 = все три")
+    UI.PullLaneCount:ToolTip("Сколько ближайших линий одновременно обрабатывать: 1, 2 или 3")
     
     local pull_vis = UI.PullEnabled:Gear("Визуальные настройки")
     
@@ -398,19 +396,19 @@ playerOverrideRole = playerOverrideRole or {}
 playerOverrideUntil = playerOverrideUntil or {}
 farmRole = farmRole or {}
 farmLastOrder = farmLastOrder or {}
-lastStackCampTime = lastStackCampTime or {}
 
 local HeroIconCache = {}
 local AbilityIconCache = {}
 local spiderCache = {}
 local lastCacheUpdate = 0
 
-globalManualOverrideUntil = 0
-
 local State = {
-    spiders = {},
     lastSoulRingTime = 0,
     juggling = false,
+    juggleWasDown = false,
+    juggleToggleActive = false,
+    juggleActiveIds = {},
+    lastJuggleOrderTime = 0,
     lastGatherTime = 0,
     lastGatherPos = nil,
     spiderlingCount = 0,
@@ -419,11 +417,9 @@ local State = {
     panelPos = {x = panelX, y = panelY},
     isDragging = false,
     dragOffset = {x = 0, y = 0},
-    killCandidateName = nil,
     webPoints = BuiltInWebPoints,
     webMouseWasDown = false,
     webAltAlpha = 0,
-    webAltLastActive = false,
     panelAnimation = {
         cellsAlpha = 0,
         titleAlpha = 255,
@@ -488,11 +484,7 @@ end
 local function GetControllableSpiders()
     local spiders = GetAllSpiders()
     local result = {}
-    
-    if os.clock() < globalManualOverrideUntil then
-        return result
-    end
-    
+
     for i = 1, #spiders do
         if not IsSpiderUnderPlayerOverride(spiders[i]) then
             result[#result + 1] = spiders[i]
@@ -966,6 +958,7 @@ end
 local function AssignSpidersToNearestCamps(units)
     local assignment = {}
     local availableCampIds = {}
+    local stackRadius = (UI.StackRadius and UI.StackRadius:Get()) or math.huge
     for campId, _ in pairs(CAMP_POINTS) do
         availableCampIds[#availableCampIds + 1] = campId
     end
@@ -979,7 +972,7 @@ local function AssignSpidersToNearestCamps(units)
                     local pts = GetStackCampPoints(campId)
                     if pts then
                         local d = (pts.wait - unitPos):Length2D()
-                        if d < bestDist then
+                        if d <= stackRadius and d < bestDist then
                             bestDist = d
                             bestCamp = campId
                             bestIdx = idx
@@ -1001,7 +994,7 @@ local function AssignSpidersToNearestCamps(units)
                     local pts = GetStackCampPoints(campId)
                     if pts then
                         local d = (pts.wait - unitPos):Length2D()
-                        if d < bestDist then
+                        if d <= stackRadius and d < bestDist then
                             bestDist = d
                             bestCamp = campId
                         end
@@ -1862,8 +1855,36 @@ end
 local function PullOnGameEnd()
     PullState.assignments = {}
     PullState.pullToggled = false
-    PullState.cachedCamps = nil
     PullState.cachedTowers = nil
+end
+
+local function GatherSpidersToPos(targetPos, orderId)
+    local currentTime = GameRules.GetGameTime()
+    if not targetPos then return end
+
+    local spiders = GetAllSpiders()
+    State.juggling = false
+    State.lastGatherTime = currentTime
+    State.lastGatherPos = targetPos
+
+    if #spiders > 0 then
+        local myPlayer = Players.GetLocal()
+        for i = 1, #spiders do
+            if Entity.IsAlive(spiders[i]) then
+                Player.PrepareUnitOrders(
+                    myPlayer,
+                    Enum.UnitOrder.DOTA_UNIT_ORDER_MOVE_TO_POSITION,
+                    nil,
+                    targetPos,
+                    nil,
+                    Enum.PlayerOrderIssuer.DOTA_ORDER_ISSUER_PASSED_UNIT_ONLY,
+                    spiders[i],
+                    false, false, false, false,
+                    orderId or "brood_gather"
+                )
+            end
+        end
+    end
 end
 
 local function GatherSpiders()
@@ -1871,7 +1892,6 @@ local function GatherSpiders()
 
     local currentTime = GameRules.GetGameTime()
     local gatherDelay = UI.GatherDelay:Get() / 1000
-
     if currentTime - State.lastGatherTime < gatherDelay then return end
 
     local myHero = Heroes.GetLocal()
@@ -1882,51 +1902,104 @@ local function GatherSpiders()
         cursorPos = Entity.GetAbsOrigin(myHero)
     end
 
-    local spiders = GetAllSpiders()
-    State.juggling = false
-    State.lastGatherTime = currentTime
-    State.lastGatherPos = cursorPos
+    GatherSpidersToPos(cursorPos, "brood_gather")
+end
 
-    if #spiders > 0 then
-        local myPlayer = Players.GetLocal()
-        for i = 1, #spiders do
-            if Entity.IsAlive(spiders[i]) then
-                Player.PrepareUnitOrders(
-                    myPlayer,
-                    Enum.UnitOrder.DOTA_UNIT_ORDER_MOVE_TO_POSITION,
-                    nil,
-                    cursorPos,
-                    nil,
-                    Enum.PlayerOrderIssuer.DOTA_ORDER_ISSUER_PASSED_UNIT_ONLY,
-                    spiders[i],
-                    false, false, false, false,
-                    "brood_gather"
-                )
-            end
+local function StopJuggledSpiders()
+    local activeIds = State.juggleActiveIds or {}
+    if not next(activeIds) then return end
+
+    local myPlayer = Players.GetLocal()
+    if not myPlayer then
+        State.juggleActiveIds = {}
+        return
+    end
+
+    local spiders = GetAllSpiders()
+    for i = 1, #spiders do
+        local spider = spiders[i]
+        local id = Entity.GetIndex(spider)
+        if id and activeIds[id] and Entity.IsAlive(spider) then
+            Player.PrepareUnitOrders(
+                myPlayer,
+                Enum.UnitOrder.DOTA_UNIT_ORDER_STOP,
+                nil, nil, nil,
+                Enum.PlayerOrderIssuer.DOTA_ORDER_ISSUER_PASSED_UNIT_ONLY,
+                spider,
+                false, false, false, false,
+                "brood_juggle_stop"
+            )
         end
     end
+
+    State.juggleActiveIds = {}
 end
 
 local function JuggleSpiders()
-    if not UI.JuggleKey:IsPressed() then return end
-
     local myHero = Heroes.GetLocal()
     if not myHero then return end
+    local mode = UI.JuggleMode and UI.JuggleMode:Get() or 0
+
+    local active = false
+    if mode == 0 then
+        State.juggleToggleActive = false
+        local keyDown = UI.JuggleKey:IsDown()
+        if keyDown then
+            State.juggleWasDown = true
+            active = true
+        else
+            if State.juggleWasDown then
+                StopJuggledSpiders()
+            end
+            State.juggleWasDown = false
+        end
+    else
+        if UI.JuggleKey:IsPressed() then
+            State.juggleToggleActive = not State.juggleToggleActive
+            if not State.juggleToggleActive then
+                StopJuggledSpiders()
+            end
+        end
+        active = State.juggleToggleActive
+    end
+
+    if not active then
+        State.juggling = false
+        return
+    end
+
+    local now = GameRules.GetGameTime()
+    if now - (State.lastJuggleOrderTime or 0) < ORDER_INTERVAL_JUGGLE then
+        return
+    end
 
     local heroPos = Entity.GetAbsOrigin(myHero)
     local radius = UI.JuggleRadius:Get()
     local spiders = GetAllSpiders()
     local count = math.min(UI.JuggleCount:Get(), #spiders)
+    if count <= 0 then
+        State.juggling = false
+        return
+    end
 
-    if count > 0 then
-        local myPlayer = Players.GetLocal()
-        for i = 1, count do
-            if spiders[i] and Entity.IsAlive(spiders[i]) then
-                local angle = (i - 1) * (2 * math.pi / count)
-                local x = heroPos.x + radius * math.cos(angle)
-                local y = heroPos.y + radius * math.sin(angle)
-                local targetPos = Vector(x, y, heroPos.z)
+    local myPlayer = Players.GetLocal()
+    if not myPlayer then return end
+    local activeIds = {}
+    for i = 1, count do
+        if spiders[i] and Entity.IsAlive(spiders[i]) then
+            local spider = spiders[i]
+            local spiderId = Entity.GetIndex(spider)
+            if spiderId then
+                activeIds[spiderId] = true
+            end
 
+            local angle = (i - 1) * (2 * math.pi / count)
+            local x = heroPos.x + radius * math.cos(angle)
+            local y = heroPos.y + radius * math.sin(angle)
+            local targetPos = Vector(x, y, heroPos.z)
+
+            local spiderPos = Entity.GetAbsOrigin(spider)
+            if spiderPos and (spiderPos - targetPos):Length2D() >= JUGGLE_REISSUE_DISTANCE then
                 Player.PrepareUnitOrders(
                     myPlayer,
                     Enum.UnitOrder.DOTA_UNIT_ORDER_MOVE_TO_POSITION,
@@ -1934,7 +2007,7 @@ local function JuggleSpiders()
                     targetPos,
                     nil,
                     Enum.PlayerOrderIssuer.DOTA_ORDER_ISSUER_PASSED_UNIT_ONLY,
-                    spiders[i],
+                    spider,
                     false, false, false, false,
                     "brood_juggle"
                 )
@@ -1942,8 +2015,10 @@ local function JuggleSpiders()
         end
     end
 
+    State.juggleActiveIds = activeIds
+    State.lastJuggleOrderTime = now
     State.juggling = true
-    State.juggleTime = GameRules.GetGameTime()
+    State.juggleTime = now
 end
 
 -- ═══════════════════════════════════════════════════════════════════════════
@@ -2088,7 +2163,6 @@ local function AutoBloodthorn()
     if dist <= castRange then
         Ability.CastTarget(bloodthorn, target)
         State.lastSoulRingTime = now
-        State.killCandidateName = NPC.GetUnitName(target)
     end
 end
 
@@ -2116,7 +2190,6 @@ local function AutoOrchid()
     if dist <= castRange then
         Ability.CastTarget(orchid, target)
         State.lastSoulRingTime = now
-        State.killCandidateName = NPC.GetUnitName(target)
     end
 end
 
@@ -2673,6 +2746,10 @@ end
 
 broodmother.OnGameEnd = function()
     State.juggling = false
+    State.juggleWasDown = false
+    State.juggleToggleActive = false
+    State.juggleActiveIds = {}
+    State.lastJuggleOrderTime = 0
     PullOnGameEnd()
 end
 
