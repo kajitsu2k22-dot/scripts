@@ -69,6 +69,7 @@ local translation   = {
     items_to_use = "Usable Items",
     item_bottle = "Bottle",
     item_blink = "Blink Dagger",
+    item_shiva = "Shiva's Guard",
 
     auto_defense_matrix = "Auto Defense Matrix",
     gear_matrix_options = "Defense Matrix Settings",
@@ -80,10 +81,7 @@ local translation   = {
     blink_options_label = "Blink Settings",
     gear_blink_behavior = "Blink Behavior",
     blink_travel = "Use for Traveling",
-    blink_escape = "Use for Escaping",
     blink_trees_lane = "Blink into Trees (Lane)",
-    blink_hold_after_rearm = "Delay after Rearm",
-    blink_hold_tp_lock = "Hold during TP Lock",
 
     bottle_options_label = "Bottle Settings",
     gear_bottle_behavior = "Bottle Behavior",
@@ -133,6 +131,7 @@ local translation   = {
     items_to_use = "Использовать",
     item_bottle = "Боттл",
     item_blink = "Блинк‑даггер",
+    item_shiva = "Шива",
 
     auto_defense_matrix = "Авто Defense Matrix",
     gear_matrix_options = "Настройки Defense Matrix",
@@ -144,10 +143,7 @@ local translation   = {
     blink_options_label = "Настройки Блинка",
     gear_blink_behavior = "Поведение Блинка",
     blink_travel = "Использовать для перемещения",
-    blink_escape = "Использовать при побеге",
     blink_trees_lane = "Блинк в деревья (линия)",
-    blink_hold_after_rearm = "Задержка после Rearm",
-    blink_hold_tp_lock = "Блокировать при ТП‑локе",
 
     bottle_options_label = "Настройки Ботла",
     gear_bottle_behavior = "Поведение Ботла",
@@ -227,7 +223,8 @@ Config             = {
   }, { L("target_ancients"), L("target_non_ancients") }),
   ItemsToUse = utilityMenu:MultiSelect(L("items_to_use"), {
     { L("item_bottle"), "panorama/images/items/bottle_png.vtex_c", true },
-    { L("item_blink"),  "panorama/images/items/blink_png.vtex_c",  true }
+    { L("item_blink"),  "panorama/images/items/blink_png.vtex_c",  true },
+    { L("item_shiva"),  "panorama/images/items/shivas_guard_png.vtex_c", true }
   }, true),
   AutoMatrix = utilityMenu:Switch(L("auto_defense_matrix"), true,
     "panorama/images/spellicons/tinker_defense_matrix_png.vtex_c"),
@@ -275,10 +272,7 @@ do
 
   local bg                        = Config.BlinkGroup:Gear(L("gear_blink_behavior"))
   Config.Blink.Travel             = bg:Switch(L("blink_travel"), true, "\u{f70c}")
-  Config.Blink.Escape             = bg:Switch(L("blink_escape"), true, "\u{f2f5}")
   Config.Blink.TreesLane          = bg:Switch(L("blink_trees_lane"), true, "\u{f1bb}")
-  Config.Blink.HoldAfterRearm     = bg:Switch(L("blink_hold_after_rearm"), true, "\u{f017}")
-  Config.Blink.HoldTPLock         = bg:Switch(L("blink_hold_tp_lock"), true, "\u{f023}")
 
   local botg                      = Config.BottleGroup:Gear(L("gear_bottle_behavior"))
   Config.Bottle.UseHP             = botg:Switch(L("bottle_use_hp"), true, "\u{f004}")
@@ -294,6 +288,46 @@ local function SyncMarchSlidersDisabled()
   Config.MarchControl.Lane:Disabled(not useCustom)
   Config.MarchControl.LaneMinCreeps:Disabled(not useCustom)
 end
+
+local __blink_menu_cache = {
+  travel = nil,
+  trees = nil
+}
+
+local function ResolveBlinkMenuSwitch(kind)
+  local cacheKey = (kind == "travel") and "travel" or "trees"
+  if __blink_menu_cache[cacheKey] and __blink_menu_cache[cacheKey].Get then
+    return __blink_menu_cache[cacheKey]
+  end
+
+  local leaf = (kind == "travel") and L("blink_travel") or L("blink_trees_lane")
+  local ctrl = Menu.Find("Heroes", "Hero List", "Tinker", L("root"), L("menu_utilities"), L("blink_options_label"),
+    L("gear_blink_behavior"), leaf)
+  if not ctrl then
+    local ruLeaf = (kind == "travel") and "Использовать для перемещения" or "Блинк в деревья (линия)"
+    ctrl = Menu.Find("Heroes", "Hero List", "Tinker", "Авто фарм V2", "Утилиты", "Настройки Блинка",
+      "Поведение Блинка", ruLeaf)
+  end
+  __blink_menu_cache[cacheKey] = ctrl
+  return ctrl
+end
+
+local function IsBlinkTravelEnabled()
+  if Config.Blink and Config.Blink.Travel and Config.Blink.Travel.Get then
+    return Config.Blink.Travel:Get()
+  end
+  local c = ResolveBlinkMenuSwitch("travel")
+  return c and c:Get() or false
+end
+
+local function IsTreeBlinkLaneEnabled()
+  if Config.Blink and Config.Blink.TreesLane and Config.Blink.TreesLane.Get then
+    return Config.Blink.TreesLane:Get()
+  end
+  local c = ResolveBlinkMenuSwitch("trees")
+  return c and c:Get() or false
+end
+
 Constants = {
   MARCH_CAST_RANGE              = 900,
   MARCH_PAIR_COVERAGE_FRAC      = 1.1,
@@ -304,10 +338,9 @@ Constants = {
   SAME_SPOT_TP_EPS              = 800,
   SAME_SPOT_TP_COOLDOWN         = 7.5,
   BLINK_HOLD_AFTER_REARM        = 0.6,
-  BLINK_HOLD_BEFORE_TP          = 0.6,
-  REARM_HOLD_ARM_FALLBACK       = 0.15,
   BLINK_SAFE_STANDOFF           = 220,
   BLINK_MIN_DISTANCE            = 450,
+  FARM_BLINK_MIN_DISTANCE       = 200,    -- минимальная дистанция блинка для позиционирования на споте
   ORDER_COOLDOWN                = 0.02,
   ORDERS_PER_UPDATE             = 1,
   MOVE_RESEND_INTERVAL          = 0.25,
@@ -332,8 +365,8 @@ Constants = {
   PANIC_ARM_TIME                = 0.25,
   PANIC_MATRIX_COOLDOWN         = 1.0,
   SPOT_COMMIT_TIME              = 5.0,
-  FARM_TP_MIN_INTERVAL          = 5.0,
-  IDLE_DECISION_DELAY           = 0.6,
+  FARM_TP_MIN_INTERVAL          = 1.5,
+  IDLE_DECISION_DELAY           = 0.15,
   BOUNTY_SCORE_FACTOR_HIGH      = 1.0,
   BOUNTY_SCORE_FACTOR_LOW       = 0.3,
   KEEN_LANDING_RADIUS_STRUCTURE = 800,
@@ -353,21 +386,37 @@ Constants = {
   LANE_CLUSTER_RADIUS           = 900,
   LANE_MIN_CREEPS               = 3,
   LANE_GOLD_PER_CREEP           = 45,
-  LANE_SCORE_BIAS               = -5.0,
-  LANE_REFRESH_INTERVAL         = 0.5,
   LANE_NO_CREEPS_TIMEOUT        = 2.0,
   LANE_REFARM_COOLDOWN          = 12.0,
   -- Tree blink (lane)
   TREE_BLINK_SEARCH_RADIUS      = 1000,
-  TREE_BLINK_MIN_TREES          = 3,
-  TREE_BLINK_TREE_CHECK_RADIUS  = 200,
-  TREE_BLINK_MAX_WAVE_DIST      = 1350,
+  TREE_BLINK_MIN_TREES          = 5,
+  TREE_BLINK_TREE_CHECK_RADIUS  = 300,
+  TREE_BLINK_MAX_WAVE_DIST      = 1000,
+  TREE_BLINK_SETTLE_TIME        = 0.22,
   -- Adaptive lane bias
   LANE_BIAS_EARLY               = 5.0,
   LANE_BIAS_MID                 = 0.0,
   LANE_BIAS_LATE                = -8.0,
   LANE_BIAS_EARLY_TIME          = 900,
   LANE_BIAS_LATE_TIME           = 1800,
+  -- Расширенный фарм линии: осадные крипы, подходящие волны, безопасность
+  LANE_SIEGE_GOLD_BONUS         = 80,
+  LANE_INCOMING_WAVE_RADIUS     = 2500,
+  LANE_MARCH_LEAD_DISTANCE      = 200,
+  LANE_TOWER_SAFETY_RADIUS      = 2500,
+  LANE_TOWER_SAFETY_SCORE       = -6.0,
+  -- Защита от провала ТП и хождения пешком
+  TP_FAIL_DISTANCE              = 1500,   -- если после ТП-лока дальше этого — ТП провалился
+  TP_ARRIVAL_GRACE              = 0.5,    -- задержка после ТП-лока перед проверкой
+  WALK_TO_SPOT_MAX_TIME         = 12.0,   -- таймаут ходьбы пешком (секунды)
+  SPOT_SAFETY_RECHECK           = 1.5,    -- интервал ре-проверки безопасности спота
+  FARMING_STALE_TIMEOUT         = 6.0,    -- таймаут бездействия на споте
+  SHIVA_FARM_RADIUS             = 900,
+  LASER_LANE_RANGE              = 700,
+  EXTRA_TOOL_RETRY_INTERVAL     = 0.12,
+  EXTRA_TOOL_CAST_INTERVAL      = 0.30,
+  HOLD_RESEND_INTERVAL          = 0.22,
 }
 State = {
   Hero = nil,
@@ -376,8 +425,10 @@ State = {
   IsChanneling = false,
   Rearm = nil,
   March = nil,
+  Laser = nil,
   KeenTeleport = nil,
   Blink = nil,
+  Shiva = nil,
 
   FarmState = "IDLE",
   CurrentFarmSpot = nil,
@@ -390,6 +441,7 @@ State = {
 
   LastMovePos = nil,
   LastMoveTime = 0,
+  LastHoldTime = 0,
   LastAbilityOrders = {},
 
   DebugFont = nil,
@@ -412,6 +464,7 @@ State = {
   LastSpotTelePos = nil,
 
   LastRearmAt = 0,
+  RearmChannelDuration = 3.0,
   RearmBlinkHoldPending = false,
   RearmBlinkChannelSeen = false,
   RearmBlinkHoldUntil = 0,
@@ -443,9 +496,19 @@ State = {
   -- Lane farming state
   LaneWaveCreeps = nil,
   LaneNoCreepsSince = nil,
+  LaneWaveLaserDone = false,
   LastLaneFarmPos = nil,
   LastLaneFarmAt  = 0,
   LaneTreeBlinkDone = false,
+  TreeBlinkStopPending = false,   -- после tree-blink нужен STOP чтобы герой не пошёл
+  LastTreeBlinkAt = 0,
+  LastTreeBlinkHoldAt = 0,
+  NextExtraToolTry = 0,
+  -- Защита от хождения пешком
+  MovingToSpotSince = 0,
+  FarmingSpotSince = 0,
+  LastSpotSafetyCheck = 0,
+  LastFarmingAction = 0,
   StatusUI = {
     x = Render.ScreenSize().x / 1.35,
     y = Render.ScreenSize().y / 1.1,
@@ -464,6 +527,7 @@ local Utils = {}
 local ORDER_NAME = {
   [Enum.UnitOrder.DOTA_UNIT_ORDER_NONE]             = "NONE",
   [Enum.UnitOrder.DOTA_UNIT_ORDER_MOVE_TO_POSITION] = "MOVE",
+  [Enum.UnitOrder.DOTA_UNIT_ORDER_HOLD_POSITION]    = "HOLD",
   [Enum.UnitOrder.DOTA_UNIT_ORDER_CAST_NO_TARGET]   = "CAST_NO_TARGET",
   [Enum.UnitOrder.DOTA_UNIT_ORDER_CAST_POSITION]    = "CAST_POSITION",
   [Enum.UnitOrder.DOTA_UNIT_ORDER_CAST_TARGET]      = "CAST_TARGET",
@@ -499,6 +563,14 @@ local function ShouldAllowOrder(order, ability, targetEntity, targetPos)
     return true
   end
 
+  if order == Enum.UnitOrder.DOTA_UNIT_ORDER_HOLD_POSITION then
+    local lastHold = State.LastHoldTime or 0
+    if (t - lastHold) < (Constants.HOLD_RESEND_INTERVAL or 0.22) then
+      return false, "holdDedup"
+    end
+    return true
+  end
+
   if ability then
     local aKey = tostring(ability)
     local last = State.LastAbilityOrders[aKey]
@@ -524,9 +596,46 @@ local function OnMarchIssued() end
 function Utils.IssueOrder(order, ability, data)
   local t = GameRules.GetGameTime()
 
+  -- ══ Кешированная проверка канала (обновляется раз в OnUpdate) ══
   if State.IsChanneling then
     RecordOrder(order, ability, false, "channeling", nil, nil)
     return false
+  end
+
+  -- ══ СВЕЖАЯ проверка канала прямо сейчас (ловит задержки между кешем и реальностью) ══
+  if State.Hero and NPC.IsChannellingAbility(State.Hero) then
+    RecordOrder(order, ability, false, "channeling_fresh", nil, nil)
+    return false
+  end
+
+  -- ══ Блок ордеров: Rearm отправлен, канал ещё не начался (pre-channel gap) ══
+  if State.RearmBlinkHoldPending then
+    RecordOrder(order, ability, false, "rearm_pending", nil, nil)
+    return false
+  end
+
+  -- ══ Абсолютная временная защита канала Rearm ══
+  -- Если Rearm был скастован недавно и его канал ещё должен идти по времени — блокируем.
+  -- Это страхует от ВСЕХ сбоев IsChannellingAbility и pending-системы.
+  if State.LastRearmAt and State.LastRearmAt > 0 then
+    local rearmElapsed = t - State.LastRearmAt
+    local channelGuard = State.RearmChannelDuration or 3.0
+    if rearmElapsed < channelGuard then
+      -- Проверяем, действительно ли Rearm канализируется (по его собственному состоянию)
+      local rearmBusy = false
+      if State.Rearm then
+        -- Ability:IsChannelling() — проверяет КОНКРЕТНО эту способность
+        if Ability.IsChannelling and Ability.IsChannelling(State.Rearm) then
+          rearmBusy = true
+        elseif Ability.IsInAbilityPhase and Ability.IsInAbilityPhase(State.Rearm) then
+          rearmBusy = true
+        end
+      end
+      if rearmBusy then
+        RecordOrder(order, ability, false, "rearm_channel_active", nil, nil)
+        return false
+      end
+    end
   end
 
   local targetEntity  = (data and type(data) == "userdata" and Entity.IsEntity(data)) and data or nil
@@ -557,6 +666,8 @@ function Utils.IssueOrder(order, ability, data)
   if order == Enum.UnitOrder.DOTA_UNIT_ORDER_MOVE_TO_POSITION and targetPos then
     State.LastMovePos  = targetPos
     State.LastMoveTime = t
+  elseif order == Enum.UnitOrder.DOTA_UNIT_ORDER_HOLD_POSITION then
+    State.LastHoldTime = t
   end
 
   if ability then
@@ -585,52 +696,116 @@ end
 
 local function FormatGold(n) return tostring(math.floor(n + 0.5)) .. "g" end
 
+--- Вычисляет время канала Rearm по уровню
+local function GetRearmChannelTime()
+  if not State.Rearm then return 3.0 end
+  local lvl = Ability.GetLevel(State.Rearm) or 1
+  if lvl >= 3 then return 0.75 end
+  if lvl == 2 then return 1.5 end
+  return 3.0
+end
+
 local MarkRearmIssued = function(now)
   now = now or GameRules.GetGameTime()
-  State.LastRearmAt           = now
-  State.RearmBlinkHoldPending = true
-  State.RearmBlinkChannelSeen = false
+  State.LastRearmAt             = now
+  State.RearmChannelDuration    = GetRearmChannelTime()
+  State.RearmBlinkHoldPending   = true
+  State.RearmBlinkChannelSeen   = false
 end
 
 local function UpdateRearmBlinkHold()
   if not State.RearmBlinkHoldPending then return end
 
   local now = GameRules.GetGameTime()
-  if State.IsChanneling then
+
+  -- ══ Проверяем конкретно Rearm ability ══
+  local rearmChannelling = false
+  if State.Rearm then
+    if Ability.IsChannelling and Ability.IsChannelling(State.Rearm) then
+      rearmChannelling = true
+    elseif Ability.IsInAbilityPhase and Ability.IsInAbilityPhase(State.Rearm) then
+      rearmChannelling = true
+    end
+  end
+
+  -- Фолбэк: если конкретную проверку Rearm не удалось — проверяем общий NPC.IsChannelling
+  if not rearmChannelling and State.IsChanneling then
+    rearmChannelling = true  -- какая-то способность канализируется — считаем что Rearm
+  end
+
+  -- Канал обнаружен
+  if rearmChannelling then
     State.RearmBlinkChannelSeen = true
     return
   end
 
-  local fallbackDelay = Constants.REARM_HOLD_ARM_FALLBACK or 0.15
-  if State.RearmBlinkChannelSeen or (now - (State.LastRearmAt or 0)) >= fallbackDelay then
+  -- Канал был обнаружен и теперь закончился — снимаем pending, ставим holdUntil
+  if State.RearmBlinkChannelSeen then
     State.RearmBlinkHoldPending = false
     State.RearmBlinkChannelSeen = false
-    State.RearmBlinkHoldUntil   = now + (Constants.BLINK_HOLD_AFTER_REARM or 0)
+    State.RearmBlinkHoldUntil   = now + (Constants.BLINK_HOLD_AFTER_REARM or 0.6)
+    return
+  end
+
+  -- Канал не был обнаружен. Fallback: ждём полное время канала + запас.
+  -- Если канал реально шёл но IsChannelling/IsInAbilityPhase не ловили —
+  -- эта защита не даст pending сняться раньше времени.
+  local channelDur    = State.RearmChannelDuration or 3.0
+  local fallbackDelay = channelDur + 0.4  -- полный канал + запас
+  local elapsed       = now - (State.LastRearmAt or 0)
+  if elapsed >= fallbackDelay then
+    State.RearmBlinkHoldPending = false
+    State.RearmBlinkChannelSeen = false
+    State.RearmBlinkHoldUntil   = now + (Constants.BLINK_HOLD_AFTER_REARM or 0.6)
   end
 end
 
 local function IsBlinkLockedNow()
   local now = GameRules.GetGameTime()
 
-  if Config.Blink and Config.Blink.HoldTPLock and Config.Blink.HoldTPLock:Get() then
-    if now < (State.TeleportLockUntil or 0) then
-      return true
-    end
+  -- TP-лок: блинк заблокирован пока идёт телепорт (всегда активно)
+  if now < (State.TeleportLockUntil or 0) then
+    return true
   end
 
-  if Config.Blink and Config.Blink.HoldAfterRearm and Config.Blink.HoldAfterRearm:Get() then
-    if State.RearmBlinkHoldPending and (State.IsChanneling or State.RearmBlinkChannelSeen) then
-      return true
-    end
-    if now < (State.RearmBlinkHoldUntil or 0) then
-      return true
-    end
+  -- Rearm-холд: блинк заблокирован пока канализируется Rearm (всегда активно)
+  if State.RearmBlinkHoldPending and (State.IsChanneling or State.RearmBlinkChannelSeen) then
+    return true
+  end
+  if now < (State.RearmBlinkHoldUntil or 0) then
+    return true
   end
 
   return false
 end
 
 local Tinker = {}
+
+--- Eureka (врождённая способность Tinker): каждые 3 INT → 1% CDR предметов, макс 60%.
+--- Возвращает множитель (0.4 .. 1.0): умножай на номинальный КД чтобы получить реальный.
+function Tinker.GetEurekaCDRMultiplier()
+  if not State.Hero then return 1.0 end
+  local intel = 0
+  if Hero and Hero.GetIntellectTotal then
+    intel = Hero.GetIntellectTotal(State.Hero) or 0
+  elseif Hero and Hero.GetIntelligence then
+    intel = Hero.GetIntelligence(State.Hero) or 0
+  elseif NPC and NPC.GetUnitAttribute then
+    -- Фолбэк: пробуем через NPC
+    intel = 0
+  end
+  local cdrPct = math.floor(intel / 3)  -- 1% за каждые 3 INT
+  cdrPct = math.min(cdrPct, 60)          -- макс 60%
+  return 1.0 - (cdrPct / 100.0)
+end
+
+--- Возвращает реальный КД предмета с учётом Eureka CDR.
+--- nominalCD — базовый КД предмета (например, 15 для Blink).
+--- Используется для предсказания: «когда предмет будет доступен после использования».
+function Tinker.GetItemCooldownWithEureka(nominalCD)
+  return nominalCD * Tinker.GetEurekaCDRMultiplier()
+end
+
 local function GetAbilityCooldownRemaining(ability)
   if not ability then return 0 end
   if Ability.GetCooldownTimeRemaining then
@@ -731,8 +906,23 @@ end
 
 local function MarkSpotFarmedAndLeave()
   local now = GameRules.GetGameTime()
+  local settle = Constants.TREE_BLINK_SETTLE_TIME or 0.22
+  local treeBlinkSettling = ((now - (State.LastTreeBlinkAt or 0)) < settle)
+      or ((now - (State.LastTreeBlinkHoldAt or 0)) < settle)
+
+  -- После tree-blink не выходим из FARMING_SPOT мгновенно:
+  -- держим HOLD, пока не закончится settle-окно.
+  if treeBlinkSettling then
+    if not State.IsChanneling and not State.RearmBlinkHoldPending then
+      Utils.IssueOrder(Enum.UnitOrder.DOTA_UNIT_ORDER_HOLD_POSITION, nil, nil)
+    end
+    return
+  end
+
+  local wasLane = false
   if State.CurrentFarmSpot then
     if State.CurrentFarmSpot.isLane then
+      wasLane = true
       State.LastLaneFarmPos = State.CurrentFarmSpot.pos
       State.LastLaneFarmAt  = now
     else
@@ -744,10 +934,34 @@ local function MarkSpotFarmedAndLeave()
   end
   State.AfterMarchCheck          = nil
   State.FarmState                = "IDLE"
-  State.JustClearedSpotAt        = GameRules.GetGameTime()
+  State.JustClearedSpotAt        = now
   State.CurrentFarmSpot          = nil
   State.CurrentSpotMarchCasts    = 0
   State.CurrentSpotMarchRequired = nil
+  State.CachedBestSpot           = nil
+  State.LastSpotScan             = 0
+  State.TreeBlinkStopPending     = false
+  State.LaneWaveLaserDone        = false
+  State.LastTreeBlinkAt          = 0
+  State.LastTreeBlinkHoldAt      = 0
+  State.NextExtraToolTry         = 0
+
+  -- Для lane-цикла ещё раз фиксируем hold, чтобы не автоатаковать крипов сразу после выхода.
+  if wasLane then
+    Utils.IssueOrder(Enum.UnitOrder.DOTA_UNIT_ORDER_HOLD_POSITION, nil, nil)
+  end
+
+  -- Сразу кастуем Rearm на споте, чтобы сбросить КД ТП и не терять время
+  if State.Rearm and Ability.CanBeExecuted(State.Rearm) == -1
+      and State.KeenTeleport and Ability.CanBeExecuted(State.KeenTeleport) ~= -1 then
+    local rearmCost  = Ability.GetManaCost(State.Rearm) or 0
+    local escapeMana = Tinker.GetEscapeManaCost()
+    if ((NPC.GetMana(State.Hero) or 0) - rearmCost) >= escapeMana then
+      if Utils.CastAbility(State.Rearm, Enum.UnitOrder.DOTA_UNIT_ORDER_CAST_NO_TARGET, nil) then
+        MarkRearmIssued(now)
+      end
+    end
+  end
 end
 OnMarchIssued = function()
   State.LastMarchCastAt = GameRules.GetGameTime()
@@ -906,6 +1120,33 @@ local function PathRisk(a, b, enemyPts)
   if rend > worst then worst = rend end
   return worst
 end
+
+local function FindTraversablePointNear(pos)
+  if not pos then return nil end
+  if not (GridNav and GridNav.IsTraversable) then return pos end
+  if GridNav.IsTraversable(pos) then return pos end
+
+  local offsets = {
+    Vector(80, 0, 0), Vector(-80, 0, 0),
+    Vector(0, 80, 0), Vector(0, -80, 0),
+    Vector(56, 56, 0), Vector(-56, 56, 0),
+    Vector(56, -56, 0), Vector(-56, -56, 0),
+  }
+  for _, off in ipairs(offsets) do
+    local p = pos + off
+    if GridNav.IsTraversable(p) then return p end
+  end
+  return nil
+end
+
+local function IsPointHardUnsafe(pos)
+  local enemyPts = Tinker.GetEnemyLastKnownPositions()
+  if #enemyPts == 0 then return false end
+  local riskLimit = Constants.ENEMY_RISK_HARD_BLOCK or 0.45
+  local blockR    = Constants.ENEMY_RISK_BLOCK_RADIUS or 1000
+  if AnyEnemyWithin(pos, enemyPts, blockR) then return true end
+  return RiskAtPoint(pos, enemyPts) >= riskLimit
+end
 function Tinker.IsTeleportSafe(rawTargetPos)
   local enemyPts = Tinker.GetEnemyLastKnownPositions()
   if #enemyPts == 0 then return true end
@@ -976,23 +1217,6 @@ end
 -- Lane wave detection
 -- ────────────────────────────────────────────────────────────
 
--- Count alive enemy lane creeps near a given position.
-local function CountEnemyLaneCreepsNear(pos, radius)
-  local cnt = 0
-  for _, e in ipairs(NPCs.GetAll() or {}) do
-    if e and Entity.IsAlive(e)
-        and not Entity.IsDormant(e)
-        and Entity.GetTeamNum(e) ~= State.HeroTeam
-        and NPC.IsLaneCreep(e)
-        and not NPC.IsWaitingToSpawn(e) then
-      if Entity.GetAbsOrigin(e):Distance(pos) <= radius then
-        cnt = cnt + 1
-      end
-    end
-  end
-  return cnt
-end
-
 -- Gather alive enemy lane creeps visible on the map.
 local function GetEnemyLaneCreeps()
   local out = {}
@@ -1008,11 +1232,119 @@ local function GetEnemyLaneCreeps()
   return out
 end
 
--- Find the best allied ranged lane creep near a position.
--- Returns the entity (or nil).  Prefers ranged, falls back to any allied creep.
+--- Проверяет, является ли юнит осадным крипом (катапультой)
+local function IsSiegeCreep(unit)
+  if not unit then return false end
+  local name = Entity.GetUnitName(unit) or ""
+  return string.find(name, "siege") ~= nil or string.find(name, "catapult") ~= nil
+end
+
+--- Определяет направление движения вражеских крипов по вектору к нашему фонтану
+--- (вражеские крипы всегда идут в сторону нашей базы)
+function Tinker.GetCreepMovementDirection(creeps)
+  if not creeps or #creeps == 0 then return nil end
+  -- Вычисляем центр группы крипов
+  local cx, cy, cnt = 0, 0, 0
+  for _, e in ipairs(creeps) do
+    if e and Entity.IsEntity(e) and Entity.IsAlive(e) then
+      local pos = Entity.GetAbsOrigin(e)
+      if pos then
+        cx = cx + pos.x
+        cy = cy + pos.y
+        cnt = cnt + 1
+      end
+    end
+  end
+  if cnt == 0 then return nil end
+  cx, cy = cx / cnt, cy / cnt
+  -- Определяем команду героя и вычисляем направление к нашему фонтану
+  local myTeam = Entity.GetTeamNum(State.Hero)
+  local myFountain = (myTeam == 2) and Constants.FOUNTAIN_RADIANT or Constants.FOUNTAIN_DIRE
+  local dir = Vector(myFountain.x - cx, myFountain.y - cy, 0)
+  local len = dir:Length2D()
+  if len < 0.01 then return nil end
+  return dir:Normalized()
+end
+
+--- Бонус за близость к союзной вышке (отрицательный = лучше, безопаснее фармить)
+function Tinker.GetTowerProximityBonus(pos)
+  local radius = Constants.LANE_TOWER_SAFETY_RADIUS or 2500
+  local bonus  = Constants.LANE_TOWER_SAFETY_SCORE or -6.0
+  for i = 1, (Towers.Count() or 0) do
+    local t = Towers.Get(i)
+    if t and Entity.IsAlive(t) and Entity.GetTeamNum(t) == State.HeroTeam then
+      if Entity.GetAbsOrigin(t):Distance(pos) <= radius then
+        return bonus
+      end
+    end
+  end
+  return 0
+end
+
+--- Обнаруживает подходящую волну крипов рядом с текущей позицией фарма
+--- Используется для продолжения фарма, если новая волна уже подошла
+function Tinker.DetectIncomingWave(currentPos, excludeCreeps)
+  local radius    = Constants.LANE_INCOMING_WAVE_RADIUS or 2500
+  local clRadius  = Constants.LANE_CLUSTER_RADIUS or 900
+  local minCreeps = Constants.LANE_MIN_CREEPS or 3
+  if Config.MarchControl and Config.MarchControl.UseCustom:Get()
+      and Config.MarchControl.LaneMinCreeps then
+    minCreeps = Config.MarchControl.LaneMinCreeps:Get()
+  end
+
+  -- Собираем множество уже обработанных крипов для исключения
+  local excludeSet = {}
+  if excludeCreeps then
+    for _, e in ipairs(excludeCreeps) do excludeSet[e] = true end
+  end
+
+  -- Ищем новых вражеских крипов в расширенном радиусе
+  local newCreeps = {}
+  for _, e in ipairs(NPCs.GetAll() or {}) do
+    if e and Entity.IsAlive(e)
+        and not Entity.IsDormant(e)
+        and Entity.GetTeamNum(e) ~= State.HeroTeam
+        and NPC.IsLaneCreep(e)
+        and not NPC.IsWaitingToSpawn(e)
+        and not excludeSet[e]
+        and Entity.GetAbsOrigin(e):Distance(currentPos) <= radius then
+      table.insert(newCreeps, e)
+    end
+  end
+
+  if #newCreeps < minCreeps then return nil end
+
+  -- Кластеризируем найденных крипов
+  local cx, cy, cz = 0, 0, 0
+  local gold = 0
+  local inCluster = {}
+  local seedPos = Entity.GetAbsOrigin(newCreeps[1])
+
+  for _, e in ipairs(newCreeps) do
+    if Entity.GetAbsOrigin(e):Distance(seedPos) <= clRadius then
+      table.insert(inCluster, e)
+      local p = Entity.GetAbsOrigin(e)
+      cx = cx + p.x; cy = cy + p.y; cz = cz + p.z
+      local gmin = (NPC.GetGoldBountyMin and NPC.GetGoldBountyMin(e)) or 0
+      local gmax = (NPC.GetGoldBountyMax and NPC.GetGoldBountyMax(e)) or 0
+      local baseGold = ((gmin + gmax) > 0 and math.floor((gmin + gmax) / 2) or Constants.LANE_GOLD_PER_CREEP)
+      if IsSiegeCreep(e) then baseGold = baseGold + (Constants.LANE_SIEGE_GOLD_BONUS or 80) end
+      gold = gold + baseGold
+    end
+  end
+
+  if #inCluster < minCreeps then return nil end
+
+  local n = #inCluster
+  local center = Vector(cx / n, cy / n, cz / n)
+  return { center = center, creeps = inCluster, gold = gold }
+end
+
+-- Find a stable allied lane creep for lane TP anchor.
+-- Returns siege (catapult) first, then ranged creep. Never falls back to melee.
 local function FindAllyRangedCreepNear(pos, radius)
+  local bestSiege, bestSiegeDist   = nil, math.huge
   local bestRanged, bestRangedDist = nil, math.huge
-  local bestAny,    bestAnyDist    = nil, math.huge
   for _, e in ipairs(NPCs.GetAll() or {}) do
     if e and Entity.IsAlive(e)
         and not Entity.IsDormant(e)
@@ -1021,37 +1353,48 @@ local function FindAllyRangedCreepNear(pos, radius)
         and not NPC.IsWaitingToSpawn(e) then
       local d = Entity.GetAbsOrigin(e):Distance(pos)
       if d <= radius then
-        if d < bestAnyDist then bestAny = e; bestAnyDist = d end
-        if NPC.IsRanged(e) and d < bestRangedDist then
+        local hp = Entity.GetHealth(e) or 0
+        local maxHp = Entity.GetMaxHealth(e) or 1
+        local hpFrac = hp / math.max(1, maxHp)
+        if hpFrac >= 0.35 then
+          if IsSiegeCreep(e) and d < bestSiegeDist then
+            bestSiege = e
+            bestSiegeDist = d
+          elseif NPC.IsRanged(e) and d < bestRangedDist then
+            bestRanged = e
+            bestRangedDist = d
+          end
+        elseif NPC.IsRanged(e) and d < bestRangedDist then
+          -- fallback: низкое HP, но лучше чем ничего, чем TP в пустоту
           bestRanged = e; bestRangedDist = d
         end
       end
     end
   end
-  return bestRanged or bestAny
+  return bestSiege or bestRanged
 end
 
 -- ────────────────────────────────────────────────────────────
 -- Tree blink position finder (for lane farming)
 -- ────────────────────────────────────────────────────────────
--- Finds a position among trees within blink range of heroPos
--- from which March can still reach wavePos.
--- Returns Vector or nil.
+-- Находит позицию В КУЧУ деревьев (кластер) в радиусе блинка от героя.
+-- Марши уже прокастованы до блинка, поэтому march-range не учитывается.
+-- Возвращает Vector (центроид кластера) или nil.
 function Tinker.FindTreeBlinkPos(heroPos, wavePos)
   if not Trees then return nil end
   local searchR   = Constants.TREE_BLINK_SEARCH_RADIUS or 1000
-  local checkR    = Constants.TREE_BLINK_TREE_CHECK_RADIUS or 200
-  local minTrees  = Constants.TREE_BLINK_MIN_TREES or 3
-  local maxWaveD  = Constants.TREE_BLINK_MAX_WAVE_DIST or 1350
+  local clusterR  = Constants.TREE_BLINK_TREE_CHECK_RADIUS or 300
+  local minTrees  = Constants.TREE_BLINK_MIN_TREES or 5
+  local maxWaveD  = Constants.TREE_BLINK_MAX_WAVE_DIST or 1000
   local blinkMax  = Constants.BLINK_MAX_RANGE or 1200
-  local marchR    = Constants.MARCH_CAST_RANGE or 900
+  local enemyPts  = Tinker.GetEnemyLastKnownPositions()
+  local riskLimit = Constants.ENEMY_RISK_HARD_BLOCK or 0.45
+  local blockR    = Constants.ENEMY_RISK_BLOCK_RADIUS or 1000
 
-  -- Helper: safely get tree position (v1 procedural fallback)
   local function getTreePos(t)
     if Entity and Entity.GetAbsOrigin then return Entity.GetAbsOrigin(t) end
     return nil
   end
-  -- Helper: safely check if tree is active (not chopped)
   local function treeActive(t)
     local p = getTreePos(t)
     if not p then return false end
@@ -1061,53 +1404,87 @@ function Tinker.FindTreeBlinkPos(heroPos, wavePos)
     return true
   end
 
-  -- Determine "safe direction" — prefer tree spots on the hero's base side
+  -- Направление к базе — предпочитаем прятаться ближе к нашей стороне
   local fountainPos = (State.HeroTeam == 2) and Constants.FOUNTAIN_RADIANT or Constants.FOUNTAIN_DIRE
-  local baseDir = (fountainPos - wavePos):Normalized()  -- direction from wave towards base
+  local baseDir = (fountainPos - wavePos):Normalized()
 
-  -- Get trees near the wave
-  local trees = Trees.InRadius(wavePos, searchR, 0, 0) or {}
-  if #trees < minTrees then return nil end
+  -- Собираем все живые деревья в радиусе поиска
+  local allTrees = Trees.InRadius(wavePos, searchR, 0, 0) or {}
+  local treePositions = {}
+  for _, tree in ipairs(allTrees) do
+    local tp = getTreePos(tree)
+    if tp and treeActive(tree) then
+      treePositions[#treePositions + 1] = tp
+    end
+  end
+  if #treePositions < minTrees then return nil end
 
   local bestPos   = nil
   local bestScore = -math.huge
+  -- Множество уже проверенных центроидов (избегаем дублей)
+  local checked = {}
 
-  for _, tree in ipairs(trees) do
-    local tp = getTreePos(tree)
-    if tp and treeActive(tree) then
-      local heroD = tp:Distance(heroPos)
-      local waveD = tp:Distance(wavePos)
+  for _, tp in ipairs(treePositions) do
+    local waveD = tp:Distance(wavePos)
+    -- Дерево должно быть в допустимом радиусе и доступно блинком
+    if waveD >= 200 and waveD <= maxWaveD and tp:Distance(heroPos) <= blinkMax then
+      -- Считаем плотность кластера и вычисляем центроид группы
+      local clusterCount = 0
+      local cx, cy, cz = 0, 0, 0
+      for _, otp in ipairs(treePositions) do
+        if tp:Distance(otp) <= clusterR then
+          clusterCount = clusterCount + 1
+          cx = cx + otp.x
+          cy = cy + otp.y
+          cz = cz + otp.z
+        end
+      end
 
-      -- Must be within blink range, within March effective range, and not too close
-      if heroD <= blinkMax and waveD <= maxWaveD and waveD >= 250 and waveD <= marchR * 1.5 then
-        -- Count trees around this position
-        local nearby = Trees.InRadius(tp, checkR, 0, 0) or {}
-        local treeCount = #nearby
+      if clusterCount >= minTrees then
+        cx = cx / clusterCount
+        cy = cy / clusterCount
+        cz = cz / clusterCount
 
-        if treeCount >= minTrees then
-          local dir      = (wavePos - tp):Normalized()
-          local standPos = tp + dir * 80
-          local canStand = true
-          if GridNav and GridNav.IsTraversable then
-            canStand = GridNav.IsTraversable(standPos)
-          end
+        -- Дедупликация: не оцениваем тот же кластер повторно
+        local ckey = math.floor(cx / 80) .. "," .. math.floor(cy / 80)
+        if not checked[ckey] then
+          checked[ckey] = true
 
-          if canStand then
-            -- Score components:
-            -- 1) Tree density = safety
-            -- 2) Closer to wave = better March coverage
-            -- 3) On base side of wave = safer retreat
-            local treeScore = treeCount * 2.0
-            local distScore = -(waveD / 300.0)  -- prefer closer (but min 250)
-            -- Dot product: how much this direction aligns with base direction
-            local toTree    = (tp - wavePos):Normalized()
-            local baseDot   = toTree.x * baseDir.x + toTree.y * baseDir.y  -- [-1, 1]
-            local sideScore = baseDot * 4.0  -- strongly prefer base side
+          local centroid = Vector(cx, cy, cz)
+          local standPos = FindTraversablePointNear(centroid)
+          if standPos then
+            local standHeroD = standPos:Distance(heroPos)
+            local standWaveD = standPos:Distance(wavePos)
+            if standHeroD <= blinkMax and standWaveD <= maxWaveD then
+              local unsafe = false
+              local riskPenalty = 0.0
+              if #enemyPts > 0 then
+                unsafe = AnyEnemyWithin(standPos, enemyPts, blockR)
+                if not unsafe then
+                  local r = RiskAtPoint(standPos, enemyPts)
+                  if r >= riskLimit then
+                    unsafe = true
+                  else
+                    riskPenalty = r * 8.0
+                  end
+                end
+              end
+              if not unsafe then
+                -- Скоринг: плотность деревьев — главный фактор
+                local treeScore = clusterCount * 5.0
+                -- Небольшой штраф за дальность (не доминирующий)
+                local distScore = -(standWaveD / 400.0)
+                -- Бонус за сторону базы (безопаснее)
+                local toStand   = (standPos - wavePos):Normalized()
+                local baseDot   = toStand.x * baseDir.x + toStand.y * baseDir.y
+                local sideScore = baseDot * 3.0
 
-            local score = treeScore + distScore + sideScore
-            if score > bestScore then
-              bestScore = score
-              bestPos   = standPos
+                local score = treeScore + distScore + sideScore - riskPenalty
+                if score > bestScore then
+                  bestScore = score
+                  bestPos   = standPos
+                end
+              end
             end
           end
         end
@@ -1160,13 +1537,25 @@ function Tinker.GetMarchTarget(spot)
   if not State.Hero or not Entity.GetAbsOrigin then return spot.pos end
   local heroPos = Entity.GetAbsOrigin(State.Hero)
   if not heroPos then return spot.pos end
-  local dist = heroPos:Distance(spot.pos)
+
+  local targetPos = spot.pos
+
+  -- Для фарма линии: смещаем цель March в направлении движения крипов (lead)
+  if spot.isLane and spot.laneCreeps and #spot.laneCreeps > 0 then
+    local moveDir = Tinker.GetCreepMovementDirection(spot.laneCreeps)
+    if moveDir then
+      local leadDist = Constants.LANE_MARCH_LEAD_DISTANCE or 200
+      targetPos = targetPos + moveDir * leadDist
+    end
+  end
+
+  local dist = heroPos:Distance(targetPos)
   local castRange = Constants.MARCH_CAST_RANGE or 900
   if dist <= castRange then
-    return spot.pos
+    return targetPos
   end
-  -- Cap to cast range so hero doesn't walk
-  local dir = (spot.pos - heroPos):Normalized()
+  -- Ограничиваем до cast range, чтобы герой не подбегал
+  local dir = (targetPos - heroPos):Normalized()
   return heroPos + dir * (castRange - 50)
 end
 
@@ -1203,16 +1592,23 @@ function Tinker.FindLaneWaves()
         -- Compute center and gold.
         local cx, cy, cz = 0, 0, 0
         local gold = 0
+        local hasSiege = false
         for _, u in ipairs(group) do
           local p = Entity.GetAbsOrigin(u)
           cx = cx + p.x; cy = cy + p.y; cz = cz + p.z
           local gmin = (NPC.GetGoldBountyMin and NPC.GetGoldBountyMin(u)) or 0
           local gmax = (NPC.GetGoldBountyMax and NPC.GetGoldBountyMax(u)) or 0
-          gold = gold + ((gmin + gmax) > 0 and math.floor((gmin + gmax) / 2) or Constants.LANE_GOLD_PER_CREEP)
+          local baseGold = ((gmin + gmax) > 0 and math.floor((gmin + gmax) / 2) or Constants.LANE_GOLD_PER_CREEP)
+          -- Осадные крипы (катапульты) повышают приоритет волны
+          if IsSiegeCreep(u) then
+            baseGold = baseGold + (Constants.LANE_SIEGE_GOLD_BONUS or 80)
+            hasSiege = true
+          end
+          gold = gold + baseGold
         end
         local n      = #group
         local center = Vector(cx / n, cy / n, cz / n)
-        table.insert(clusters, { center = center, creeps = group, gold = gold })
+        table.insert(clusters, { center = center, creeps = group, gold = gold, hasSiege = hasSiege })
       end
     end
   end
@@ -1389,7 +1785,9 @@ function Tinker.FindBestFarmSpot()
       if not ((rSpot_ >= riskLimit) or (rAnchor_ >= riskLimit) or (rPath_ >= riskLimit)
           or AnyEnemyWithin(anchorPos, enemyPts, blockR)) then
         local riskPenalty = (wSpot * rSpot_ + wAnchor * rAnchor_ + wPath * rPath_) * riskW
-        score             = distScore + riskPenalty - bountyScore + Tinker.GetAdaptiveLaneBias()
+        -- Бонус за близость к союзной вышке (безопаснее пушить)
+        local towerBonus = Tinker.GetTowerProximityBonus(pos)
+        score             = distScore + riskPenalty - bountyScore + Tinker.GetAdaptiveLaneBias() + towerBonus
       end
       if score < bestLaneScore then
         bestLaneScore = score
@@ -1450,12 +1848,30 @@ function Tinker.GetCampCycleManaCost()
   return preRearm + tp + march + rearm + march + tp
 end
 
-function Tinker.HasManaForFullCampCycle()
+--- Минимальная мана ДО каста ТП, чтобы после прибытия хватило на march + rearm + tp_home
+function Tinker.GetManaNeededBeforeTP()
+  local tpCost    = State.KeenTeleport and (Ability.GetManaCost(State.KeenTeleport) or 0) or 0
+  local marchCost = State.March and (Ability.GetManaCost(State.March) or 0) or 0
+  local rearmCost = State.Rearm and (Ability.GetManaCost(State.Rearm) or 0) or 0
+  -- После ТП (ТП на КД): march + rearm (сброс ТП) + tp домой
+  return tpCost + marchCost + rearmCost + tpCost
+end
+
+--- Проверяет, хватит ли текущей маны для ТП с гарантией минимального фарм-цикла
+function Tinker.HasManaAfterTP()
   if not State.KeenTeleport or not State.March or not State.Rearm then return true end
   local curMana = NPC.GetMana(State.Hero) or 0
-  local maxMana = NPC.GetMaxMana(State.Hero) or 0
-  local need    = Tinker.GetCampCycleManaCost()
-  if need > maxMana then return curMana >= (maxMana * 0.9) end
+  return curMana >= Tinker.GetManaNeededBeforeTP()
+end
+
+function Tinker.HasManaForFullCampCycle()
+  if not State.KeenTeleport or not State.March or not State.Rearm then return true end
+  local curMana  = NPC.GetMana(State.Hero) or 0
+  local maxMana  = NPC.GetMaxMana(State.Hero) or 0
+  local need     = Tinker.GetCampCycleManaCost()
+  local minNeed  = Tinker.GetManaNeededBeforeTP()
+  -- Если полный цикл не помещается в пул маны, проверяем хотя бы минимальный (1 march + escape)
+  if need > maxMana then return curMana >= math.min(minNeed, maxMana * 0.95) end
   return curMana >= need
 end
 
@@ -1605,15 +2021,26 @@ function Tinker.RequestTeleportToSpot(spot, force)
     if not wantForce and now < (State.SpotCommitUntil or 0) then return false end
   end
 
-  -- For lane spots, prefer TPing to the allied ranged creep (mage) so the
-  -- anchor survives the TP channel.  Fall back to spot.pos if none found.
+  -- Для лейна: ТП на союзного крипа (ближе к волне), вышка только как последний вариант
   local tpPos = spot.pos
   if spot.isLane then
-    local rangedCreep = FindAllyRangedCreepNear(spot.pos, Constants.LANE_CLUSTER_RADIUS or 900)
-    if rangedCreep then
-      tpPos = Entity.GetAbsOrigin(rangedCreep)
+    -- Приоритет 1: катапульта/рейндж-крип (маг) рядом с волной.
+    -- Не якоримся в мили-крипов: они слишком часто умирают в драке.
+    local stableCreep = FindAllyRangedCreepNear(spot.pos, Constants.LANE_CLUSTER_RADIUS or 900)
+    if stableCreep and Entity.IsAlive(stableCreep) then
+      tpPos = Entity.GetAbsOrigin(stableCreep)
+    else
+      -- Приоритет 2: такой же стабильный якорь в расширенном радиусе.
+      local wideStable = FindAllyRangedCreepNear(spot.pos, (Constants.LANE_CLUSTER_RADIUS or 900) * 1.5)
+      if wideStable and Entity.IsAlive(wideStable) then
+        tpPos = Entity.GetAbsOrigin(wideStable)
+      end
+      -- Вышку НЕ используем — она далеко от волны и герой теряет время
     end
   end
+
+  -- Не телепортируемся на спот, если после ТП не хватит маны на march + escape
+  if not wantForce and not Tinker.HasManaAfterTP() then return false end
 
   if not Tinker.ShouldRequestTeleport(tpPos, wantForce) and not wantForce then return false end
 
@@ -1656,13 +2083,9 @@ function Tinker.RequestTeleportToSpot(spot, force)
   return false
 end
 
-local function RequiredManaBeforeCommit()
-  local marchCost  = State.March and (Ability.GetManaCost(State.March) or 0) or 0
-  local escapeMana = Tinker.GetEscapeManaCost()
-  return marchCost + escapeMana
-end
 function Tinker.HandleAutoBottle()
   if not Config.ItemsToUse:Get(L("item_bottle")) or State.IsChanneling then return end
+  if State.RearmBlinkHoldPending then return end  -- не сбиваем Rearm бутылкой
   if not Config.Bottle.UseHP:Get() and not Config.Bottle.UseMana:Get() then return end
 
   local t = GameRules.GetGameTime()
@@ -1693,6 +2116,150 @@ local function CountCampAliveCreeps(camp)
     end
   end
   return cnt
+end
+
+local function FindNearestEnemyLaneCreepInRange(origin, range, preferred)
+  local best, bestDist = nil, math.huge
+
+  local function consider(e)
+    if not e or not Entity.IsEntity(e) then return end
+    if not Entity.IsAlive(e) or Entity.IsDormant(e) then return end
+    if Entity.GetTeamNum(e) == State.HeroTeam then return end
+    if not NPC.IsLaneCreep(e) or NPC.IsWaitingToSpawn(e) then return end
+    local d = Entity.GetAbsOrigin(e):Distance(origin)
+    if d <= range and d < bestDist then
+      best = e
+      bestDist = d
+    end
+  end
+
+  if preferred then
+    for _, e in ipairs(preferred) do
+      consider(e)
+    end
+  end
+  if best then return best end
+
+  for _, e in ipairs(NPCs.GetAll() or {}) do
+    consider(e)
+  end
+  return best
+end
+
+local function HasAliveNeutralNear(pos, radius)
+  if not pos then return false end
+  for _, e in ipairs(NPCs.GetAll() or {}) do
+    if e and Entity.IsAlive(e) and not Entity.IsDormant(e) and not NPC.IsWaitingToSpawn(e) then
+      local isNeutral = (NPC.IsNeutral and NPC.IsNeutral(e)) or (Entity.GetTeamNum(e) == 4)
+      if isNeutral and Entity.GetAbsOrigin(e):Distance(pos) <= radius then
+        return true
+      end
+    end
+  end
+  return false
+end
+
+local function CampLikelyAlive(camp)
+  if not camp or camp.farmed or not camp.pos then return false end
+  if CountCampAliveCreeps(camp) > 0 then return true end
+  return HasAliveNeutralNear(camp.pos, 430)
+end
+
+local function CanShivaHitCamp(heroPos, camp, radius)
+  if not camp or not camp.pos then return false end
+  return heroPos:Distance(camp.pos) <= (radius * 0.92)
+end
+
+function Tinker.TryUseFarmExtraTools(spot, escapeMana)
+  if not spot or not State.Hero then return false end
+  if State.IsChanneling or State.RearmBlinkHoldPending then return false end
+
+  local now = GameRules.GetGameTime()
+  if now < (State.NextExtraToolTry or 0) then return false end
+
+  local mana = NPC.GetMana(State.Hero) or 0
+  local heroPos = Entity.GetAbsOrigin(State.Hero)
+  local retryIn = Constants.EXTRA_TOOL_RETRY_INTERVAL or 0.12
+  local castGap = Constants.EXTRA_TOOL_CAST_INTERVAL or 0.30
+
+  if spot.isLane then
+    local req = State.CurrentSpotMarchRequired or 0
+    if req > 0 and (State.CurrentSpotMarchCasts or 0) >= req then return false end
+    if State.LaneWaveLaserDone then return false end
+
+    local rearmReady = State.Rearm and Ability.CanBeExecuted(State.Rearm) == -1
+    local marchReady = State.March and Ability.CanBeExecuted(State.March) == -1
+    if rearmReady and not marchReady then
+      return false
+    end
+
+    if not State.Laser or Ability.CanBeExecuted(State.Laser) ~= -1 then return false end
+
+    local castRange = Constants.LASER_LANE_RANGE or 700
+    if Ability.GetCastRange then
+      local ar = Ability.GetCastRange(State.Laser) or 0
+      if ar > 0 then castRange = ar end
+    end
+
+    local target = FindNearestEnemyLaneCreepInRange(heroPos, castRange + 25, spot.laneCreeps)
+    if not target then
+      State.NextExtraToolTry = now + retryIn
+      return false
+    end
+
+    local laserCost = Ability.GetManaCost(State.Laser) or 0
+    if (mana - laserCost) < escapeMana then return false end
+
+    if Utils.CastAbility(State.Laser, Enum.UnitOrder.DOTA_UNIT_ORDER_CAST_TARGET, target) then
+      State.LastFarmingAction = now
+      State.LaneWaveLaserDone = true
+      State.NextExtraToolTry  = now + castGap
+      return true
+    end
+
+    State.NextExtraToolTry = now + retryIn
+    return false
+  end
+
+  if not Config.ItemsToUse:Get(L("item_shiva")) then return false end
+  if not State.Shiva or Ability.CanBeExecuted(State.Shiva) ~= -1 then return false end
+
+  local shivaCost = Ability.GetManaCost(State.Shiva) or 0
+  if (mana - shivaCost) < escapeMana then return false end
+
+  local r = Constants.SHIVA_FARM_RADIUS or 900
+  local c1Alive = CampLikelyAlive(spot.camp1)
+  local c2Alive = CampLikelyAlive(spot.camp2)
+
+  if spot.single then
+    if not c1Alive then return false end
+    if not CanShivaHitCamp(heroPos, spot.camp1, r) then return false end
+  else
+    local aliveCount = (c1Alive and 1 or 0) + (c2Alive and 1 or 0)
+    if aliveCount == 0 then return false end
+    if aliveCount == 2 then
+      if not (CanShivaHitCamp(heroPos, spot.camp1, r) and CanShivaHitCamp(heroPos, spot.camp2, r)) then
+        return false
+      end
+      if spot.pos and heroPos:Distance(spot.pos) > 220 then
+        return false
+      end
+    else
+      local aliveCamp = c1Alive and spot.camp1 or spot.camp2
+      if not CanShivaHitCamp(heroPos, aliveCamp, r) then
+        return false
+      end
+    end
+  end
+
+  if Utils.CastAbility(State.Shiva, Enum.UnitOrder.DOTA_UNIT_ORDER_CAST_NO_TARGET, nil) then
+    State.LastFarmingAction = now
+    State.NextExtraToolTry  = now + castGap
+    return true
+  end
+
+  State.NextExtraToolTry = now + retryIn
+  return false
 end
 
 function Tinker.ProcessAfterMarchCheck()
@@ -1756,7 +2323,8 @@ local function TryCastMatrix(mode)
     if not Config.Matrix.PrecastAtFountain:Get() then return false end
     if not HasFountainBuff() then return false end
     if State.IsChanneling then return false end
-    if Modifier.GetDuration(NPC.GetModifier(State.Hero, "modifier_tinker_defense_matrix")) > 7 then return false end
+    local matrixMod = NPC.GetModifier(State.Hero, "modifier_tinker_defense_matrix")
+    if matrixMod and Modifier.GetDuration(matrixMod) > 7 then return false end
     if GameRules.GetGameTime() - (State.MatrixCastTime or 0) < 0.2 then return false end
     local ok = Utils.CastAbility(m, Enum.UnitOrder.DOTA_UNIT_ORDER_CAST_TARGET, State.Hero)
     if ok then State.MatrixCastTime = GameRules.GetGameTime() end
@@ -1822,7 +2390,6 @@ function Tinker.HandlePanic()
   -- Never блинкаемся, если уже на фонтане (по баффу).
   if not HasFountainBuff()
       and Config.ItemsToUse:Get(L("item_blink"))
-      and Config.Blink.Escape:Get()
       and State.Blink
       and Ability.CanBeExecuted(State.Blink) == -1 then
     local myPos      = Entity.GetAbsOrigin(State.Hero)
@@ -1837,18 +2404,100 @@ function Tinker.HandlePanic()
   return true
 end
 
-local function ComputeSafeBlinkPos(targetPos)
-  if not State.Hero then return nil end
+--- Проверяет, находится ли герой под жёстким контролем (стан, хекс, циклон)
+local function IsHeroHardDisabled()
+  if not State.Hero then return true end
+  if NPC.HasModifier(State.Hero, "modifier_stunned") then return true end
+  if NPC.HasModifier(State.Hero, "modifier_cyclone") then return true end
+  if NPC.HasModifier(State.Hero, "modifier_sheepstick_debuff") then return true end
+  if NPC.HasModifier(State.Hero, "modifier_lion_voodoo") then return true end
+  if NPC.HasModifier(State.Hero, "modifier_shadow_shaman_voodoo") then return true end
+  if NPC.HasModifier(State.Hero, "modifier_ice_blast") then return true end
+  if NPC.HasModifier(State.Hero, "modifier_bashed") then return true end
+  if NPC.HasModifier(State.Hero, "modifier_rooted") then return true end
+  return false
+end
+
+--- Проверяет, провалился ли последний ТП (якорь умер, герой не долетел)
+--- Возвращает true если ТП провалился и нужно сбросить состояние
+function Tinker.CheckTPFailure(spot)
+  if not State.MovingAfterTeleport then return false end
+  local now = GameRules.GetGameTime()
+  -- Ещё идёт ТП-лок — рано проверять
+  local graceEnd = (State.TeleportLockUntil or 0) + (Constants.TP_ARRIVAL_GRACE or 0.5)
+  if now < graceEnd then return false end
+  -- Ещё каналим ТП
+  if State.IsChanneling then return false end
+
   local myPos = Entity.GetAbsOrigin(State.Hero)
-  local dir   = (targetPos - myPos)
-  local dist  = dir:Length()
-  if dist <= Constants.BLINK_MIN_DISTANCE then return nil end
-  local ndir     = dir:Normalized()
-  local standOff = Constants.BLINK_SAFE_STANDOFF
-  local maxStep  = Constants.BLINK_MAX_RANGE
-  local desired  = math.max(dist - standOff, 0)
-  local step     = math.min(maxStep, desired > 0 and desired or dist)
-  return myPos + ndir * step
+  local intended = Tinker.IntendedKeenTPPos(spot.pos)
+  local dist = myPos:Distance(intended)
+
+  -- Проверяем, жив ли якорь (крип, на которого тп'хались)
+  local anchorDead = false
+  if State.LastTeleportAnchor then
+    if not Entity.IsEntity(State.LastTeleportAnchor)
+        or not Entity.IsAlive(State.LastTeleportAnchor) then
+      anchorDead = true
+    end
+  end
+
+  -- Мы далеко от цели — ТП точно не сработал
+  if dist > (Constants.TP_FAIL_DISTANCE or 1500) then
+    return true
+  end
+
+  -- Якорь мёртв и мы не в зоне фарма
+  if anchorDead and dist > Constants.MARCH_CAST_RANGE then
+    return true
+  end
+
+  -- ТП успешно приземлил
+  State.MovingAfterTeleport = false
+  return false
+end
+
+--- Полный сброс состояния к IDLE с остановкой героя
+local function AbortToIdle(reason)
+  -- Останавливаем героя, чтобы не шёл пешком
+  if State.Hero and State.Player then
+    Player.PrepareUnitOrders(
+      State.Player, Enum.UnitOrder.DOTA_UNIT_ORDER_STOP, nil, nil, nil,
+      Enum.PlayerOrderIssuer.DOTA_ORDER_ISSUER_HERO_ONLY, State.Hero,
+      false, false, false, true, false, false
+    )
+  end
+  State.FarmState                = "IDLE"
+  State.CurrentFarmSpot          = nil
+  State.AfterMarchCheck          = nil
+  State.TargetSpotKey            = nil
+  State.SpotCommitUntil          = 0
+  State.CurrentSpotMarchCasts    = 0
+  State.CurrentSpotMarchRequired = nil
+  State.MovingAfterTeleport      = false
+  State.RecalcAfterTP            = false
+  State.LastTeleportAnchor       = nil
+  State.BlockTPThisSpot          = false
+  State.MovingToSpotSince        = 0
+  State.CachedBestSpot           = nil
+  State.LastSpotScan             = 0
+  State.TreeBlinkStopPending     = false
+  State.LaneTreeBlinkDone        = false
+  State.LaneWaveLaserDone        = false
+  State.LastTreeBlinkAt          = 0
+  State.LastTreeBlinkHoldAt      = 0
+  State.NextExtraToolTry         = 0
+end
+
+--- Проверяет, подошли ли враги к споту пока мы шли/ТП'хались
+function Tinker.IsSpotStillSafe(spotPos)
+  local enemyPts = Tinker.GetEnemyLastKnownPositions()
+  if #enemyPts == 0 then return true end
+  local blockR = Constants.ENEMY_RISK_BLOCK_RADIUS or 1000
+  if AnyEnemyWithin(spotPos, enemyPts, blockR) then return false end
+  local riskLimit = Constants.ENEMY_RISK_HARD_BLOCK or 0.45
+  if RiskAtPoint(spotPos, enemyPts) >= riskLimit then return false end
+  return true
 end
 
 function Tinker.HandleFarming()
@@ -1861,6 +2510,8 @@ function Tinker.HandleFarming()
   end
   if Tinker.HandlePanic() then return end
   if State.IsChanneling then return end
+  -- Герой под жёстким контролем — не можем действовать
+  if IsHeroHardDisabled() then return end
   -- Guard: Rearm was just issued but channel hasn't registered yet
   if State.RearmBlinkHoldPending then return end
   if State.PendingTPPos then
@@ -1953,6 +2604,11 @@ function Tinker.HandleFarming()
       State.CurrentSpotMarchCasts = 0
       State.LaneNoCreepsSince = nil
       State.LaneTreeBlinkDone = false
+      State.LaneWaveLaserDone = false
+      State.TreeBlinkStopPending = false
+      State.LastTreeBlinkAt = 0
+      State.LastTreeBlinkHoldAt = 0
+      State.NextExtraToolTry = 0
       if bestSpot.isLane then
         -- Lane spots always use custom march count.
         State.CurrentSpotMarchRequired = ComputeRequiredMarchesForSpot(bestSpot)
@@ -1970,14 +2626,43 @@ function Tinker.HandleFarming()
         State.CurrentSpotMarchRequired = nil
       end
 
-      State.FarmState = "MOVING_TO_SPOT"
+      State.FarmState         = "MOVING_TO_SPOT"
+      State.MovingToSpotSince = GameRules.GetGameTime()
+      State.LastSpotSafetyCheck = GameRules.GetGameTime()
     end
   elseif State.FarmState == "MOVING_TO_SPOT" then
     local spot = State.CurrentFarmSpot
     if not spot or not spot.camp1 then
-      State.FarmState = "IDLE"
+      AbortToIdle("no_spot")
       return
     end
+
+    local now = GameRules.GetGameTime()
+
+    -- ═══ Проверка провала ТП: якорь (крип) мог умереть во время канала ═══
+    if Tinker.CheckTPFailure(spot) then
+      AbortToIdle("tp_failed")
+      return
+    end
+
+    -- ═══ Таймаут ходьбы пешком: если слишком долго идём — бросаем ═══
+    if State.MovingToSpotSince > 0 and not State.MovingAfterTeleport then
+      local walkTime = now - State.MovingToSpotSince
+      if walkTime > (Constants.WALK_TO_SPOT_MAX_TIME or 12.0) then
+        AbortToIdle("walk_timeout")
+        return
+      end
+    end
+
+    -- ═══ Пере-проверка безопасности спота ═══
+    if (now - (State.LastSpotSafetyCheck or 0)) >= (Constants.SPOT_SAFETY_RECHECK or 1.5) then
+      State.LastSpotSafetyCheck = now
+      if not Tinker.IsSpotStillSafe(spot.pos) then
+        AbortToIdle("spot_unsafe")
+        return
+      end
+    end
+
     -- Lane spots: refresh positions, invalidate if creeps gone.
     if spot.isLane then
       Tinker.RefreshLaneSpotPos(spot)
@@ -2027,7 +2712,10 @@ function Tinker.HandleFarming()
 
     if castInfo.maxDist <= allowedMax and myPos:Distance(castInfo.pos) <= Constants.MARCH_CAST_RANGE then
       State.MovingAfterTeleport = false
+      State.MovingToSpotSince   = 0
       State.FarmState           = "FARMING_SPOT"
+      State.FarmingSpotSince    = GameRules.GetGameTime()
+      State.LastFarmingAction   = GameRules.GetGameTime()
       if spot.isLane then
         Tinker.RefreshLaneSpotPos(spot)
       end
@@ -2040,7 +2728,8 @@ function Tinker.HandleFarming()
       return
     end
 
-    local requiredMana = RequiredManaBeforeCommit()
+    -- Учитываем стоимость самого ТП: после прибытия должно хватить на march + escape
+    local requiredMana = Tinker.GetManaNeededBeforeTP()
     local curMana      = NPC.GetMana(State.Hero) or 0
     local atFountain   = HasFountainBuff()
 
@@ -2063,16 +2752,23 @@ function Tinker.HandleFarming()
     if not holdBlink
         and not HasFountainBuff()
         and Config.ItemsToUse:Get(L("item_blink"))
-        and Config.Blink.Travel:Get()
+        and IsBlinkTravelEnabled()
         and State.Blink
         and Ability.CanBeExecuted(State.Blink) == -1 then
-      -- Blink directly to the spot (no standoff — farm efficiency)
       local blinkDist = myPos:Distance(castInfo.pos)
-      if blinkDist > Constants.BLINK_MIN_DISTANCE then
-        local blinkPos = blinkDist <= Constants.BLINK_MAX_RANGE
-            and castInfo.pos
-            or (myPos + (castInfo.pos - myPos):Normalized() * Constants.BLINK_MAX_RANGE)
-        if Utils.CastAbility(State.Blink, Enum.UnitOrder.DOTA_UNIT_ORDER_CAST_POSITION, blinkPos) then return end
+      local farmBlinkMin = Constants.FARM_BLINK_MIN_DISTANCE or 200
+      if blinkDist > farmBlinkMin then
+        local preserveForTreeBlink = spot.isLane and IsTreeBlinkLaneEnabled()
+            and blinkDist <= ((Constants.BLINK_MAX_RANGE or 1200) * 1.25)
+        if not preserveForTreeBlink then
+          local blinkPos = blinkDist <= Constants.BLINK_MAX_RANGE
+              and castInfo.pos
+              or (myPos + (castInfo.pos - myPos):Normalized() * Constants.BLINK_MAX_RANGE)
+          blinkPos = FindTraversablePointNear(blinkPos)
+          if blinkPos and not IsPointHardUnsafe(blinkPos) then
+            if Utils.CastAbility(State.Blink, Enum.UnitOrder.DOTA_UNIT_ORDER_CAST_POSITION, blinkPos) then return end
+          end
+        end
       end
     end
 
@@ -2090,6 +2786,31 @@ function Tinker.HandleFarming()
 
     local t = GameRules.GetGameTime()
 
+    -- ═══ Проверка безопасности спота во время фарма ═══
+    if (t - (State.LastSpotSafetyCheck or 0)) >= (Constants.SPOT_SAFETY_RECHECK or 1.5) then
+      State.LastSpotSafetyCheck = t
+      if not Tinker.IsSpotStillSafe(spot.pos) then
+        -- Враги подошли — экстренно уходим
+        State.FarmState                = "RETURNING_TO_FOUNTAIN"
+        State.CurrentFarmSpot          = nil
+        State.AfterMarchCheck          = nil
+        State.TargetSpotKey            = nil
+        State.SpotCommitUntil          = 0
+        State.CurrentSpotMarchCasts    = 0
+        State.CurrentSpotMarchRequired = nil
+        return
+      end
+    end
+
+    -- ═══ Таймаут бездействия: если на споте давно и ничего не кастуем ═══
+    if State.FarmingSpotSince > 0 and State.LastFarmingAction > 0 then
+      local idleTime = t - State.LastFarmingAction
+      if idleTime > (Constants.FARMING_STALE_TIMEOUT or 10.0) then
+        AbortToIdle("stale_farming")
+        return
+      end
+    end
+
     -- ── Lane-specific refresh & timeout ──
     if spot.isLane then
       Tinker.RefreshLaneSpotPos(spot)
@@ -2097,45 +2818,127 @@ function Tinker.HandleFarming()
       if laneAlive == 0 then
         State.LaneNoCreepsSince = State.LaneNoCreepsSince or t
         if (t - State.LaneNoCreepsSince) >= Constants.LANE_NO_CREEPS_TIMEOUT then
-          MarkSpotFarmedAndLeave()
+          -- Крипов нет — летим на базу
+          State.FarmState                = "RETURNING_TO_FOUNTAIN"
+          State.CurrentFarmSpot          = nil
+          State.AfterMarchCheck          = nil
+          State.TargetSpotKey            = nil
+          State.SpotCommitUntil          = 0
+          State.CurrentSpotMarchCasts    = 0
+          State.CurrentSpotMarchRequired = nil
+          State.LaneTreeBlinkDone        = false
+          State.LaneWaveLaserDone        = false
+          State.TreeBlinkStopPending     = false
+          State.LastTreeBlinkAt          = 0
+          State.LastTreeBlinkHoldAt      = 0
+          State.NextExtraToolTry         = 0
           return
         end
       else
         State.LaneNoCreepsSince = nil
       end
 
-      -- ── Tree blink: blink into nearby trees before first March ──
-      if not State.LaneTreeBlinkDone
-          and Config.Blink.TreesLane and Config.Blink.TreesLane:Get()
-          and Config.ItemsToUse:Get(L("item_blink"))
-          and State.Blink
-          and Ability.CanBeExecuted(State.Blink) == -1
-          and not IsBlinkLockedNow()
-          and (State.CurrentSpotMarchCasts or 0) == 0 then
-        local myPos    = Entity.GetAbsOrigin(State.Hero)
-        local treePos  = Tinker.FindTreeBlinkPos(myPos, spot.pos)
-        if treePos then
-          if Utils.CastAbility(State.Blink, Enum.UnitOrder.DOTA_UNIT_ORDER_CAST_POSITION, treePos) then
-            State.LaneTreeBlinkDone = true
-            return
-          end
-        else
-          -- No good tree spot found, skip trying again this spot
-          State.LaneTreeBlinkDone = true
-        end
-      end
     end
 
     -- Count-based exit (used for UseCustom AND lane spots)
     if Config.MarchControl.UseCustom:Get() or spot.isLane then
       local req = State.CurrentSpotMarchRequired or 0
       if req > 0 and (State.CurrentSpotMarchCasts or 0) >= req then
+        -- Для лейна: проверяем, подходит ли новая волна, прежде чем уходить
+        if spot.isLane and Tinker.HasManaForFullCampCycle() then
+          local nextWave = Tinker.DetectIncomingWave(spot.pos, spot.laneCreeps)
+          if nextWave then
+            -- Новая волна обнаружена — продолжаем фармить
+            spot.laneCreeps = nextWave.creeps
+            spot.pos        = nextWave.center
+            spot.camp1.pos  = nextWave.center
+            spot.gold       = nextWave.gold
+            State.CurrentSpotMarchCasts = 0
+            State.LaneNoCreepsSince     = nil
+            State.LaneTreeBlinkDone     = false  -- сброс для новой волны
+            State.LaneWaveLaserDone     = false
+            State.LastTreeBlinkAt       = 0
+            State.LastTreeBlinkHoldAt   = 0
+            State.NextExtraToolTry      = 0
+            return
+          end
+        end
+
+        -- ══ ЗАЩИТА РЕАРМА: не выходим со спота пока Rearm не завершён ══
+        -- Это главный guard, покрывающий ВСЁ: блинк в деревья, HOLD и MarkSpotFarmedAndLeave.
+        -- Без этого tree-blink или MarkSpot могут сбить канал Rearm.
+        if State.IsChanneling then return end  -- Rearm/другой канал ещё идёт
+        local rearmSafe = (t - (State.LastRearmAt or 0)) >= (Constants.BLINK_HOLD_AFTER_REARM or 0.6)
+        if not rearmSafe then return end        -- Rearm только что кончился, ждём
+        if State.RearmBlinkHoldPending then return end  -- Rearm выпущен, канал не начался
+
+        -- ── Tree blink (lane): блинк в КУЧУ деревьев ПОСЛЕ прокаста маршей ──
+        if spot.isLane
+            and not State.LaneTreeBlinkDone
+            and IsTreeBlinkLaneEnabled()
+            and Config.ItemsToUse:Get(L("item_blink"))
+            and State.Blink then
+
+          if Ability.CanBeExecuted(State.Blink) == -1
+              and not IsBlinkLockedNow() then
+            -- Блинк готов — блинкаем в кластер деревьев
+            local myPos    = Entity.GetAbsOrigin(State.Hero)
+            local treePos  = Tinker.FindTreeBlinkPos(myPos, spot.pos)
+            if treePos then
+              treePos = FindTraversablePointNear(treePos)
+              if treePos and not IsPointHardUnsafe(treePos) then
+                if Utils.CastAbility(State.Blink, Enum.UnitOrder.DOTA_UNIT_ORDER_CAST_POSITION, treePos) then
+                  State.LaneTreeBlinkDone    = true
+                  State.TreeBlinkStopPending = true
+                  State.LastTreeBlinkAt      = t
+                  State.LastTreeBlinkHoldAt  = 0
+                  return
+                end
+                return  -- каст не прошёл (order cooldown), повторим на след. тике
+              end
+            end
+            State.LaneTreeBlinkDone = true  -- деревьев нет/позиция опасна, пропускаем
+          else
+            -- Блинк заблокирован или на КД — ждём, НЕ уходим со спота
+            local blinkCD = GetAbilityCooldownRemaining(State.Blink)
+            if blinkCD <= 3.0 and Tinker.IsSpotStillSafe(spot.pos) then
+              return  -- скоро будет готов, ждём
+            else
+              State.LaneTreeBlinkDone = true  -- слишком долго, пропускаем tree-blink
+            end
+          end
+        end
+
+        -- После tree-blink: HOLD чтобы герой не пошёл к крипам
+        if State.TreeBlinkStopPending then
+          if Utils.IssueOrder(Enum.UnitOrder.DOTA_UNIT_ORDER_HOLD_POSITION, nil, nil) then
+            State.TreeBlinkStopPending = false
+            State.LastTreeBlinkHoldAt  = t
+          end
+          return
+        end
+
+        -- Даём после blink/hold короткое окно, чтобы Rearm не сбивался следующим ордером.
+        if spot.isLane then
+          local settle = Constants.TREE_BLINK_SETTLE_TIME or 0.22
+          if (t - (State.LastTreeBlinkAt or 0)) < settle or (t - (State.LastTreeBlinkHoldAt or 0)) < settle then
+            return
+          end
+        end
+
+        if State.RearmBlinkHoldPending then
+          return
+        end
+
         MarkSpotFarmedAndLeave()
         return
       end
     end
 
     local escapeMana  = Tinker.GetEscapeManaCost()
+    if Tinker.TryUseFarmExtraTools(spot, escapeMana) then
+      return
+    end
     local am          = (Config.MarchControl.UseCustom:Get() or spot.isLane) and nil or State.AfterMarchCheck
     local minGap      = Constants.MARCH_MIN_RECAST_GAP
     local rearmGap    = Constants.REARM_MIN_GAP_AFTER_MARCH
@@ -2166,7 +2969,9 @@ function Tinker.HandleFarming()
         local marchCost = Ability.GetManaCost(State.March) or 0
         if (t - (State.LastMarchCastAt or 0)) >= minGap and ((NPC.GetMana(State.Hero) or 0) - marchCost) >= escapeMana then
           local marchTarget = Tinker.GetMarchTarget(spot)
-          Utils.CastAbility(State.March, Enum.UnitOrder.DOTA_UNIT_ORDER_CAST_POSITION, marchTarget)
+          if Utils.CastAbility(State.March, Enum.UnitOrder.DOTA_UNIT_ORDER_CAST_POSITION, marchTarget) then
+            State.LastFarmingAction = t
+          end
         end
         return
       end
@@ -2177,6 +2982,7 @@ function Tinker.HandleFarming()
           if ((NPC.GetMana(State.Hero) or 0) - rearmCost) >= escapeMana then
             if Utils.CastAbility(State.Rearm, Enum.UnitOrder.DOTA_UNIT_ORDER_CAST_NO_TARGET, nil) then
               MarkRearmIssued(t)
+              State.LastFarmingAction = t
             end
           else
             State.FarmState                = "RETURNING_TO_FOUNTAIN"
@@ -2199,6 +3005,7 @@ function Tinker.HandleFarming()
       if ((NPC.GetMana(State.Hero) or 0) - marchCost) >= escapeMana then
         local marchTarget = Tinker.GetMarchTarget(spot)
         if Utils.CastAbility(State.March, Enum.UnitOrder.DOTA_UNIT_ORDER_CAST_POSITION, marchTarget) then
+          State.LastFarmingAction = t
           if not Config.MarchControl.UseCustom:Get() and not spot.isLane then
             State.AfterMarchCheck = {
               startedAt  = t,
@@ -2227,6 +3034,7 @@ function Tinker.HandleFarming()
         if ((NPC.GetMana(State.Hero) or 0) - rearmCost) >= escapeMana then
           if Utils.CastAbility(State.Rearm, Enum.UnitOrder.DOTA_UNIT_ORDER_CAST_NO_TARGET, nil) then
             MarkRearmIssued(t)
+            State.LastFarmingAction = t
           end
         else
           State.FarmState                = "RETURNING_TO_FOUNTAIN"
@@ -2248,9 +3056,17 @@ function Tinker.HandleFarming()
       local maxMana     = NPC.GetMaxMana(State.Hero) or 0
       local curMana     = NPC.GetMana(State.Hero) or 0
       local cycleCost   = Tinker.GetCampCycleManaCost()
+      local minTPNeed   = Tinker.GetManaNeededBeforeTP()
       local minFracNeed = maxMana * Constants.FOUNTAIN_MIN_MANA_FRAC
-      local need        = math.max(minFracNeed, math.min(cycleCost, maxMana * 0.95))
-      if curMana >= need then
+      -- Не улетаем с фонтана, пока маны не хватит хотя бы на tp + march + rearm + tp_home
+      local need        = math.max(minFracNeed, minTPNeed, math.min(cycleCost, maxMana * 0.95))
+      -- Также ждём восстановления HP (не улетаем с низким ХП)
+      local hp    = Entity.GetHealth(State.Hero) or 0
+      local maxHP = Entity.GetMaxHealth(State.Hero) or 1
+      local hpOK  = (hp / math.max(1, maxHP)) >= 0.85
+      if curMana >= need and hpOK then
+        -- Прекастим матрицу перед вылетом
+        TryCastMatrix("precast")
         State.FarmState = "IDLE"
       end
       return
@@ -2301,7 +3117,7 @@ function Tinker.HandleFarming()
     if not HasFountainBuff()
         and not holdBlink
         and Config.ItemsToUse:Get(L("item_blink"))
-        and Config.Blink.Travel:Get()
+        and IsBlinkTravelEnabled()
         and State.Blink
         and Ability.CanBeExecuted(State.Blink) == -1 then
       local myPos      = Entity.GetAbsOrigin(State.Hero)
@@ -2309,7 +3125,10 @@ function Tinker.HandleFarming()
       local dist       = toFountain:Length()
       local blinkPos   = dist > Constants.BLINK_MAX_RANGE and
           (myPos + toFountain:Normalized() * Constants.BLINK_MAX_RANGE) or fountainPos
-      if Utils.CastAbility(State.Blink, Enum.UnitOrder.DOTA_UNIT_ORDER_CAST_POSITION, blinkPos) then return end
+      blinkPos = FindTraversablePointNear(blinkPos)
+      if blinkPos and Utils.CastAbility(State.Blink, Enum.UnitOrder.DOTA_UNIT_ORDER_CAST_POSITION, blinkPos) then
+        return
+      end
     end
 
     Utils.MoveTo(fountainPos)
@@ -2599,7 +3418,7 @@ local function DrawDockOverlay()
       table.insert(lines, { "Lane Bias", string.format("%.1f", bias), bias < 0 and Theme.good or Theme.warn })
       if State.LaneTreeBlinkDone then
         table.insert(lines, { "Tree Blink", "Done", Theme.good })
-      elseif Config.Blink.TreesLane and Config.Blink.TreesLane:Get() then
+      elseif IsTreeBlinkLaneEnabled() then
         table.insert(lines, { "Tree Blink", "Pending", Theme.warn })
       end
     end
@@ -2768,8 +3587,7 @@ script.OnUpdate = function()
 
   State.Hero             = Heroes.GetLocal()
   State.Player           = Players.GetLocal()
-  if Entity.GetUnitName(State.Hero) ~= "npc_dota_hero_tinker" then return end
-  if not State.Hero or not Entity.IsAlive(State.Hero) then
+  if not State.Hero then
     State.FarmState                = "IDLE"
     State.CurrentFarmSpot          = nil
     State.AfterMarchCheck          = nil
@@ -2778,19 +3596,41 @@ script.OnUpdate = function()
     State.CurrentSpotMarchCasts    = 0
     State.CurrentSpotMarchRequired = nil
     State.PendingMarchVerify       = nil
+    State.LastTreeBlinkAt          = 0
+    State.LastTreeBlinkHoldAt      = 0
+    State.TreeBlinkStopPending     = false
+    State.LaneTreeBlinkDone        = false
+    State.LaneWaveLaserDone        = false
+    State.NextExtraToolTry         = 0
+    return
+  end
+  if Entity.GetUnitName(State.Hero) ~= "npc_dota_hero_tinker" then return end
+  if not Entity.IsAlive(State.Hero) then
+    State.FarmState                = "IDLE"
+    State.CurrentFarmSpot          = nil
+    State.AfterMarchCheck          = nil
+    State.TargetSpotKey            = nil
+    State.SpotCommitUntil          = 0
+    State.CurrentSpotMarchCasts    = 0
+    State.CurrentSpotMarchRequired = nil
+    State.PendingMarchVerify       = nil
+    State.LaneWaveLaserDone        = false
+    State.NextExtraToolTry         = 0
     return
   end
 
   State.HeroTeam     = Entity.GetTeamNum(State.Hero)
   State.IsChanneling = NPC.IsChannellingAbility(State.Hero)
-  UpdateRearmBlinkHold()
   State.Rearm        = NPC.GetAbility(State.Hero, "tinker_rearm")
+  UpdateRearmBlinkHold()
   State.March        = NPC.GetAbility(State.Hero, "tinker_march_of_the_machines")
+  State.Laser        = NPC.GetAbility(State.Hero, "tinker_laser")
   State.KeenTeleport = NPC.GetAbility(State.Hero, "tinker_keen_teleport")
   State.Blink        = NPC.GetItem(State.Hero, "item_blink", true)
       or NPC.GetItem(State.Hero, "item_overwhelming_blink", true)
       or NPC.GetItem(State.Hero, "item_swift_blink", true)
       or NPC.GetItem(State.Hero, "item_arcane_blink", true)
+  State.Shiva        = NPC.GetItem(State.Hero, "item_shivas_guard", true)
 
   local autoOn = Config.AutoFarm:IsToggled()
 
@@ -2816,6 +3656,12 @@ script.OnUpdate = function()
       State.CurrentSpotMarchCasts    = 0
       State.CurrentSpotMarchRequired = nil
       State.PendingMarchVerify       = nil
+      State.LastTreeBlinkAt          = 0
+      State.LastTreeBlinkHoldAt      = 0
+      State.TreeBlinkStopPending     = false
+      State.LaneTreeBlinkDone        = false
+      State.LaneWaveLaserDone        = false
+      State.NextExtraToolTry         = 0
     end
     return
   end
