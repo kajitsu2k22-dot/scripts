@@ -1,10 +1,6 @@
----@diagnostic disable: undefined-global, param-type-mismatch, inject-field
-
 local script = {}
 
 local SCRIPT_ID = "auto_disabler"
-local MODE_LEGIT = 0
-local MODE_RAGE = 1
 local CONFIG_FILE = "auto_disabler"
 local CONFIG_SECTION_PANEL = "priority_panel"
 local CONFIG_SECTION_OWN_CONTROLS = "own_controls"
@@ -68,7 +64,13 @@ local STATE = {
         dy = 0,
         hovered = false,
         clickEaten = false,
+        dragPriorityIndex = nil,
+        dragStartX = 0,
+        dragStartY = 0,
     },
+    controlsCache = { list = nil, heroName = "", time = 0 },
+    enemiesCache = { list = nil, radius = nil, time = 0 },
+    enemyInterruptedUntil = {},
     iconCache = {},
     fontMain = nil,
     fontSmall = nil,
@@ -79,17 +81,17 @@ local STATE = {
 }
 
 local PANEL_LAYOUT = {
-    padding = 10,
-    header = 24,
+    padding = 12,
+    header = 26,
     sectionTitle = 14,
-    sectionGap = 6,
-    footer = 28,
+    sectionGap = 8,
+    footer = 12,
     icon = 36,
     iconGap = 6,
     enemyIcon = 30,
     enemyIconGap = 5,
     edgeTab = 28,
-    corner = 8,
+    corner = 10,
 }
 
 local DANGEROUS_ABILITY_LIST = {
@@ -279,9 +281,6 @@ local L10N = {
         menu_enable = "Enable",
         menu_settings = "Settings",
         menu_language = "Language / Язык",
-        menu_mode = "Mode",
-        menu_mode_legit = "Legit",
-        menu_mode_rage = "Rage",
         menu_show_panel = "Show priority panel",
         menu_auto_refresh = "Auto refresh lists",
         menu_interrupt_channel = "Interrupt any channel",
@@ -313,7 +312,6 @@ local L10N = {
         tip_enemy_other = "Optional enemy spells to react to.",
         tip_enemy_items = "Enemy items to react to while casting.",
         panel_title = "\u{1F608} Euphoria Disabler",
-        panel_mode = "Mode",
         panel_hint = "LMB own: priority | RMB own: on/off | LMB hero/skill: on/off | Corners: resize",
         panel_own = "Your Controls",
         panel_enemy = "Enemy Abilities",
@@ -323,9 +321,6 @@ local L10N = {
         menu_enable = "Включить",
         menu_settings = "Настройки",
         menu_language = "Язык / Language",
-        menu_mode = "Режим",
-        menu_mode_legit = "Legit",
-        menu_mode_rage = "Rage",
         menu_show_panel = "Панель приоритетов",
         menu_auto_refresh = "Авто-обновление списков",
         menu_interrupt_channel = "Сбивать любой канал",
@@ -356,7 +351,6 @@ local L10N = {
         tip_enemy_other = "Дополнительные спеллы для реакции.",
         tip_enemy_items = "Предметы врагов для реакции во время каста.",
         panel_title = "\u{1F608} Euphoria Disabler",
-        panel_mode = "Режим",
         panel_hint = "ЛКМ: свои выбрать / враг toggle | ПКМ свои: выкл/вкл",
         panel_own = "Твои Контроли",
         panel_enemy = "Вражеские Способности",
@@ -364,24 +358,16 @@ local L10N = {
     },
 }
 
-local function BuildSet(list)
+local U = {}
+function U.BuildSet(list)
     local out = {}
-    for i = 1, #list do
-        out[list[i]] = true
-    end
+    for i = 1, #list do out[list[i]] = true end
     return out
 end
-
-local DANGEROUS_ABILITY_SET = BuildSet(DANGEROUS_ABILITY_LIST)
-local DANGEROUS_ITEM_SET = BuildSet(DANGEROUS_ITEM_LIST)
-
-local function BuildBlockedStates()
+function U.BuildBlockedStates()
     local out = {}
     local ms = Enum and Enum.ModifierState
-    if not ms then
-        return out
-    end
-
+    if not ms then return out end
     local values = {
         ms.MODIFIER_STATE_STUNNED or ms.STUNNED,
         ms.MODIFIER_STATE_HEXED or ms.HEXED,
@@ -389,25 +375,15 @@ local function BuildBlockedStates()
         ms.MODIFIER_STATE_MUTED or ms.MUTED,
         ms.MODIFIER_STATE_COMMAND_RESTRICTED or ms.COMMAND_RESTRICTED,
     }
-
     for i = 1, #values do
-        if values[i] ~= nil then
-            out[#out + 1] = values[i]
-        end
+        if values[i] ~= nil then out[#out + 1] = values[i] end
     end
-
     return out
 end
-
-local BLOCKED_STATES = BuildBlockedStates()
-
-local function BuildAlreadyDisabledStates()
+function U.BuildAlreadyDisabledStates()
     local out = {}
     local ms = Enum and Enum.ModifierState
-    if not ms then
-        return out
-    end
-
+    if not ms then return out end
     local values = {
         ms.MODIFIER_STATE_STUNNED or ms.STUNNED,
         ms.MODIFIER_STATE_HEXED or ms.HEXED,
@@ -417,33 +393,27 @@ local function BuildAlreadyDisabledStates()
         ms.MODIFIER_STATE_COMMAND_RESTRICTED or ms.COMMAND_RESTRICTED,
         ms.MODIFIER_STATE_NIGHTMARED or ms.NIGHTMARED,
     }
-
     for i = 1, #values do
-        if values[i] ~= nil then
-            out[#out + 1] = values[i]
-        end
+        if values[i] ~= nil then out[#out + 1] = values[i] end
     end
-
     return out
 end
+function U.TrimText(value)
+    if type(value) ~= "string" then return "" end
+    local out = string.gsub(value, "^%s+", "")
+    return string.gsub(out, "%s+$", "")
+end
 
-local ALREADY_DISABLED_STATES = BuildAlreadyDisabledStates()
+local DANGEROUS_ABILITY_SET = U.BuildSet(DANGEROUS_ABILITY_LIST)
+local DANGEROUS_ITEM_SET = U.BuildSet(DANGEROUS_ITEM_LIST)
+local BLOCKED_STATES = U.BuildBlockedStates()
+local ALREADY_DISABLED_STATES = U.BuildAlreadyDisabledStates()
 local ABILITY_BEHAVIOR_CACHE = {}
 local FILE_PERSIST_PATH = "auto_disabler_state.ini"
 local FILE_PERSIST = {
     loaded = false,
     data = {},
 }
-
-local function TrimText(value)
-    if type(value) ~= "string" then
-        return ""
-    end
-
-    local out = string.gsub(value, "^%s+", "")
-    out = string.gsub(out, "%s+$", "")
-    return out
-end
 
 local function OpenPersistFile(mode)
     if not io or not io.open then
@@ -475,13 +445,13 @@ local function EnsureFilePersistLoaded()
         local raw = tostring(line or "")
         local foundSection = string.match(raw, "^%s*%[([^%]]+)%]%s*$")
         if foundSection and foundSection ~= "" then
-            section = TrimText(foundSection)
+            section = U.TrimText(foundSection)
             if section ~= "" and not FILE_PERSIST.data[section] then
                 FILE_PERSIST.data[section] = {}
             end
         else
             local rawKey, rawValue = string.match(raw, "^%s*([^=]+)%s*=%s*(.-)%s*$")
-            local key = TrimText(rawKey)
+            local key = U.TrimText(rawKey)
             if section ~= "" and key ~= "" then
                 FILE_PERSIST.data[section] = FILE_PERSIST.data[section] or {}
                 FILE_PERSIST.data[section][key] = rawValue or ""
@@ -608,7 +578,6 @@ end
 
 local FIXED_SETTINGS = {
     language = "ru",
-    rageMode = true,
     interruptAnyChannel = true,
     reactToItemModifiers = true,
     ignoreDisabledTargets = true,
@@ -644,32 +613,12 @@ local function Dist(a, b)
     return (a - b):Length()
 end
 
-local function GetModeIndex()
-    if FIXED_SETTINGS.rageMode then
-        return MODE_RAGE
-    end
-
-    return MODE_LEGIT
-end
-
-local function IsRageMode()
-    return GetModeIndex() == MODE_RAGE
-end
-
 local function GetEffectiveCastDelay()
-    local base = FIXED_SETTINGS.castDelayMs or 80
-    if IsRageMode() then
-        return math.min(base, 120)
-    end
-    return base
+    return FIXED_SETTINGS.castDelayMs or 80
 end
 
 local function GetEffectiveRetryDelay()
-    local base = FIXED_SETTINGS.retryDelayMs or 80
-    if IsRageMode() then
-        return math.min(base, 120)
-    end
-    return base
+    return FIXED_SETTINGS.retryDelayMs or 80
 end
 
 local function IsInterruptAnyChannelEnabled()
@@ -691,6 +640,8 @@ end
 local function GetSearchRadius()
     return FIXED_SETTINGS.searchRadius or 1100
 end
+
+local CACHE_TTL = 0.05
 
 local function GetTargetMemoryMs()
     return FIXED_SETTINGS.targetMemoryMs or 1800
@@ -1714,6 +1665,31 @@ local function BuildSelectedOwnControls(hero)
     return ordered
 end
 
+local function GetCachedControls(hero)
+    local name = SafeCall(NPC.GetUnitName, hero) or ""
+    local now = GetTime()
+    local c = STATE.controlsCache
+    if c.list and c.heroName == name and (now - (c.time or 0)) < CACHE_TTL then
+        return c.list
+    end
+    c.list = BuildSelectedOwnControls(hero)
+    c.heroName = name
+    c.time = now
+    return c.list
+end
+
+local function GetCachedEnemies(hero, radius)
+    local now = GetTime()
+    local c = STATE.enemiesCache
+    if c.list and c.radius == radius and (now - (c.time or 0)) < CACHE_TTL then
+        return c.list
+    end
+    c.list = GetEnemyHeroesAround(hero, radius)
+    c.radius = radius
+    c.time = now
+    return c.list
+end
+
 local function IsHeroDisabled(hero)
     for i = 1, #BLOCKED_STATES do
         if SafeCall(NPC.HasState, hero, BLOCKED_STATES[i]) then
@@ -1735,11 +1711,7 @@ local function IsTargetAlreadyDisabled(target)
 end
 
 local function GetTargetUsageWindow()
-    local baseMs = GetTargetMemoryMs()
-    if IsRageMode() then
-        baseMs = math.max(baseMs, 2500)
-    end
-    return baseMs / 1000
+    return GetTargetMemoryMs() / 1000
 end
 
 local function CleanupTargetUsage(now)
@@ -1790,9 +1762,7 @@ local function GetEffectiveMaxControlsPerTarget(localHero)
     local maxControls = GetMaxControlsPerTarget()
     if maxControls < 1 then maxControls = 1 end
 
-    if IsRageMode() then
-        maxControls = math.max(maxControls, 3)
-    elseif IsReserveForNearbyEnabled() then
+    if IsReserveForNearbyEnabled() then
         local enemies = GetEnemyHeroesAround(localHero, GetSearchRadius())
         local nearbyAlive = 0
         for i = 1, #enemies do
@@ -2080,7 +2050,7 @@ local function IsControlUsefulOnTarget(control, target)
         return control.name == "faceless_void_chronosphere" or control.name == "beastmaster_primal_roar"
     end
 
-    if IsIgnoreDisabledTargetsEnabled() and (not IsRageMode()) and IsTargetAlreadyDisabled(target) then
+    if IsIgnoreDisabledTargetsEnabled() and IsTargetAlreadyDisabled(target) then
         return false
     end
 
@@ -2255,7 +2225,7 @@ local function TrySmartControlCast(hero, control, target, distance, castRange)
         end
 
         local targetDormant = SafeCall(Entity.IsDormant, target) and true or false
-        if not targetDormant and IsRageMode() and distance > 520 then
+        if not targetDormant and distance > 520 then
             return TryCastTarget(control.handle, target), true
         end
         return TryCastTarget(control.handle, hero), true
@@ -2702,7 +2672,7 @@ local function IsEnemyValidTarget(localHero, enemy, allowDormant, allowDisabledI
         if SafeCall(NPC.HasState, enemy, ms.MODIFIER_STATE_OUT_OF_GAME or ms.OUT_OF_GAME) then return false end
     end
 
-    if not IsRageMode() and (not allowDisabledIgnore) and IsIgnoreDisabledTargetsEnabled() and IsTargetAlreadyDisabled(enemy) then
+    if (not allowDisabledIgnore) and IsIgnoreDisabledTargetsEnabled() and IsTargetAlreadyDisabled(enemy) then
         return false
     end
 
@@ -2855,6 +2825,33 @@ local function CleanupLinkensFollowupTargets(now)
     end
 end
 
+local ENEMY_INTERRUPTED_DURATION = 1.6
+
+local function RegisterEnemyInterrupted(enemy, now)
+    local idx = SafeCall(Entity.GetIndex, enemy)
+    if not idx then return end
+    STATE.enemyInterruptedUntil[idx] = { untilTime = now + ENEMY_INTERRUPTED_DURATION }
+end
+
+local function GetEnemyInterruptedUntil(enemy, now)
+    local idx = SafeCall(Entity.GetIndex, enemy)
+    if not idx then return nil end
+    local data = STATE.enemyInterruptedUntil[idx]
+    if not data or now > (data.untilTime or 0) then
+        STATE.enemyInterruptedUntil[idx] = nil
+        return nil
+    end
+    return true
+end
+
+local function CleanupEnemyInterrupted(now)
+    for idx, data in pairs(STATE.enemyInterruptedUntil or {}) do
+        if not data or now > (data.untilTime or 0) then
+            STATE.enemyInterruptedUntil[idx] = nil
+        end
+    end
+end
+
 local function GetLinkensFollowupTarget(enemy, now)
     local idx = SafeCall(Entity.GetIndex, enemy)
     if not idx then
@@ -2974,9 +2971,27 @@ local function ScanEnemyTrigger(enemy)
     return bestSeverity, bestName
 end
 
-local function FindTriggeredEnemy(localHero, now)
+local function HasAnyControlPiercingMagicImmune(controls)
+    if not controls then return false end
+    for i = 1, #controls do
+        local c = controls[i]
+        if c and c.name and (c.name == "faceless_void_chronosphere" or c.name == "beastmaster_primal_roar") then
+            return true
+        end
+    end
+    return false
+end
+
+local function IsEnemyMagicImmune(enemy)
+    if SafeCall(NPC.HasModifier, enemy, "modifier_black_king_bar_immune") then
+        return true
+    end
+    return HasTargetState(enemy, "MODIFIER_STATE_MAGIC_IMMUNE", "MAGIC_IMMUNE")
+end
+
+local function FindTriggeredEnemy(localHero, now, controls)
     local radius = GetSearchRadius()
-    local enemies = GetEnemyHeroesAround(localHero, radius)
+    local enemies = GetCachedEnemies(localHero, radius)
 
     local bestTarget = nil
     local bestScore = -100000
@@ -2985,6 +3000,11 @@ local function FindTriggeredEnemy(localHero, now)
 
     for i = 1, #enemies do
         local enemy = enemies[i]
+        if IsEnemyMagicImmune(enemy) and not HasAnyControlPiercingMagicImmune(controls) then
+            -- skip: no control pierces BKB
+        elseif GetEnemyInterruptedUntil(enemy, now) then
+            -- skip: recently interrupted, don't waste control
+        else
         local instantSeverity, instantTrigger = GetInstantEnemyCast(enemy, now)
         local followupSeverity, followupTrigger = GetLinkensFollowupTarget(enemy, now)
         local allowDormant = instantSeverity > 0
@@ -3015,6 +3035,7 @@ local function FindTriggeredEnemy(localHero, now)
                     end
                 end
             end
+        end
         end
     end
 
@@ -3078,40 +3099,42 @@ local function SyncPanelThemeColors()
         end
     end
 
-    local bgBase = GetStyleColor(style, "additional_background", Color(19, 20, 27, 230))
-    local outlineBase = GetStyleColor(style, "outline", Color(88, 98, 122, 180))
-    local textBase = GetStyleColor(style, "primary_first_tab_text", Color(236, 238, 244, 245))
-    local accentBase = GetStyleColor(style, "primary", Color(132, 149, 201, 230))
-    local mutedBase = GetStyleColor(style, "slider_background", Color(176, 183, 203, 215))
+    local bgBase = GetStyleColor(style, "additional_background", Color(22, 24, 32, 230))
+    local outlineBase = GetStyleColor(style, "outline", Color(70, 78, 100, 180))
+    local textBase = GetStyleColor(style, "primary_first_tab_text", Color(238, 240, 248, 250))
+    local accentBase = GetStyleColor(style, "primary", Color(129, 161, 193, 230))
+    local mutedBase = GetStyleColor(style, "slider_background", Color(140, 152, 180, 215))
 
-    local bg = WithAlpha(bgBase, 232)
-    local header = LerpColor(bgBase, Color(0, 0, 0, 255), 0.12, 238)
-    local section = LerpColor(bgBase, accentBase, 0.07, 214)
-    local accentSoft = LerpColor(accentBase, Color(255, 255, 255, 255), 0.18, 220)
-    local danger = LerpColor(Color(220, 90, 90, 255), accentBase, 0.10, 195)
+    local bg = WithAlpha(bgBase, 242)
+    local header = LerpColor(bgBase, Color(0, 0, 0, 255), 0.08, 248)
+    local section = LerpColor(bgBase, accentBase, 0.06, 220)
+    local accentSoft = LerpColor(accentBase, Color(255, 255, 255, 255), 0.22, 228)
+    local danger = LerpColor(Color(230, 100, 100, 255), accentBase, 0.08, 200)
+    local selectedGlow = WithAlpha(LerpColor(accentBase, Color(255, 255, 255, 255), 0.35, 255), 165)
 
     local colors = {
         bg = bg,
         header = header,
-        outline = WithAlpha(outlineBase, 190),
-        text = WithAlpha(textBase, 252),
+        outline = WithAlpha(outlineBase, 200),
+        text = WithAlpha(textBase, 255),
         accent = accentSoft,
-        muted = WithAlpha(LerpColor(textBase, mutedBase, 0.40, 255), 234),
+        muted = WithAlpha(LerpColor(textBase, mutedBase, 0.45, 255), 240),
         sectionBg = section,
-        divider = WithAlpha(outlineBase, 170),
-        buttonBg = LerpColor(bgBase, accentBase, 0.14, 222),
-        buttonBorder = WithAlpha(accentBase, 230),
-        panelShadow = Color(0, 0, 0, 126),
-        offText = WithAlpha(danger, 230),
-        corner = WithAlpha(accentBase, 120),
-        okBorder = WithAlpha(accentBase, 205),
-        coolBorder = WithAlpha(LerpColor(accentBase, mutedBase, 0.35, 255), 180),
-        offBorder = WithAlpha(danger, 182),
-        heroOffBorder = WithAlpha(danger, 195),
-        heroOnBorder = WithAlpha(accentBase, 208),
-        sectionBorder = WithAlpha(outlineBase, 150),
-        dangerousBorder = WithAlpha(LerpColor(Color(168, 110, 210, 255), accentBase, 0.20, 255), 215),
-        secondaryBorder = WithAlpha(accentBase, 195),
+        divider = WithAlpha(outlineBase, 140),
+        buttonBg = LerpColor(bgBase, accentBase, 0.12, 228),
+        buttonBorder = WithAlpha(accentBase, 240),
+        panelShadow = Color(0, 0, 0, 92),
+        offText = WithAlpha(danger, 235),
+        corner = WithAlpha(accentBase, 100),
+        okBorder = WithAlpha(accentBase, 218),
+        coolBorder = WithAlpha(LerpColor(accentBase, mutedBase, 0.40, 255), 188),
+        offBorder = WithAlpha(danger, 190),
+        heroOffBorder = WithAlpha(danger, 200),
+        heroOnBorder = WithAlpha(accentBase, 220),
+        sectionBorder = WithAlpha(outlineBase, 130),
+        dangerousBorder = WithAlpha(LerpColor(Color(180, 130, 220, 255), accentBase, 0.18, 255), 220),
+        secondaryBorder = WithAlpha(accentBase, 200),
+        selectedHighlight = selectedGlow,
     }
 
     STATE.panelTheme.colors = colors
@@ -3269,6 +3292,42 @@ local function RoundInt(v)
     return math.floor((tonumber(v) or 0) + 0.5)
 end
 
+local function DrawCooldownArc(cx, cy, radius, ratio, color)
+    if not Render or not Render.FilledRect or ratio <= 0 then return end
+    ratio = math.min(1, math.max(0, ratio))
+    local segCount = 12
+    local rad = math.pi / 180
+    for i = 0, segCount - 1 do
+        local segEnd = (i + 1) / segCount
+        if segEnd <= ratio then
+            local a1 = (-90 + i * 30) * rad
+            local a2 = (-90 + (i + 1) * 30) * rad
+            local x1 = cx + radius * math.cos(a1)
+            local y1 = cy + radius * math.sin(a1)
+            local x2 = cx + radius * math.cos(a2)
+            local y2 = cy + radius * math.sin(a2)
+            local xmin = math.floor(math.min(cx, x1, x2) + 0.5)
+            local xmax = math.floor(math.max(cx, x1, x2) + 0.5)
+            local ymin = math.floor(math.min(cy, y1, y2) + 0.5)
+            local ymax = math.floor(math.max(cy, y1, y2) + 0.5)
+            SafeCall(Render.FilledRect, V2(xmin, ymin), V2(xmax, ymax), color, 0, GetDrawFlagsRoundAll())
+        elseif i / segCount < ratio then
+            local frac = (ratio - i / segCount) * segCount
+            local a1 = (-90 + i * 30) * rad
+            local a2 = (-90 + (i + frac) * 30) * rad
+            local x1 = cx + radius * math.cos(a1)
+            local y1 = cy + radius * math.sin(a1)
+            local x2 = cx + radius * math.cos(a2)
+            local y2 = cy + radius * math.sin(a2)
+            local xmin = math.floor(math.min(cx, x1, x2) + 0.5)
+            local xmax = math.floor(math.max(cx, x1, x2) + 0.5)
+            local ymin = math.floor(math.min(cy, y1, y2) + 0.5)
+            local ymax = math.floor(math.max(cy, y1, y2) + 0.5)
+            SafeCall(Render.FilledRect, V2(xmin, ymin), V2(xmax, ymax), color, 0, GetDrawFlagsRoundAll())
+        end
+    end
+end
+
 local function ComputePanelGeometry(controls, enemyGroups)
     local cols = GetPanelColumns()
     cols = Clamp(cols, 3, 8)
@@ -3393,8 +3452,6 @@ local function BuildPanelRects(controls, enemyGroups)
         enemyTitle = nil,
         toggleBtn = nil,
         collapsed = geom.collapsed,
-        leftBtn = nil,
-        rightBtn = nil,
         ownIcons = {},
         enemyRows = {},
         resize = {
@@ -3478,13 +3535,6 @@ local function BuildPanelRects(controls, enemyGroups)
         rects.enemyRows[i] = rowRect
     end
 
-    local btnY = panel.y + geom.h - geom.footer + 4
-    local btnW = 34
-    local btnH = 20
-    local midX = panel.x + math.floor(geom.w * 0.5)
-    rects.leftBtn = { x = midX - btnW - 6, y = btnY, w = btnW, h = btnH }
-    rects.rightBtn = { x = midX + 6, y = btnY, w = btnW, h = btnH }
-
     return rects
 end
 
@@ -3493,26 +3543,11 @@ local function IsPointInRect(x, y, rect)
     return x >= rect.x and x <= rect.x + rect.w and y >= rect.y and y <= rect.y + rect.h
 end
 
-local function MoveSelectedPriority(delta)
-    local selected = STATE.selectedPriorityId
-    if not selected then return end
-
-    local idx = nil
-    for i = 1, #STATE.priorityOrder do
-        if STATE.priorityOrder[i] == selected then
-            idx = i
-            break
-        end
-    end
-
-    if not idx then return end
-
-    local nextIdx = idx + delta
-    if nextIdx < 1 or nextIdx > #STATE.priorityOrder then
-        return
-    end
-
-    STATE.priorityOrder[idx], STATE.priorityOrder[nextIdx] = STATE.priorityOrder[nextIdx], STATE.priorityOrder[idx]
+local function SwapPriorityOrderByIndex(fromIdx, toIdx)
+    if not fromIdx or not toIdx or fromIdx == toIdx then return end
+    local order = STATE.priorityOrder
+    if fromIdx < 1 or fromIdx > #order or toIdx < 1 or toIdx > #order then return end
+    order[fromIdx], order[toIdx] = order[toIdx], order[fromIdx]
 end
 
 local function ToggleOwnControlState(control)
@@ -3620,6 +3655,25 @@ local function HandlePriorityPanelInput(controls, enemyGroups)
     local leftOnce = leftKey and SafeCall(Input.IsKeyDownOnce, leftKey)
     local leftHold = leftKey and SafeCall(Input.IsKeyDown, leftKey)
     local rightOnce = rightKey and SafeCall(Input.IsKeyDownOnce, rightKey)
+
+    -- Drag-drop release: was dragging priority icon, now left button up
+    if panel.dragPriorityIndex and not leftHold then
+        local fromIdx = panel.dragPriorityIndex
+        local toIdx = nil
+        for i = 1, #rects.ownIcons do
+            if IsPointInRect(cx, cy, rects.ownIcons[i]) then
+                toIdx = i
+                break
+            end
+        end
+        if toIdx and toIdx ~= fromIdx then
+            SwapPriorityOrderByIndex(fromIdx, toIdx)
+            STATE.controlsCache.list = nil
+        end
+        panel.dragPriorityIndex = nil
+        panel.clickEaten = true
+        return
+    end
     local screen = (Render and (SafeCall(Render.ScreenSize) or SafeCall(Render.GetScreenSize))) or Vec2(1920, 1080)
     local screenW = screen.x or 1920
     local edgeSnap = 26
@@ -3735,6 +3789,9 @@ local function HandlePriorityPanelInput(controls, enemyGroups)
                 local control = controls[i]
                 if control then
                     STATE.selectedPriorityId = control.id
+                    panel.dragPriorityIndex = i
+                    panel.dragStartX = cx
+                    panel.dragStartY = cy
                 end
                 panel.clickEaten = true
                 return
@@ -3762,18 +3819,6 @@ local function HandlePriorityPanelInput(controls, enemyGroups)
                     end
                 end
             end
-        end
-
-        if IsPointInRect(cx, cy, rects.leftBtn) then
-            MoveSelectedPriority(-1)
-            panel.clickEaten = true
-            return
-        end
-
-        if IsPointInRect(cx, cy, rects.rightBtn) then
-            MoveSelectedPriority(1)
-            panel.clickEaten = true
-            return
         end
     end
 
@@ -3844,12 +3889,13 @@ local function DrawPriorityPanel(hero, controls, enemyGroups)
         )
     end
 
+    local shadowOff = 4
     SafeCall(
         Render.FilledRect,
-        V2(rects.panel.x + 2, rects.panel.y + 3),
-        V2(rects.panel.x + rects.panel.w + 2, rects.panel.y + rects.panel.h + 3),
+        V2(rects.panel.x + shadowOff, rects.panel.y + shadowOff),
+        V2(rects.panel.x + rects.panel.w + shadowOff, rects.panel.y + rects.panel.h + shadowOff),
         tc.panelShadow,
-        geom.corner + 1,
+        geom.corner + 2,
         GetDrawFlagsRoundAll()
     )
 
@@ -3867,7 +3913,7 @@ local function DrawPriorityPanel(hero, controls, enemyGroups)
         V2(rects.panel.x + 1, rects.panel.y + 1),
         V2(rects.panel.x + rects.panel.w - 1, rects.panel.y + rects.panel.h - 1),
         colBg,
-        geom.corner,
+        math.max(1, geom.corner - 1),
         GetDrawFlagsRoundAll()
     )
 
@@ -3876,7 +3922,16 @@ local function DrawPriorityPanel(hero, controls, enemyGroups)
         V2(rects.header.x + 1, rects.header.y + 1),
         V2(rects.header.x + rects.header.w - 1, rects.header.y + rects.header.h - 1),
         colHeader,
-        geom.corner,
+        math.max(1, geom.corner - 1),
+        GetDrawFlagsRoundAll()
+    )
+    local headerTopLine = tc.selectedHighlight or colAccent
+    SafeCall(
+        Render.FilledRect,
+        V2(rects.panel.x + 1, rects.panel.y + 1),
+        V2(rects.panel.x + rects.panel.w - 1, rects.panel.y + 2),
+        WithAlpha(headerTopLine, 140),
+        math.max(1, geom.corner - 1),
         GetDrawFlagsRoundAll()
     )
 
@@ -3917,22 +3972,22 @@ local function DrawPriorityPanel(hero, controls, enemyGroups)
             V2(rect.x, rect.y),
             V2(rect.x + rect.w, rect.y + rect.h),
             tc.buttonBg,
-            4,
+            5,
             GetDrawFlagsRoundAll()
         )
-        DrawRect(rect.x, rect.y, rect.x + rect.w, rect.y + rect.h, tc.buttonBorder, 4, 1)
+        DrawRect(rect.x, rect.y, rect.x + rect.w, rect.y + rect.h, tc.buttonBorder, 5, 1)
         SafeCall(
             Render.FilledRect,
             V2(rect.x + 1, rect.y + 1),
             V2(rect.x + rect.w - 1, rect.y + 2),
-            WithAlpha(colAccent, 180),
+            WithAlpha(colAccent, 160),
             2,
             GetDrawFlagsRoundAll()
         )
         local sz = GetTextSize(STATE.fontMain, 12, text)
         local tx = rect.x + math.floor((rect.w - (sz.x or 0)) * 0.5)
         local ty = rect.y + math.floor((rect.h - (sz.y or 0)) * 0.5) - 1
-        DrawTextSoft(STATE.fontMain, 12, text, tx, ty, colText, 120)
+        DrawTextSoft(STATE.fontMain, 12, text, tx, ty, colText, 110)
     end
 
     local toggleText
@@ -3976,16 +4031,17 @@ local function DrawPriorityPanel(hero, controls, enemyGroups)
         end
     end
 
+    local sectionRound = math.max(4, geom.corner - 4)
     local function drawSectionBox(x0, y0, x1, y1, alphaMul)
         SafeCall(
             Render.FilledRect,
             V2(x0, y0),
             V2(x1, y1),
-            WithAlpha(colSectionBg, alphaMul or 212),
-            math.max(2, geom.corner - 3),
+            WithAlpha(colSectionBg, alphaMul or 218),
+            sectionRound,
             GetDrawFlagsRoundAll()
         )
-        DrawRect(x0, y0, x1, y1, tc.sectionBorder, math.max(2, geom.corner - 3), 1)
+        DrawRect(x0, y0, x1, y1, tc.sectionBorder, sectionRound, 1)
     end
 
     local function drawOffBadge(x, y, w, h, small)
@@ -3997,12 +4053,12 @@ local function DrawPriorityPanel(hero, controls, enemyGroups)
             Render.FilledRect,
             V2(bx, by),
             V2(bx + bw, by + bh),
-            WithAlpha(LerpColor(colBg, Color(90, 26, 26, 255), 0.45, 255), 212),
-            3,
+            WithAlpha(LerpColor(colBg, Color(90, 26, 26, 255), 0.40, 255), 220),
+            4,
             GetDrawFlagsRoundAll()
         )
-        DrawRect(bx, by, bx + bw, by + bh, tc.offBorder, 3, 1)
-        DrawTextSoft(STATE.fontSmall, small and 7 or 8, "OFF", bx + 2, by + 1, tc.offText, 125)
+        DrawRect(bx, by, bx + bw, by + bh, tc.offBorder, 4, 1)
+        DrawTextSoft(STATE.fontSmall, small and 7 or 8, "OFF", bx + 2, by + 1, tc.offText, 120)
     end
 
     local boxX0 = rects.panel.x + geom.padding - 4
@@ -4045,6 +4101,7 @@ local function DrawPriorityPanel(hero, controls, enemyGroups)
         )
     end
 
+    local iconRound = 6
     for i = 1, #controls do
         local control = controls[i]
         local r = rects.ownIcons[i]
@@ -4052,6 +4109,7 @@ local function DrawPriorityPanel(hero, controls, enemyGroups)
         local ready = CanUseControl(hero, control.handle)
         local enabled = control.panelEnabled ~= false
         local alpha = (ready and enabled) and 255 or 88
+        local isSelected = STATE.selectedPriorityId == control.id
 
         local bg = (ready and enabled)
             and LerpColor(colSectionBg, colAccent, 0.11, 236)
@@ -4061,17 +4119,51 @@ local function DrawPriorityPanel(hero, controls, enemyGroups)
             V2(r.x, r.y),
             V2(r.x + r.w, r.y + r.h),
             bg,
-            5,
+            iconRound,
             GetDrawFlagsRoundAll()
         )
+        if isSelected and tc.selectedHighlight then
+            SafeCall(
+                Render.FilledRect,
+                V2(r.x + 1, r.y + 1),
+                V2(r.x + r.w - 1, r.y + r.h - 1),
+                WithAlpha(tc.selectedHighlight, 72),
+                iconRound - 1,
+                GetDrawFlagsRoundAll()
+            )
+        end
 
         local hasIcon = DrawImage(control.iconPath, r.x + 1, r.y + 1, r.w - 2, alpha)
         if not hasIcon then
             DrawTextSoft(STATE.fontSmall, 10, control.kind == "ability" and "A" or "I", r.x + 13, r.y + 10, colText, 100)
         end
 
+        local cdRemain = SafeCall(Ability.GetCooldown, control.handle) or 0
+        if cdRemain > 0 then
+            local cdSec = math.ceil(cdRemain)
+            local cdStr = tostring(cdSec)
+            local cdFont = STATE.fontMain or STATE.fontSmall
+            local cdSize = 13
+            if cdFont then
+                local sz = GetTextSize(cdFont, cdSize, cdStr)
+                local tw = (sz.x or 0) + 6
+                local th = (sz.y or 0) + 4
+                local tx = r.x + (r.w - tw) * 0.5
+                local ty = r.y + (r.h - th) * 0.5
+                SafeCall(
+                    Render.FilledRect,
+                    V2(tx, ty),
+                    V2(tx + tw, ty + th),
+                    Color(0, 0, 0, 200),
+                    4,
+                    GetDrawFlagsRoundAll()
+                )
+                DrawTextSoft(cdFont, cdSize, cdStr, tx + 3, ty + 2, Color(255, 255, 255, 250), 140)
+            end
+        end
+
         local border = tc.coolBorder
-        if STATE.selectedPriorityId == control.id then
+        if isSelected then
             border = colAccent
         elseif enabled then
             border = ready and tc.okBorder or tc.coolBorder
@@ -4079,7 +4171,7 @@ local function DrawPriorityPanel(hero, controls, enemyGroups)
             border = tc.offBorder
         end
 
-        DrawRect(r.x, r.y, r.x + r.w, r.y + r.h, border, 5, 1)
+        DrawRect(r.x, r.y, r.x + r.w, r.y + r.h, border, iconRound, 1.5)
         local idxTxt = tostring(i)
         local idxSz = GetTextSize(STATE.fontSmall, 9, idxTxt)
         local idxW = (idxSz.x or 0) + 6
@@ -4087,11 +4179,11 @@ local function DrawPriorityPanel(hero, controls, enemyGroups)
             Render.FilledRect,
             V2(r.x + 2, r.y + 2),
             V2(r.x + 2 + idxW, r.y + 12),
-            WithAlpha(colBg, 190),
-            3,
+            WithAlpha(colBg, 200),
+            4,
             GetDrawFlagsRoundAll()
         )
-        DrawTextSoft(STATE.fontSmall, 9, idxTxt, r.x + 4, r.y + 2, Color(255, 255, 255, 232), 120)
+        DrawTextSoft(STATE.fontSmall, 9, idxTxt, r.x + 4, r.y + 2, Color(255, 255, 255, 240), 120)
         if not enabled then
             drawOffBadge(r.x, r.y, r.w, r.h, false)
         end
@@ -4132,7 +4224,7 @@ local function DrawPriorityPanel(hero, controls, enemyGroups)
                 V2(rowRect.hero.x, rowRect.hero.y),
                 V2(rowRect.hero.x + rowRect.hero.w, rowRect.hero.y + rowRect.hero.h),
                 heroBg,
-                5,
+                iconRound,
                 GetDrawFlagsRoundAll()
             )
             DrawImage(group.heroIconPath, rowRect.hero.x + 1, rowRect.hero.y + 1, rowRect.hero.w - 2, heroEnabled and 255 or 95)
@@ -4142,7 +4234,7 @@ local function DrawPriorityPanel(hero, controls, enemyGroups)
                 rowRect.hero.x + rowRect.hero.w,
                 rowRect.hero.y + rowRect.hero.h,
                 heroEnabled and tc.heroOnBorder or tc.heroOffBorder,
-                5,
+                iconRound,
                 1
             )
             if not heroEnabled then
@@ -4163,7 +4255,7 @@ local function DrawPriorityPanel(hero, controls, enemyGroups)
                         V2(r.x, r.y),
                         V2(r.x + r.w, r.y + r.h),
                         bg,
-                        5,
+                        iconRound,
                         GetDrawFlagsRoundAll()
                     )
 
@@ -4172,7 +4264,7 @@ local function DrawPriorityPanel(hero, controls, enemyGroups)
 
                     local border = abilityEnabled and ((ability.severity or 0) >= 3 and tc.dangerousBorder or tc.secondaryBorder)
                         or tc.offBorder
-                    DrawRect(r.x, r.y, r.x + r.w, r.y + r.h, border, 5, 1)
+                    DrawRect(r.x, r.y, r.x + r.w, r.y + r.h, border, iconRound, 1)
 
                     if not abilityEnabled then
                         drawOffBadge(r.x, r.y, r.w, r.h, true)
@@ -4181,9 +4273,6 @@ local function DrawPriorityPanel(hero, controls, enemyGroups)
             end
         end
     end
-
-    drawBtn(rects.leftBtn, "<")
-    drawBtn(rects.rightBtn, ">")
 
     local showHandles = true
     if MENU.ResizeHandlesNear and MENU.ResizeHandlesNear.Get and MENU.ResizeHandlesNear:Get() then
@@ -4306,6 +4395,10 @@ script.OnUpdate = function()
         STATE.enemyRevealThreatCache = {}
         STATE.ownControlPanelDisabled = {}
         STATE.ownControlStateLoaded = {}
+        STATE.controlsCache.list = nil
+        STATE.enemiesCache.list = nil
+        STATE.enemyInterruptedUntil = {}
+        STATE.panel.dragPriorityIndex = nil
     end
 
     local now = GetTime()
@@ -4322,9 +4415,10 @@ script.OnUpdate = function()
     CleanupTargetUsage(now)
     CleanupInstantEnemyCasts(now)
     CleanupLinkensFollowupTargets(now)
+    CleanupEnemyInterrupted(now)
     UpdateEnemyRevealThreats(hero, now)
 
-    local controls = BuildSelectedOwnControls(hero)
+    local controls = GetCachedControls(hero)
     local panelEnemies = BuildEnemyPanelEntries(hero)
 
     HandlePriorityPanelInput(controls, panelEnemies)
@@ -4336,7 +4430,7 @@ script.OnUpdate = function()
 
     if #controls == 0 then return end
 
-    local target, triggerName, isInstant = FindTriggeredEnemy(hero, now)
+    local target, triggerName, isInstant = FindTriggeredEnemy(hero, now, controls)
     if not target then
         return
     end
@@ -4364,12 +4458,13 @@ script.OnUpdate = function()
             if attempted then
                 STATE.lastOrderAttemptTime = now
             end
-            if casted then
-                STATE.lastCastTime = now
-                RegisterTargetUsage(target, now)
-                RegisterLinkensFollowupTarget(target, now, "linkens_followup")
-                return
-            end
+        if casted then
+            STATE.lastCastTime = now
+            RegisterTargetUsage(target, now)
+            RegisterEnemyInterrupted(target, now)
+            RegisterLinkensFollowupTarget(target, now, "linkens_followup")
+            return
+        end
             if attempted then
                 return
             end
@@ -4387,6 +4482,7 @@ script.OnUpdate = function()
         if casted then
             STATE.lastCastTime = now
             RegisterTargetUsage(target, now)
+            RegisterEnemyInterrupted(target, now)
             ConsumeLinkensFollowupTarget(target)
             return
         end
@@ -4407,7 +4503,7 @@ script.OnDraw = function()
     local hero = Heroes.GetLocal()
     if not hero then return end
 
-    local controls = BuildSelectedOwnControls(hero)
+    local controls = GetCachedControls(hero)
     local panelEnemies = BuildEnemyPanelEntries(hero)
     DrawPriorityPanel(hero, controls, panelEnemies)
 end
@@ -4422,6 +4518,9 @@ end
 script.OnGameEnd = function()
     SavePanelPosition()
     STATE.lastHeroName = ""
+    STATE.controlsCache = { list = nil, heroName = "", time = 0 }
+    STATE.enemiesCache = { list = nil, radius = nil, time = 0 }
+    STATE.enemyInterruptedUntil = {}
     STATE.ownAbilitySnapshot = {}
     STATE.ownItemSnapshot = {}
     STATE.enemyDangerSnapshot = {}
@@ -4461,6 +4560,7 @@ script.OnGameEnd = function()
     STATE.panel.resizeStartY = 0
     STATE.panel.hovered = false
     STATE.panel.clickEaten = false
+    STATE.panel.dragPriorityIndex = nil
     STATE.iconCache = {}
 end
 
