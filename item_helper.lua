@@ -75,6 +75,62 @@ local L_STRINGS = {
         cat_must_have   = "MUST",
         cat_situational = "SIT",
         cat_luxury      = "LUX",
+        no_data         = "No recommendations yet",
+        -- Menu sections & options (for settings panel)
+        m_menu_settings = "Settings",
+        m_section_general = "General",
+        m_section_analysis = "Analysis",
+        m_section_panel = "Panel Settings",
+        m_section_filter = "Enemy Filter",
+        m_section_debug = "Debug",
+        m_panel_key = "Panel Key",
+        m_panel_mode = "Panel Mode",
+        m_mode_extended = "Extended",
+        m_mode_minimal = "Minimal",
+        m_scale_panel = "Panel Scale %",
+        m_track_enemy_items = "Enemy Item Tracking",
+        m_counter_pick = "Counter-pick Items",
+        m_networth_analysis = "Networth Analysis",
+        m_focus_lines = "Focus Lines",
+        m_focus_rows = "Focus Rows",
+        m_focus_settings = "Focus Settings",
+        m_neutrals = "Neutral Items",
+        m_highlight_owned = "Highlight Purchased",
+        m_gold_header = "Gold in Header",
+        m_show_panel_vis = "Show Panel",
+        m_filter_mode = "Filter Mode",
+        m_filter_all = "All Enemies",
+        m_filter_selected = "Selected Only",
+        m_filter_exclude = "Exclude Selected",
+        m_filter_heroes = "Hero Filter",
+        m_score_breakdown = "Score Breakdown",
+        m_breakdown_settings = "Breakdown Settings",
+        m_breakdown_chip_count = "Chip Count",
+        -- Tooltips
+        m_tt_enable = "Enable or disable the entire script",
+        m_tt_panel = "Show/hide the item recommendations panel",
+        m_tt_panel_key = "Key to toggle the panel (Alt / Ctrl / any key)",
+        m_tt_panel_mode = "Extended: full info. Minimal: items and targets only",
+        m_tt_auto = "Analyze enemy draft every 2 seconds",
+        m_tt_max = "Maximum number of items in the suggestions list",
+        m_tt_reasons = "Show the reason for each item recommendation",
+        m_tt_threats = "Show threat tags of the enemy draft (silence, stun, burst...)",
+        m_tt_track_enemy = "Track enemy heroes' items for better analysis",
+        m_tt_counter_pick = "Item recommendations based on hero counters",
+        m_tt_networth = "Team networth comparison bar",
+        m_tt_focus_lines = "Detailed focus lines per enemy hero",
+        m_tt_focus_rows = "Number of enemy hero rows to show",
+        m_tt_neutrals = "Recommend neutral items for current tier",
+        m_tt_scale = "Panel scale: font, padding, size. Increase for 2K/4K",
+        m_tt_opacity = "Panel opacity. 100% = fully opaque",
+        m_tt_owned = "Highlight items you already own",
+        m_tt_gold_header = "Turn off if gold value displays incorrectly",
+        m_tt_vis_mode = "When to show the panel on screen",
+        m_tt_filter_mode = "Analyze all enemies, selected only, or exclude selected",
+        m_tt_filter_list = "Icons appear after enemy heroes are detected",
+        m_tt_category_badges = "Show MUST / SITUATIONAL / LUXURY on item cards",
+        m_tt_score_breakdown = "Compact chips with score contribution",
+        m_tt_breakdown_chips = "How many score chips to show per item",
     },
     ru = {
         title           = "ITEM HELPER",
@@ -120,6 +176,76 @@ local L_STRINGS = {
         m_vis_menu      = "Только меню чита",
         m_vis_shop      = "Только магазин",
         m_vis_both      = "Меню или магазин",
+        m_show_gold     = "Показывать золото в шапке",
+        m_show_score_breakdown = "Показать разбор очков",
+        m_show_category_badges = "Показать бейджи категорий",
+        m_breakdown_chips = "Чипы разбора",
+        net_worth       = "СЕТ. СТОИМОСТЬ",
+        hero_counters   = "КОНТРЫ ГЕРОЯМ",
+        enemy_focus     = "ФОКУС ВРАГА",
+        waiting_data    = "Ожидание данных...",
+        alive           = "ЖИВ",
+        dead            = "МЕРТВ",
+        gold_unknown    = "--",
+        cat_must_have   = "НУЖЕН",
+        cat_situational = "СИТ",
+        cat_luxury      = "ЛЮКС",
+        no_data         = "Пока нет рекомендаций",
+        -- Menu sections & options
+        m_menu_settings = "Настройки",
+        m_section_general = "Общее",
+        m_section_analysis = "Анализ",
+        m_section_panel = "Настройки панели",
+        m_section_filter = "Фильтр врагов",
+        m_section_debug = "Отладка",
+        m_panel_key = "Клавиша панели",
+        m_panel_mode = "Режим панели",
+        m_mode_extended = "Расширенный",
+        m_mode_minimal = "Минимальный",
+        m_scale_panel = "Масштаб панели %",
+        m_track_enemy_items = "Трекинг предметов врагов",
+        m_counter_pick = "Контр-пик предметы",
+        m_networth_analysis = "Анализ нетворса",
+        m_focus_lines = "Строки фокуса",
+        m_focus_rows = "Строк фокуса",
+        m_focus_settings = "Настройки фокуса",
+        m_neutrals = "Нейтральные предметы",
+        m_highlight_owned = "Подсветка купленных",
+        m_gold_header = "Золото в заголовке",
+        m_show_panel_vis = "Показывать панель",
+        m_filter_mode = "Режим фильтра",
+        m_filter_all = "Все враги",
+        m_filter_selected = "Только выбранные",
+        m_filter_exclude = "Исключить выбранных",
+        m_filter_heroes = "Фильтр героев",
+        m_score_breakdown = "Разбор оценки",
+        m_breakdown_settings = "Настройки разбора",
+        m_breakdown_chip_count = "Количество чипов",
+        -- Tooltips
+        m_tt_enable = "Включить/выключить весь функционал скрипта",
+        m_tt_panel = "Отображение информационной панели с рекомендациями предметов",
+        m_tt_panel_key = "Открыть/закрыть панель по нажатию (Alt / Ctrl / любая клавиша)",
+        m_tt_panel_mode = "Расширенный — полная информация. Минимальный — только предметы и против кого",
+        m_tt_auto = "Автоматический анализ вражеского пика каждые 2 секунды",
+        m_tt_max = "Максимальное количество предметов в списке предложений",
+        m_tt_reasons = "Показывать причину рекомендации каждого предмета",
+        m_tt_threats = "Показать теги угроз вражеского пика (silence, stun, burst...)",
+        m_tt_track_enemy = "Отслеживать предметы вражеских героев для точности анализа",
+        m_tt_counter_pick = "Рекомендации предметов на основе контр-пика героев",
+        m_tt_networth = "Шкала сравнения нетворса команд",
+        m_tt_focus_lines = "Детализированные строки фокуса на вражеских героев",
+        m_tt_focus_rows = "Количество строк с вражескими героями для отображения",
+        m_tt_neutrals = "Рекомендации нейтральных предметов текущего тира",
+        m_tt_scale = "Масштаб всей панели: шрифт, отступы, размер. Увеличьте для 2K/4K мониторов",
+        m_tt_opacity = "Прозрачность панели. 100% = полностью непрозрачная",
+        m_tt_owned = "Подсвечивать предметы, которые уже куплены вами",
+        m_tt_gold_header = "Отключите если значение золота отображается некорректно",
+        m_tt_vis_mode = "Когда отображать панель на экране",
+        m_tt_filter_mode = "Управление: анализировать всех врагов, только выбранных или исключить выбранных",
+        m_tt_filter_list = "Иконки появятся после обнаружения вражеских героев",
+        m_tt_category_badges = "Показывать MUST / SITUATIONAL / LUXURY на карточках предметов",
+        m_tt_score_breakdown = "Компактные чипы с вкладом в общую оценку предмета",
+        m_tt_breakdown_chips = "Сколько чипов оценки показывать на каждом предмете",
     },
     cn = {
         title           = "物品助手",
@@ -165,6 +291,76 @@ local L_STRINGS = {
         m_vis_menu      = "仅作弊菜单",
         m_vis_shop      = "仅商店",
         m_vis_both      = "菜单或商店",
+        m_show_gold     = "标题显示金钱",
+        m_show_score_breakdown = "显示得分明细",
+        m_show_category_badges = "显示分类徽章",
+        m_breakdown_chips = "明细筹码",
+        net_worth       = "总资产",
+        hero_counters   = "英雄克制",
+        enemy_focus     = "敌方重点",
+        waiting_data    = "等待数据...",
+        alive           = "存活",
+        dead            = "死亡",
+        gold_unknown    = "--",
+        cat_must_have   = "必备",
+        cat_situational = "情境",
+        cat_luxury      = "奢侈",
+        no_data         = "暂无推荐",
+        -- Menu sections & options
+        m_menu_settings = "设置",
+        m_section_general = "常规",
+        m_section_analysis = "分析",
+        m_section_panel = "面板设置",
+        m_section_filter = "敌方筛选",
+        m_section_debug = "调试",
+        m_panel_key = "面板按键",
+        m_panel_mode = "面板模式",
+        m_mode_extended = "扩展",
+        m_mode_minimal = "最小",
+        m_scale_panel = "面板缩放 %",
+        m_track_enemy_items = "敌方物品追踪",
+        m_counter_pick = "反选物品",
+        m_networth_analysis = "净值分析",
+        m_focus_lines = "焦点行",
+        m_focus_rows = "焦点行数",
+        m_focus_settings = "焦点设置",
+        m_neutrals = "中立物品",
+        m_highlight_owned = "高亮已购",
+        m_gold_header = "标题显示金钱",
+        m_show_panel_vis = "显示面板",
+        m_filter_mode = "筛选模式",
+        m_filter_all = "全部敌人",
+        m_filter_selected = "仅已选",
+        m_filter_exclude = "排除已选",
+        m_filter_heroes = "英雄筛选",
+        m_score_breakdown = "得分明细",
+        m_breakdown_settings = "明细设置",
+        m_breakdown_chip_count = "筹码数量",
+        -- Tooltips (short)
+        m_tt_enable = "启用或关闭脚本",
+        m_tt_panel = "显示/隐藏推荐面板",
+        m_tt_panel_key = "切换面板的按键",
+        m_tt_panel_mode = "扩展：完整信息；最小：仅物品与目标",
+        m_tt_auto = "每2秒分析敌方阵容",
+        m_tt_max = "建议列表中最多显示物品数",
+        m_tt_reasons = "显示每个物品的推荐原因",
+        m_tt_threats = "显示敌方阵容威胁标签",
+        m_tt_track_enemy = "追踪敌方英雄物品以提高分析准确性",
+        m_tt_counter_pick = "基于英雄克制的物品推荐",
+        m_tt_networth = "队伍净值对比条",
+        m_tt_focus_lines = "每个敌方英雄的详细焦点行",
+        m_tt_focus_rows = "显示的敌方英雄行数",
+        m_tt_neutrals = "当前层级中立物品推荐",
+        m_tt_scale = "面板缩放，2K/4K可增大",
+        m_tt_opacity = "面板透明度",
+        m_tt_owned = "高亮已拥有的物品",
+        m_tt_gold_header = "金钱显示异常时可关闭",
+        m_tt_vis_mode = "何时在屏幕上显示面板",
+        m_tt_filter_mode = "分析全部/仅选中的/排除选中的敌人",
+        m_tt_filter_list = "检测到敌方英雄后显示图标",
+        m_tt_category_badges = "在物品卡上显示 MUST/SIT/LUX",
+        m_tt_score_breakdown = "得分贡献的紧凑筹码",
+        m_tt_breakdown_chips = "每物品显示的得分筹码数",
     },
 }
 
@@ -732,6 +928,58 @@ local L_UI_OVERRIDES = {
         test_tryhero = "试玩英雄",
         test_lobby = "房间",
         test_custom = "自定义",
+    },
+}
+
+-- Breakdown chip labels (used by breakdownKeyLabel) — EN / RU / CN
+local L_BREAKDOWN_LABELS = {
+    en = {
+        counter_rules   = "counter rules",
+        affordable      = "affordable",
+        role_penalty    = "role penalty",
+        style_bonus     = "hero style",
+        tempo           = "tempo",
+        mode_adjust     = "mode",
+        phase_mult      = "phase",
+        hero_specific   = "hero fit",
+        ["enemy_item:bkb"]       = "vs BKB",
+        ["enemy_item:linkens"]   = "vs Linken",
+        ["enemy_item:aeon"]      = "vs Aeon",
+        ["enemy_item:ghost"]     = "vs Ghost",
+        ["enemy_item:glimmer"]   = "vs Glimmer",
+        ["enemy_item:blademail"] = "vs BM",
+    },
+    ru = {
+        counter_rules   = "контр-правила",
+        affordable      = "по карману",
+        role_penalty    = "штраф роли",
+        style_bonus     = "стиль героя",
+        tempo           = "темп",
+        mode_adjust     = "режим",
+        phase_mult      = "фаза",
+        hero_specific   = "под героя",
+        ["enemy_item:bkb"]       = "vs BKB",
+        ["enemy_item:linkens"]   = "vs Линка",
+        ["enemy_item:aeon"]      = "vs Аеон",
+        ["enemy_item:ghost"]     = "vs Гост",
+        ["enemy_item:glimmer"]   = "vs Глиммер",
+        ["enemy_item:blademail"] = "vs БМ",
+    },
+    cn = {
+        counter_rules   = "克制规则",
+        affordable      = "买得起",
+        role_penalty    = "定位惩罚",
+        style_bonus     = "英雄风格",
+        tempo           = "节奏",
+        mode_adjust     = "模式",
+        phase_mult      = "阶段",
+        hero_specific   = "契合英雄",
+        ["enemy_item:bkb"]       = "vs BKB",
+        ["enemy_item:linkens"]   = "vs 林肯",
+        ["enemy_item:aeon"]      = "vs 永恒",
+        ["enemy_item:ghost"]     = "vs 绿杖",
+        ["enemy_item:glimmer"]   = "vs 微光",
+        ["enemy_item:blademail"] = "vs 刃甲",
     },
 }
 
@@ -2454,97 +2702,92 @@ local UI = {}
 function script.OnScriptsLoaded()
     local tab = Menu.Create("General", "Main", "Item Helper")
     tab:Icon("\u{f085}")
-    local main = tab:Create("Настройки")
+    local main = tab:Create(L("m_menu_settings"))
 
-    -- === ОБЩЕЕ ===
-    local g_main = main:Create("Общее")
+    local g_main = main:Create(L("m_section_general"))
 
-    UI.enabled = g_main:Switch("Включить помощник", true, "\u{f00c}")
-    UI.enabled:ToolTip("Включить/выключить весь функционал скрипта")
+    UI.enabled = g_main:Switch(L("m_enable"), true, "\u{f00c}")
+    UI.enabled:ToolTip(L("m_tt_enable"))
 
-    UI.showPanel = g_main:Switch("Показать панель", true, "\u{f06e}")
-    UI.showPanel:ToolTip("Отображение информационной панели с рекомендациями предметов")
+    UI.showPanel = g_main:Switch(L("m_panel"), true, "\u{f06e}")
+    UI.showPanel:ToolTip(L("m_tt_panel"))
 
-    UI.toggleKey = g_main:Bind("Клавиша панели", Enum.ButtonCode.KEY_NONE, "\u{f11c}")
-    UI.toggleKey:ToolTip("Открыть/закрыть панель по нажатию (Alt / Ctrl / любая клавиша)")
+    UI.toggleKey = g_main:Bind(L("m_panel_key"), Enum.ButtonCode.KEY_NONE, "\u{f11c}")
+    UI.toggleKey:ToolTip(L("m_tt_panel_key"))
 
-    UI.panelMode = g_main:Combo("Режим панели", {"Расширенный", "Минимальный"}, 0)
-    UI.panelMode:ToolTip("Расширенный — полная информация. Минимальный — только предметы и против кого")
+    UI.panelMode = g_main:Combo(L("m_panel_mode"), {L("m_mode_extended"), L("m_mode_minimal")}, 0)
+    UI.panelMode:ToolTip(L("m_tt_panel_mode"))
 
-    -- === АНАЛИЗ ===
-    local g_analysis = main:Create("Анализ")
+    local g_analysis = main:Create(L("m_section_analysis"))
 
-    UI.autoAnalyze = g_analysis:Switch("Авто-анализ", true, "\u{f021}")
-    UI.autoAnalyze:ToolTip("Автоматический анализ вражеского пика каждые 2 секунды")
+    UI.autoAnalyze = g_analysis:Switch(L("m_auto"), true, "\u{f021}")
+    UI.autoAnalyze:ToolTip(L("m_tt_auto"))
 
-    UI.maxItems = g_analysis:Slider("Макс. предложений", 3, 10, 6, "%d")
-    UI.maxItems:ToolTip("Максимальное количество предметов в списке предложений")
+    UI.maxItems = g_analysis:Slider(L("m_max"), 3, 10, 6, "%d")
+    UI.maxItems:ToolTip(L("m_tt_max"))
 
-    UI.showReasons = g_analysis:Switch("Показать причины", true, "\u{f05a}")
-    UI.showReasons:ToolTip("Показывать причину рекомендации каждого предмета")
+    UI.showReasons = g_analysis:Switch(L("m_reasons"), true, "\u{f05a}")
+    UI.showReasons:ToolTip(L("m_tt_reasons"))
 
-    UI.showThreats = g_analysis:Switch("Анализ угроз", true, "\u{f071}")
-    UI.showThreats:ToolTip("Показать теги угроз вражеского пика (silence, stun, burst...)")
+    UI.showThreats = g_analysis:Switch(L("m_threats"), true, "\u{f071}")
+    UI.showThreats:ToolTip(L("m_tt_threats"))
 
-    UI.trackEnemyItems = g_analysis:Switch("Трекинг предметов врагов", true, "\u{f06d}")
-    UI.trackEnemyItems:ToolTip("Отслеживать предметы вражеских героев для точности анализа")
+    UI.trackEnemyItems = g_analysis:Switch(L("m_track_enemy_items"), true, "\u{f06d}")
+    UI.trackEnemyItems:ToolTip(L("m_tt_track_enemy"))
 
-    UI.showHeroCounters = g_analysis:Switch("Контр-пик предметы", true, "\u{f0e7}")
-    UI.showHeroCounters:ToolTip("Рекомендации предметов на основе контр-пика героев")
+    UI.showHeroCounters = g_analysis:Switch(L("m_counter_pick"), true, "\u{f0e7}")
+    UI.showHeroCounters:ToolTip(L("m_tt_counter_pick"))
 
-    UI.showNetWorth = g_analysis:Switch("Анализ нетворса", true, "\u{f155}")
-    UI.showNetWorth:ToolTip("Шкала сравнения нетворса команд")
+    UI.showNetWorth = g_analysis:Switch(L("m_networth_analysis"), true, "\u{f155}")
+    UI.showNetWorth:ToolTip(L("m_tt_networth"))
 
-    UI.showEnemyFocus = g_analysis:Switch("Строки фокуса", true, "\u{f05b}")
-    UI.showEnemyFocus:ToolTip("Детализированные строки фокуса на вражеских героев")
+    UI.showEnemyFocus = g_analysis:Switch(L("m_focus_lines"), true, "\u{f05b}")
+    UI.showEnemyFocus:ToolTip(L("m_tt_focus_lines"))
 
-    local focus_gear = UI.showEnemyFocus:Gear("Настройки фокуса")
-    UI.enemyFocusRows = focus_gear:Slider("Строк фокуса", 1, 6, 3, "%d")
-    UI.enemyFocusRows:ToolTip("Количество строк с вражескими героями для отображения")
+    local focus_gear = UI.showEnemyFocus:Gear(L("m_focus_settings"))
+    UI.enemyFocusRows = focus_gear:Slider(L("m_focus_rows"), 1, 6, 3, "%d")
+    UI.enemyFocusRows:ToolTip(L("m_tt_focus_rows"))
 
-    UI.showNeutrals = g_analysis:Switch("Нейтральные предметы", true, "\u{f06c}")
-    UI.showNeutrals:ToolTip("Рекомендации нейтральных предметов текущего тира")
+    UI.showNeutrals = g_analysis:Switch(L("m_neutrals"), true, "\u{f06c}")
+    UI.showNeutrals:ToolTip(L("m_tt_neutrals"))
 
-    -- === НАСТРОЙКИ ПАНЕЛИ ===
-    local g_panel = main:Create("Настройки панели")
+    local g_panel = main:Create(L("m_section_panel"))
 
-    UI.scale = g_panel:Slider("Масштаб панели %", 60, 200, 100, "%d")
-    UI.scale:ToolTip("Масштаб всей панели: шрифт, отступы, размер. Увеличьте для 2K/4K мониторов")
+    UI.scale = g_panel:Slider(L("m_scale_panel"), 60, 200, 100, "%d")
+    UI.scale:ToolTip(L("m_tt_scale"))
 
-    UI.opacity = g_panel:Slider("Прозрачность %", 20, 100, 85, "%d")
-    UI.opacity:ToolTip("Прозрачность панели. 100% = полностью непрозрачная")
+    UI.opacity = g_panel:Slider(L("m_opacity"), 20, 100, 85, "%d")
+    UI.opacity:ToolTip(L("m_tt_opacity"))
 
-    UI.showOwned = g_panel:Switch("Подсветка купленных", true, "\u{f00c}")
-    UI.showOwned:ToolTip("Подсвечивать предметы, которые уже куплены вами")
+    UI.showOwned = g_panel:Switch(L("m_highlight_owned"), true, "\u{f00c}")
+    UI.showOwned:ToolTip(L("m_tt_owned"))
 
-    UI.showGoldHeader = g_panel:Switch("Золото в заголовке", true, "\u{f155}")
-    UI.showGoldHeader:ToolTip("Отключите если значение золота отображается некорректно")
+    UI.showGoldHeader = g_panel:Switch(L("m_gold_header"), true, "\u{f155}")
+    UI.showGoldHeader:ToolTip(L("m_tt_gold_header"))
 
-    UI.visMode = g_panel:Combo("Показывать панель", {"Всегда", "Только CheatMenu", "Только в магазине", "Меню или магазин"}, 0)
-    UI.visMode:ToolTip("Когда отображать панель на экране")
+    UI.visMode = g_panel:Combo(L("m_show_panel_vis"), {L("m_vis_always"), L("m_vis_menu"), L("m_vis_shop"), L("m_vis_both")}, 0)
+    UI.visMode:ToolTip(L("m_tt_vis_mode"))
 
-    -- === ФИЛЬТР ВРАГОВ ===
-    local g_filter = main:Create("Фильтр врагов")
+    local g_filter = main:Create(L("m_section_filter"))
 
-    UI.enemyFilterMode = g_filter:Combo("Режим фильтра",
-        {"Все враги", "Только выбранные", "Исключить выбранных"}, 0)
-    UI.enemyFilterMode:ToolTip("Управление: анализировать всех врагов, только выбранных или исключить выбранных")
+    UI.enemyFilterMode = g_filter:Combo(L("m_filter_mode"),
+        {L("m_filter_all"), L("m_filter_selected"), L("m_filter_exclude")}, 0)
+    UI.enemyFilterMode:ToolTip(L("m_tt_filter_mode"))
 
-    UI.enemyFilterList = g_filter:MultiSelect("Фильтр героев", {}, false)
-    UI.enemyFilterList:ToolTip("Иконки появятся после обнаружения вражеских героев")
+    UI.enemyFilterList = g_filter:MultiSelect(L("m_filter_heroes"), {}, false)
+    UI.enemyFilterList:ToolTip(L("m_tt_filter_list"))
 
-    -- === ОТЛАДКА ===
-    local g_debug = main:Create("Отладка")
+    local g_debug = main:Create(L("m_section_debug"))
 
-    UI.showCategoryBadges = g_debug:Switch("Бейджи категорий", true, "\u{f02b}")
-    UI.showCategoryBadges:ToolTip("Показывать MUST / SITUATIONAL / LUXURY на карточках предметов")
+    UI.showCategoryBadges = g_debug:Switch(L("m_show_category_badges"), true, "\u{f02b}")
+    UI.showCategoryBadges:ToolTip(L("m_tt_category_badges"))
 
-    UI.showScoreBreakdown = g_debug:Switch("Разбор оценки", true, "\u{f080}")
-    UI.showScoreBreakdown:ToolTip("Компактные чипы с вкладом в общую оценку предмета")
+    UI.showScoreBreakdown = g_debug:Switch(L("m_score_breakdown"), true, "\u{f080}")
+    UI.showScoreBreakdown:ToolTip(L("m_tt_score_breakdown"))
 
-    local breakdown_gear = UI.showScoreBreakdown:Gear("Настройки разбора")
-    UI.breakdownChipCount = breakdown_gear:Slider("Количество чипов", 1, 4, 2, "%d")
-    UI.breakdownChipCount:ToolTip("Сколько чипов оценки показывать на каждом предмете")
+    local breakdown_gear = UI.showScoreBreakdown:Gear(L("m_breakdown_settings"))
+    UI.breakdownChipCount = breakdown_gear:Slider(L("m_breakdown_chip_count"), 1, 4, 2, "%d")
+    UI.breakdownChipCount:ToolTip(L("m_tt_breakdown_chips"))
 end
 
 --------------------------------------------------------------------------------
@@ -3219,20 +3462,11 @@ end
 
 local function breakdownKeyLabel(key)
     if not key then return "" end
-    if key == "counter_rules" then return "counter rules" end
-    if key == "affordable" then return "affordable" end
-    if key == "role_penalty" then return "role penalty" end
-    if key == "style_bonus" then return "hero style" end
-    if key == "tempo" then return "tempo" end
-    if key == "mode_adjust" then return "mode" end
-    if key == "phase_mult" then return "phase" end
-    if key == "hero_specific" then return "hero fit" end
-    if key == "enemy_item:bkb" then return "vs BKB" end
-    if key == "enemy_item:linkens" then return "vs Linken" end
-    if key == "enemy_item:aeon" then return "vs Aeon" end
-    if key == "enemy_item:ghost" then return "vs Ghost" end
-    if key == "enemy_item:glimmer" then return "vs Glimmer" end
-    if key == "enemy_item:blademail" then return "vs BM" end
+    local tbl = L_BREAKDOWN_LABELS[LANG] or L_BREAKDOWN_LABELS.en
+    local v = tbl[key]
+    if v and v ~= "" then return v end
+    v = L_BREAKDOWN_LABELS.en[key]
+    if v and v ~= "" then return v end
     if key:find("trigger:", 1, true) == 1 then
         return key:sub(9):gsub("_", " ")
     end
@@ -3398,16 +3632,39 @@ local function heroIcon(name)
     return cacheImg(S.heroIcons, name, "panorama/images/heroes/icons/" .. name .. "_png.vtex_c")
 end
 
+-- Item names where script has no underscore but panorama asset has (e.g. item_battlefury -> battle_fury)
+local ITEM_ICON_NAME_OVERRIDES = {
+    item_battlefury = "battle_fury",
+}
+
 local function itemIcon(name)
     local v = S.itemIcons[name]
     if v then return v ~= false and v or nil end
-    
-    -- Remove item_ prefix for icon path
-    local iconName = name:gsub("item_", "")
-    local path = "panorama/images/items/" .. iconName .. "_png.vtex_c"
-    
-    -- Try to load icon
-    return cacheImg(S.itemIcons, name, path)
+
+    local iconName = ITEM_ICON_NAME_OVERRIDES[name] or name:gsub("item_", "")
+    local base = "panorama/images/items/"
+    local paths = { base .. iconName .. "_png.vtex_c" }
+    -- Fallback: compound name (e.g. battlefury -> battle_fury) and variant with item_ prefix
+    if not iconName:find("_", 1, true) and #iconName > 6 then
+        local alt = iconName:gsub("fury", "_fury"):gsub("blade", "_blade"):gsub("guard", "_guard")
+            :gsub("orb", "_orb"):gsub("boots", "_boots"):gsub("staff", "_staff"):gsub("mail", "_mail")
+        if alt ~= iconName then
+            paths[#paths + 1] = base .. alt .. "_png.vtex_c"
+            paths[#paths + 1] = base .. "item_" .. alt .. "_png.vtex_c"
+        end
+    elseif ITEM_ICON_NAME_OVERRIDES[name] then
+        paths[#paths + 1] = base .. "item_" .. iconName .. "_png.vtex_c"
+    end
+
+    for _, path in ipairs(paths) do
+        local ok, h = pcall(Render.LoadImage, path)
+        if ok and h then
+            S.itemIcons[name] = h
+            return h
+        end
+    end
+    S.itemIcons[name] = false
+    return nil
 end
 
 --------------------------------------------------------------------------------
