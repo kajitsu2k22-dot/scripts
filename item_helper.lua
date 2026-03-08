@@ -942,6 +942,7 @@ local L_BREAKDOWN_LABELS = {
         mode_adjust     = "mode",
         phase_mult      = "phase",
         hero_specific   = "hero fit",
+        function_overlap = "function overlap",
         ["enemy_item:bkb"]       = "vs BKB",
         ["enemy_item:linkens"]   = "vs Linken",
         ["enemy_item:aeon"]      = "vs Aeon",
@@ -1069,15 +1070,58 @@ local function L(key)
 end
 
 local function LR(itemName)
+    local rawName = itemName
+    local canonicalName = rawName
+    if rawName then
+        canonicalName = ({
+            item_aghanims_scepter = "item_ultimate_scepter",
+            item_ether_sword = "item_ethereal_blade",
+            item_vladmirs_offering = "item_vladmir",
+            item_shadow_blade = "item_invis_sword",
+            item_orchid_malevolence = "item_orchid",
+            item_linkens = "item_sphere",
+            item_euls = "item_cyclone",
+            item_medallion = "item_medallion_of_courage",
+            item_urnd = "item_spirit_vessel",
+            item_gleipnir = "item_gungir",
+            item_glimmer = "item_glimmer_cape",
+            item_refresher_orb = "item_refresher",
+            item_scythe_of_vyse = "item_sheepstick",
+        })[rawName] or rawName
+    end
+
     local slangTbl = L_REASON_SLANG[LANG] or L_REASON_SLANG.en
-    local slang = (slangTbl and slangTbl[itemName]) or (L_REASON_SLANG.en and L_REASON_SLANG.en[itemName])
+    local slang = (slangTbl and (slangTbl[canonicalName] or slangTbl[rawName]))
+        or (L_REASON_SLANG.en and (L_REASON_SLANG.en[canonicalName] or L_REASON_SLANG.en[rawName]))
     if slang and slang ~= "" then return slang end
     local tbl = L_REASONS[LANG] or L_REASONS.en
-    local reason = tbl[itemName] or L_REASONS.en[itemName] or ""
+    local reason = tbl[canonicalName] or tbl[rawName] or L_REASONS.en[canonicalName] or L_REASONS.en[rawName] or ""
     if reason ~= "" then return reason end
     -- Fallback to neutral item reasons
     local neutralTbl = L_NEUTRAL_REASONS[LANG] or L_NEUTRAL_REASONS.en
-    return neutralTbl[itemName] or L_NEUTRAL_REASONS.en[itemName] or ""
+    return neutralTbl[canonicalName] or neutralTbl[rawName]
+        or L_NEUTRAL_REASONS.en[canonicalName] or L_NEUTRAL_REASONS.en[rawName] or ""
+end
+
+local ITEM_NAME_ALIASES = {
+    item_aghanims_scepter = "item_ultimate_scepter",
+    item_ether_sword = "item_ethereal_blade",
+    item_vladmirs_offering = "item_vladmir",
+    item_shadow_blade = "item_invis_sword",
+    item_orchid_malevolence = "item_orchid",
+    item_linkens = "item_sphere",
+    item_euls = "item_cyclone",
+    item_medallion = "item_medallion_of_courage",
+    item_urnd = "item_spirit_vessel",
+    item_gleipnir = "item_gungir",
+    item_glimmer = "item_glimmer_cape",
+    item_refresher_orb = "item_refresher",
+    item_scythe_of_vyse = "item_sheepstick",
+}
+
+local function canonItemName(itemName)
+    if not itemName then return itemName end
+    return ITEM_NAME_ALIASES[itemName] or itemName
 end
 
 --------------------------------------------------------------------------------
@@ -1400,12 +1444,14 @@ local ITEM_ROLE_PENALTY = {
     item_mekansm         = {bad_roles={"carry","mid"}},
     item_guardian_greaves = {bad_roles={"carry","mid"}},
     item_holy_locket     = {bad_roles={"carry","mid"}},
+    item_tranquil_boots  = {bad_roles={"carry","mid"}, bad_styles={"phys"}},
     item_glimmer_cape    = {bad_roles={"carry"}},
     item_force_staff     = {bad_roles={"carry"}, bad_styles={"phys"}},
     item_medallion_of_courage = {bad_roles={"carry","mid"}},
     item_solar_crest     = {bad_roles={"carry"}, bad_styles={"phys"}},
     item_rod_of_atos     = {bad_roles={"carry"}, bad_styles={"phys"}},
     item_veil_of_discord = {bad_roles={"carry"}, bad_styles={"phys"}},
+    item_aether_lens     = {bad_roles={"carry"}, bad_styles={"phys"}},
     item_arcane_boots    = {bad_roles={"carry"}, bad_styles={"phys"}},
     item_pipe            = {bad_roles={"carry"}, bad_styles={"phys"}},
     item_crimson_guard   = {bad_roles={"carry","mid"}, bad_styles={"magic"}},
@@ -1418,6 +1464,8 @@ local ITEM_ROLE_PENALTY = {
     item_daedalus        = {bad_roles={"hardsupport","support"}},
     item_butterfly       = {bad_roles={"hardsupport","support"}},
     item_satanic         = {bad_roles={"hardsupport","support"}},
+    item_mask_of_madness = {bad_roles={"hardsupport","support"}, bad_styles={"magic","utility"}},
+    item_armlet          = {bad_roles={"hardsupport","support"}, bad_styles={"magic"}},
     item_battlefury      = {bad_roles={"hardsupport","support"}, bad_styles={"magic"}},
     item_desolator       = {bad_roles={"hardsupport","support"}},
     item_mjollnir        = {bad_roles={"hardsupport"}},
@@ -1520,7 +1568,7 @@ local HERO_SPECIFIC_ITEMS = {
     npc_dota_hero_meepo = {
         good_items = {
             "item_power_treads", "item_aghanims_scepter", "item_blink",
-            "item_ether_sword", "item_sheepstick", "item_octarine_core",
+            "item_ethereal_blade", "item_sheepstick", "item_octarine_core",
             "item_witch_blade", "item_assault"
         },
         bad_items = {
@@ -2364,16 +2412,18 @@ local HERO_COUNTERS = {
 local ITEM_COSTS = {
     -- Boots
     item_boots = 500, item_phase_boots = 1500, item_power_treads = 1400,
-    item_arcane_boots = 1300, item_travel_boots = 2500, item_travel_boots_2 = 2000,
+    item_arcane_boots = 1300, item_tranquil_boots = 900, item_travel_boots = 2500, item_travel_boots_2 = 2000,
     item_boots_of_bearing = 4125,
     -- Basic items
     item_magic_wand = 450, item_magic_stick = 200, item_bracer = 505,
     item_wraith_band = 505, item_null_talisman = 505, item_belt_of_strength = 450,
     item_boots_of_elves = 450, item_robe = 450, item_circlet = 155, item_crown = 450,
     item_ogre_axe = 1000, item_blade_of_alacrity = 1000, item_staff_of_wizardry = 1000,
+    item_soul_ring = 805, item_aether_lens = 2275,
     -- Weapons
     item_broadsword = 1000, item_claymore = 1350, item_mithril_hammer = 1600,
     item_blades_of_attack = 450, item_quarterstaff = 875, item_javelin = 900,
+    item_mask_of_madness = 1900, item_armlet = 2500,
     item_blight_stone = 300, item_orb_of_venom = 275,
     -- Armor
     item_chainmail = 550, item_platemail = 1400, item_helm_of_iron_will = 975,
@@ -2400,22 +2450,23 @@ local ITEM_COSTS = {
     item_urnd = 2980, item_guardian_greaves = 4950, item_refresher = 5000,
     item_refresher_orb = 5000, item_overwhelming_blink = 6800, item_swift_blink = 6800,
     item_arcane_blink = 6800, item_hurricane_pike = 4450, item_orchid = 3475,
-    item_orchid_malevolence = 3475, item_ethereal_blade = 4650, item_rod_of_atos = 2750,
+    item_orchid_malevolence = 3475, item_ethereal_blade = 5200, item_rod_of_atos = 2750,
     item_pavise = 1100, item_holy_locket = 2350, item_witch_blade = 2600,
     item_veil_of_discord = 1525, item_kaya_and_sange = 4100, item_sange_and_yasha = 4100,
     item_yasha_and_kaya = 4100, item_invis_sword = 3000, item_shadow_blade = 3000,
     item_bloodstone = 4600, item_octarine_core = 5275, item_phylactery = 2400,
     item_hand_of_midas = 2200, item_harpoon = 4700, item_dagon = 2850,
     item_necronomicon = 2400, item_medallion = 1025, item_solar = 2625,
-    item_vladmir = 2450, item_vladmirs_offering = 2450, item_mekansm = 1775,
-    item_tranquil_boots = 925, item_glimmer = 1950, item_glimmer_cape = 1950,
-    item_aether_lens = 2275, item_drum = 1650, item_headdress = 600,
+    item_vladmir = 2200, item_vladmirs_offering = 2200, item_mekansm = 1775,
+    item_glimmer = 1950, item_glimmer_cape = 1950,
+    item_drum = 1650, item_headdress = 600,
     item_buckler = 200, item_ring_of_basilius = 425, item_basilius = 425,
 }
 
 -- Function to get item cost from database
 local function GetItemCost(itemName)
     if not itemName then return 0 end
+    itemName = canonItemName(itemName)
     -- Prefer live game data when available; fallback to local table for aliases/undocumented cases.
     local ok, liveCost = pcall(GameRules.GetItemCost, itemName)
     if ok and liveCost and liveCost > 0 then return liveCost end
@@ -2440,10 +2491,12 @@ local ITEM_DB = {
     {name="item_bracer",         display="Bracer",            cost=505,   phase={1},       tags={"hp","phys_def"}},
     {name="item_wraith_band",    display="Wraith Band",       cost=505,   phase={1},       tags={"agi","phys_dps"}},
     {name="item_null_talisman",  display="Null Talisman",     cost=505,   phase={1},       tags={"int","magic_dps"}},
+    {name="item_soul_ring",      display="Soul Ring",         cost=805,   phase={1,2},     tags={"mana","hp","armor","sustain"}},
     -- Boots
     {name="item_phase_boots",    display="Phase Boots",       cost=1500,  phase={1,2},     tags={"mobility","phys_dps","armor"}},
     {name="item_power_treads",   display="Power Treads",      cost=1400,  phase={1,2},     tags={"attack_speed","stats","sustain"}},
     {name="item_arcane_boots",   display="Arcane Boots",      cost=1300,  phase={1,2},     tags={"mana","team_utility"}},
+    {name="item_tranquil_boots", display="Tranquil Boots",    cost=900,   phase={1,2},     tags={"mobility","sustain","armor"}},
     {name="item_boots_of_bearing",display="Boots of Bearing", cost=4125,  phase={2,3},     tags={"aura","team_utility","attack_speed"}},
     {name="item_travel_boots",   display="Boots of Travel",   cost=2500,  phase={2,3},     tags={"mobility","push","global"}},
     -- ═══════════════════════ CORE / MID GAME ══════════════════
@@ -2490,6 +2543,7 @@ local ITEM_DB = {
      triggers={"illusions","summons","invis"}},
     {name="item_maelstrom",      display="Maelstrom",        cost=2700,   phase={1,2},     tags={"vs_illusions","attack_speed","farm"},
      triggers={"illusions","summons"}},
+    {name="item_mask_of_madness",display="Mask of Madness",  cost=1900,   phase={1,2},     tags={"phys_dps","attack_speed","lifesteal","farm"}},
     {name="item_gungir",         display="Gleipnir",         cost=5500,   phase={2,3},     tags={"root","vs_illusions","attack_speed","phys_dps"},
      triggers={"mobility","illusions","invis"}},
     -- Mobility
@@ -2515,6 +2569,7 @@ local ITEM_DB = {
     {name="item_wind_waker",     display="Wind Waker",       cost=5150,   phase={2,3},     tags={"save","dispel","mobility","mana"},
      triggers={"disable","chrono","black_hole"}},
     -- Damage items
+    {name="item_armlet",         display="Armlet of Mordiggian", cost=2500, phase={1,2},   tags={"phys_dps","attack_speed","armor","tanky","hp"}},
     {name="item_desolator",      display="Desolator",        cost=3500,   phase={2},       tags={"armor_reduce","phys_dps"}},
     {name="item_daedalus",       display="Daedalus",         cost=5150,   phase={2,3},     tags={"crit","phys_dps"}},
     {name="item_butterfly",      display="Butterfly",        cost=4975,   phase={3},       tags={"evasion","attack_speed","agi","phys_dps"}},
@@ -2532,13 +2587,14 @@ local ITEM_DB = {
     {name="item_diffusal_blade", display="Diffusal Blade",   cost=2500,   phase={1,2},     tags={"mana_burn","slow","agi","phys_dps"},
      triggers={"mana_burn"}},
     -- Utility / Mixed
+    {name="item_aether_lens",    display="Aether Lens",      cost=2275,   phase={1,2,3},   tags={"mana","int","cast_range"}},
     {name="item_rod_of_atos",    display="Rod of Atos",      cost=2750,   phase={1,2},     tags={"root","hp","int"},
      triggers={"mobility","invis"}},
     {name="item_orchid",         display="Orchid Malevolence",cost=3475,   phase={2},       tags={"silence","mana","attack_speed"},
      triggers={"magic_burst","mobility","versatile"}},
     {name="item_sheepstick",     display="Scythe of Vyse",    cost=5675,   phase={3},       tags={"hex","disable","mana","int"},
      triggers={"carry","magic_immune","mobility"}},
-    {name="item_ethereal_blade", display="Ethereal Blade",   cost=4650,   phase={2,3},     tags={"vs_phys","magic_amp","save","agi"}},
+    {name="item_ethereal_blade", display="Ethereal Blade",   cost=5200,   phase={2,3},     tags={"vs_phys","magic_amp","save","agi"}},
     {name="item_refresher",      display="Refresher Orb",    cost=5000,   phase={3},       tags={"refresh","ultimate"}},
     {name="item_heart",          display="Heart of Tarrasque",cost=5000,  phase={3},       tags={"hp","tanky","regen"},
      triggers={"phys_dps","magic_burst"}},
@@ -2555,6 +2611,7 @@ local ITEM_DB = {
     {name="item_mekansm",        display="Mekansm",          cost=1775,   phase={1,2},     tags={"heal","team","armor"}},
     {name="item_guardian_greaves",display="Guardian Greaves", cost=4950,   phase={2,3},     tags={"heal","team","dispel","armor","mana"},
      triggers={"disable","silence"}},
+    {name="item_vladmir",        display="Vladmir's Offering",cost=2200,   phase={1,2},     tags={"team","aura","armor","mana","lifesteal"}},
     {name="item_medallion_of_courage", display="Medallion",  cost=1025,   phase={1},       tags={"armor","armor_reduce"}},
     {name="item_holy_locket",    display="Holy Locket",      cost=2350,   phase={1,2},     tags={"heal","hp","save"}},
     {name="item_ultimate_scepter",display="Aghanim's Scepter",cost=4200, phase={2,3},     tags={"ultimate","stats"}},
@@ -2569,6 +2626,11 @@ local ITEM_DB = {
 local ITEM_LOOKUP = {}
 for _, item in ipairs(ITEM_DB) do
     ITEM_LOOKUP[item.name] = item
+end
+for alias, canonical in pairs(ITEM_NAME_ALIASES) do
+    if ITEM_LOOKUP[canonical] then
+        ITEM_LOOKUP[alias] = ITEM_LOOKUP[canonical]
+    end
 end
 
 --------------------------------------------------------------------------------
@@ -3168,6 +3230,23 @@ local function tableContains(tbl, val)
     return false
 end
 
+local function listContainsCanonicalItem(list, itemName)
+    if not list or not itemName then return false end
+    local canonical = canonItemName(itemName)
+    for _, entry in ipairs(list) do
+        if canonItemName(entry) == canonical then
+            return true
+        end
+    end
+    return false
+end
+
+local function getHeroProfile(heroName)
+    local roleInfo = heroName and HERO_ROLES[heroName]
+    if not roleInfo then return nil, nil end
+    return roleInfo.role, roleInfo.style
+end
+
 local function countMatches(tbl, vals)
     local c = 0
     for _, v in ipairs(vals) do if tableContains(tbl, v) then c = c + 1 end end
@@ -3200,6 +3279,7 @@ end
 local function applyRolePenalty(score, itemName, myRole, myStyle)
     if score <= 0 then return score end
     if not myRole and not myStyle then return score end
+    itemName = canonItemName(itemName)
     local penalty = ITEM_ROLE_PENALTY[itemName]
     if not penalty then return score end
     local penalized = false
@@ -3256,26 +3336,24 @@ local function stylePreferenceBonus(itemDef, ctx)
 end
 
 local function applyHeroSpecificAdjust(score, heroName, itemName)
-    if score <= 0 then return score end
     local spec = HERO_SPECIFIC_ITEMS[heroName]
     if not spec then return score end
-    if spec.good_items then
-        for _, good in ipairs(spec.good_items) do
-            if good == itemName then
-                score = score + 10
-                break
-            end
-        end
+    itemName = canonItemName(itemName)
+    if spec.good_items and listContainsCanonicalItem(spec.good_items, itemName) then
+        score = score + 10
     end
-    if spec.bad_items then
-        for _, bad in ipairs(spec.bad_items) do
-            if bad == itemName then
-                score = math.max(1, math.floor(score * 0.1))
-                break
-            end
-        end
+    if score > 0 and spec.bad_items and listContainsCanonicalItem(spec.bad_items, itemName) then
+        score = math.max(0, math.floor(score * 0.1))
     end
     return score
+end
+
+local function itemAllowedForProfile(itemName, myRole, myStyle)
+    local canonical = canonItemName(itemName)
+    local itemDef = ITEM_LOOKUP[canonical]
+    if not itemDef then return canonical, true end
+    local probe = applyRolePenalty(10, canonical, myRole, myStyle)
+    return canonical, probe > 1
 end
 
 local function computeItemScore(itemDef, ctx, withBreakdown)
@@ -3544,6 +3622,130 @@ local function buildSuggestionMeta(itemDef, ctx, score, breakdown)
     }
 end
 
+local ITEM_FUNCTION_WEIGHTS = {
+    save = 5,
+    dispel = 5,
+    block_spell = 6,
+    vs_magic = 4,
+    vs_phys = 4,
+    anti_heal = 5,
+    vs_invis = 6,
+    detection = 6,
+    vs_illusions = 5,
+    mobility = 3,
+    team = 2,
+    armor = 2,
+}
+
+local ITEM_FUNCTION_ALIASES = {
+    magic_resist = "vs_magic",
+    barrier = "vs_magic",
+}
+
+local function getItemFunctionKeys(itemDef)
+    local keys = {}
+    local seen = {}
+    if not itemDef or not itemDef.tags then return keys end
+    for _, tag in ipairs(itemDef.tags) do
+        local key = ITEM_FUNCTION_ALIASES[tag] or tag
+        if ITEM_FUNCTION_WEIGHTS[key] and not seen[key] then
+            seen[key] = true
+            table.insert(keys, key)
+        end
+    end
+    return keys
+end
+
+local function appendBreakdownDelta(breakdown, key, delta)
+    local out = {}
+    for _, entry in ipairs(breakdown or {}) do
+        if entry.key ~= "final" then
+            table.insert(out, {key = entry.key, delta = entry.delta})
+        end
+    end
+    if delta and delta ~= 0 then
+        table.insert(out, {key = key, delta = delta})
+    end
+    return out
+end
+
+local function computeFunctionOverlapPenalty(entry, functionCounts)
+    local penalty = 0
+    for _, key in ipairs(getItemFunctionKeys(entry.item)) do
+        local count = functionCounts[key] or 0
+        if count > 0 then
+            penalty = penalty + (ITEM_FUNCTION_WEIGHTS[key] or 0) * count
+        end
+    end
+
+    if penalty > 0 and entry.category == "must_have" then
+        penalty = math.floor(penalty * 0.5)
+    end
+
+    local heroFit = sumBreakdownPrefix(entry.breakdown, "hero_specific")
+    if heroFit > 0 then
+        penalty = math.max(0, penalty - math.floor(heroFit / 2))
+    end
+
+    return penalty
+end
+
+local function buildDiverseSuggestions(scored, ctx, maxItems)
+    local remaining = {}
+    local selected = {}
+    local functionCounts = {}
+
+    for _, entry in ipairs(scored or {}) do
+        table.insert(remaining, entry)
+    end
+
+    while #selected < maxItems and #remaining > 0 do
+        local bestIdx = nil
+        local bestAdjusted = nil
+        local bestPenalty = 0
+        local bestEntry = nil
+
+        for idx, entry in ipairs(remaining) do
+            local penalty = computeFunctionOverlapPenalty(entry, functionCounts)
+            local adjusted = math.max(1, entry.score - penalty)
+            if bestAdjusted == nil
+                or adjusted > bestAdjusted
+                or (adjusted == bestAdjusted and entry.score > (bestEntry and bestEntry.score or -1))
+                or (adjusted == bestAdjusted and entry.score == (bestEntry and bestEntry.score or -1)
+                    and (entry.item.cost or 0) > ((bestEntry and bestEntry.item and bestEntry.item.cost) or 0)) then
+                bestIdx = idx
+                bestAdjusted = adjusted
+                bestPenalty = penalty
+                bestEntry = entry
+            end
+        end
+
+        if not bestIdx or not bestEntry then break end
+
+        table.remove(remaining, bestIdx)
+
+        local adjustedScore = math.max(1, bestEntry.score - bestPenalty)
+        local adjustedBreakdown = appendBreakdownDelta(bestEntry.breakdown, "function_overlap", -bestPenalty)
+        table.insert(adjustedBreakdown, {key = "final", delta = adjustedScore})
+        local meta = buildSuggestionMeta(bestEntry.item, ctx, adjustedScore, adjustedBreakdown)
+
+        table.insert(selected, {
+            item = bestEntry.item,
+            score = adjustedScore,
+            category = meta.category,
+            breakdown = meta.breakdown,
+            breakdownHighlights = meta.breakdownHighlights,
+            topReasons = meta.topReasons,
+        })
+
+        for _, key in ipairs(getItemFunctionKeys(bestEntry.item)) do
+            functionCounts[key] = (functionCounts[key] or 0) + 1
+        end
+    end
+
+    return selected
+end
+
 local function buildEnemyFocusData(ctxTemplate)
     local focusEntries = {}
     for _, enemy in ipairs(S.enemyHeroes) do
@@ -3571,8 +3773,11 @@ local function buildEnemyFocusData(ctxTemplate)
 
             local counterData = HERO_COUNTERS[enemy.name]
             if counterData and counterData.items then
-                for _, itemName in ipairs(counterData.items) do
-                    addScore(itemName, 30, counterData.reason or "Direct counter")
+                for _, rawItemName in ipairs(counterData.items) do
+                    local itemName, allowed = itemAllowedForProfile(rawItemName, ctx.myRole, ctx.myStyle)
+                    if allowed then
+                        addScore(itemName, 30, counterData.reason or "Direct counter")
+                    end
                 end
             end
 
@@ -3638,6 +3843,7 @@ local ITEM_ICON_NAME_OVERRIDES = {
 }
 
 local function itemIcon(name)
+    name = canonItemName(name)
     local v = S.itemIcons[name]
     if v then return v ~= false and v or nil end
 
@@ -4108,6 +4314,8 @@ local function analyzeEnemyTeam()
     end)
 
     -- Hero counter suggestions
+    local myRole, myStyle = getHeroProfile(S.myHeroName)
+
     S.heroCounterSuggestions = {}
     if sg(UI.showHeroCounters, true) then
         local counterScore = {}
@@ -4115,8 +4323,9 @@ local function analyzeEnemyTeam()
             if enemy.included then
             local counterData = HERO_COUNTERS[enemy.name]
             if counterData then
-                for _, itemName in ipairs(counterData.items) do
-                    if not S.ownedItems[itemName] then
+                for _, rawItemName in ipairs(counterData.items) do
+                    local itemName, allowed = itemAllowedForProfile(rawItemName, myRole, myStyle)
+                    if allowed and not S.ownedItems[itemName] then
                         counterScore[itemName] = (counterScore[itemName] or 0) + 1
                     end
                 end
@@ -4130,7 +4339,7 @@ local function analyzeEnemyTeam()
             for _, enemy in ipairs(S.enemyHeroes) do
                 if enemy.included then
                     local cd = HERO_COUNTERS[enemy.name]
-                    if cd and tableContains(cd.items, itemName) then
+                    if cd and listContainsCanonicalItem(cd.items, itemName) then
                         counterData = cd
                         break
                     end
@@ -4143,15 +4352,6 @@ local function analyzeEnemyTeam()
             })
         end
         table.sort(S.heroCounterSuggestions, function(a, b) return a.score > b.score end)
-    end
-
-    -- Resolve my hero role/style for hero-aware scoring
-    local myRole = nil
-    local myStyle = nil
-    local myRoleInfo = HERO_ROLES[S.myHeroName]
-    if myRoleInfo then
-        myRole = myRoleInfo.role
-        myStyle = myRoleInfo.style
     end
 
     -- Score items
@@ -4201,23 +4401,8 @@ local function analyzeEnemyTeam()
         return (a.item.cost or 0) > (b.item.cost or 0)
     end)
 
-    S.suggestions = {}
     local maxItems = sg(UI.maxItems, 6)
-    local addedNames = {}
-    for _, entry in ipairs(scored) do
-        if #S.suggestions >= maxItems then break end
-        if not addedNames[entry.item.name] then
-            addedNames[entry.item.name] = true
-            table.insert(S.suggestions, {
-                item = entry.item,
-                score = entry.score,
-                category = entry.category or "situational",
-                breakdown = entry.breakdown or {{key = "final", delta = entry.score}},
-                breakdownHighlights = entry.breakdownHighlights or {},
-                topReasons = entry.topReasons or {},
-            })
-        end
-    end
+    S.suggestions = buildDiverseSuggestions(scored, ctx, maxItems)
 
     -- Score neutral items
     if sg(UI.showNeutrals, true) and S.neutralTier > 0 then
@@ -5330,7 +5515,7 @@ local function getCounteredEnemies(itemDef)
             local cd = HERO_COUNTERS[enemy.name]
             if cd and cd.items then
                 for _, iName in ipairs(cd.items) do
-                    if iName == itemDef.name then
+                    if canonItemName(iName) == itemDef.name then
                         table.insert(enemies, prettyHero(enemy.name))
                         break
                     end
