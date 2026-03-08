@@ -45,6 +45,12 @@ local STATE = {
     persistOwnEnabled = {},
     persistEnemyAbilityEnabled = {},
     persistEnemyHeroEnabled = {},
+    panelPositionLoaded = false,
+    debugInfo = {
+        updatedAt = 0,
+        status = "",
+        lines = {},
+    },
     language = "ru",
     panel = {
         x = 420,
@@ -297,6 +303,7 @@ local L10N = {
         menu_panel_cols = "Panel columns",
         menu_auto_speed_priority = "Auto priority by cast speed",
         menu_resize_handles = "Resize handles near cursor",
+        menu_debug_overlay = "Decision debug overlay",
         menu_own_controls = "Own controls",
         menu_own_abilities = "Own abilities",
         menu_own_items = "Own items",
@@ -316,6 +323,19 @@ local L10N = {
         panel_own = "Your Controls",
         panel_enemy = "Enemy Abilities",
         panel_empty_own = "No active abilities/items found.",
+        debug_overlay_title = "Decision Debug",
+        debug_idle = "Idle",
+        debug_wait = "Waiting",
+        debug_cast = "Cast",
+        debug_blocked = "Blocked",
+        debug_reason = "Reason",
+        debug_target = "Target",
+        debug_trigger = "Trigger",
+        debug_control = "Control",
+        debug_preview = "Queue",
+        debug_score = "Score",
+        debug_no_controls = "No enabled controls",
+        debug_no_target = "No triggered enemy",
     },
     ru = {
         menu_enable = "Включить",
@@ -609,6 +629,53 @@ local function GetTime()
     return (GameRules and GameRules.GetGameTime and GameRules.GetGameTime()) or 0
 end
 
+function U.FormatUnitDebugName(unit)
+    local name = unit and SafeCall(NPC.GetUnitName, unit) or ""
+    if type(name) ~= "string" or name == "" then
+        return "unknown"
+    end
+
+    name = string.gsub(name, "^npc_dota_hero_", "")
+    name = string.gsub(name, "^npc_dota_", "")
+    return name
+end
+
+function U.FormatControlDebugName(control)
+    local name = control and control.name or ""
+    if type(name) ~= "string" or name == "" then
+        return "unknown"
+    end
+
+    name = string.gsub(name, "^item_", "")
+    name = string.gsub(name, "^npc_dota_hero_[^_]+_", "")
+    return name
+end
+
+function U.SetDebugState(status, ...)
+    local dbg = STATE.debugInfo
+    if not dbg then
+        return
+    end
+
+    dbg.status = tostring(status or "")
+    dbg.updatedAt = GetTime()
+    dbg.lines = dbg.lines or {}
+    for i = #dbg.lines, 1, -1 do
+        dbg.lines[i] = nil
+    end
+
+    local count = select("#", ...)
+    for i = 1, count do
+        local value = select(i, ...)
+        if value ~= nil then
+            local text = tostring(value)
+            if text ~= "" then
+                dbg.lines[#dbg.lines + 1] = text
+            end
+        end
+    end
+end
+
 local function Dist(a, b)
     return (a - b):Length()
 end
@@ -829,7 +896,26 @@ local function DecodePanelState(text)
 end
 
 local function LoadPanelPosition()
-    local packed = DecodePanelState(ReadConfigString(CONFIG_SECTION_PANEL, "state", ""))
+    local function readPersistInt(section, key)
+        local raw = ReadFilePersist(section, key)
+        if type(raw) ~= "string" or raw == "" then
+            return nil
+        end
+
+        local parsed = tonumber(raw)
+        if type(parsed) == "number" then
+            return parsed
+        end
+
+        return nil
+    end
+
+    local packedText = ReadFilePersist(CONFIG_SECTION_PANEL, "state")
+    if type(packedText) ~= "string" or packedText == "" then
+        packedText = ReadConfigString(CONFIG_SECTION_PANEL, "state", "")
+    end
+
+    local packed = DecodePanelState(packedText)
     if packed then
         STATE.panel.x = packed.x
         STATE.panel.y = packed.y
@@ -840,14 +926,35 @@ local function LoadPanelPosition()
         else
             STATE.panel.dock = 0
         end
+        STATE.panelPositionLoaded = true
         return
     end
 
-    local x = ReadConfigInt(CONFIG_SECTION_PANEL, "x", STATE.panel.x)
-    local y = ReadConfigInt(CONFIG_SECTION_PANEL, "y", STATE.panel.y)
-    local collapsed = ReadConfigInt(CONFIG_SECTION_PANEL, "collapsed", STATE.panel.collapsed and 1 or 0)
-    local dock = ReadConfigInt(CONFIG_SECTION_PANEL, "dock", STATE.panel.dock or 0)
-    local iconSize = ReadConfigInt(CONFIG_SECTION_PANEL, "icon_size", STATE.panel.iconSize or 36)
+    local x = readPersistInt(CONFIG_SECTION_PANEL, "x")
+    if type(x) ~= "number" then
+        x = ReadConfigInt(CONFIG_SECTION_PANEL, "x", STATE.panel.x)
+    end
+
+    local y = readPersistInt(CONFIG_SECTION_PANEL, "y")
+    if type(y) ~= "number" then
+        y = ReadConfigInt(CONFIG_SECTION_PANEL, "y", STATE.panel.y)
+    end
+
+    local collapsed = readPersistInt(CONFIG_SECTION_PANEL, "collapsed")
+    if type(collapsed) ~= "number" then
+        collapsed = ReadConfigInt(CONFIG_SECTION_PANEL, "collapsed", STATE.panel.collapsed and 1 or 0)
+    end
+
+    local dock = readPersistInt(CONFIG_SECTION_PANEL, "dock")
+    if type(dock) ~= "number" then
+        dock = ReadConfigInt(CONFIG_SECTION_PANEL, "dock", STATE.panel.dock or 0)
+    end
+
+    local iconSize = readPersistInt(CONFIG_SECTION_PANEL, "icon_size")
+    if type(iconSize) ~= "number" then
+        iconSize = ReadConfigInt(CONFIG_SECTION_PANEL, "icon_size", STATE.panel.iconSize or 36)
+    end
+
     if type(x) == "number" then STATE.panel.x = x end
     if type(y) == "number" then STATE.panel.y = y end
     STATE.panel.collapsed = collapsed ~= 0
@@ -857,6 +964,7 @@ local function LoadPanelPosition()
     else
         STATE.panel.dock = 0
     end
+    STATE.panelPositionLoaded = true
 end
 
 local function SavePanelPosition()
@@ -1297,6 +1405,11 @@ local function InitMenu()
     MENU.ResizeHandlesNear = gMain:Switch(L("menu_resize_handles"), true)
     if MENU.ResizeHandlesNear and MENU.ResizeHandlesNear.Icon then
         MENU.ResizeHandlesNear:Icon("\u{f065}")
+    end
+
+    MENU.DebugOverlay = gMain:Switch(L("menu_debug_overlay"), false)
+    if MENU.DebugOverlay and MENU.DebugOverlay.Icon then
+        MENU.DebugOverlay:Icon("\u{f188}")
     end
 
     MENU.EnemyDangerItems = gMain:MultiSelect(L("menu_enemy_danger_items"), {}, true)
@@ -2208,7 +2321,24 @@ local function TrySmartControlCast(hero, control, target, distance, castRange)
     end
 
     if role == "blink" then
-        if distance <= 180 then
+        local enemyName = SafeCall(NPC.GetUnitName, target) or ""
+        local myHp = SafeCall(Entity.GetHealth, hero) or 0
+        local myMaxHp = SafeCall(Entity.GetMaxHealth, hero) or 0
+        local hpPct = (myMaxHp > 0) and (myHp / myMaxHp) or 1
+        local forceEscape = false
+        if enemyName == "npc_dota_hero_axe"
+            or enemyName == "npc_dota_hero_legion_commander"
+            or enemyName == "npc_dota_hero_pudge"
+            or enemyName == "npc_dota_hero_magnataur"
+            or enemyName == "npc_dota_hero_rattletrap"
+            or enemyName == "npc_dota_hero_faceless_void"
+            or enemyName == "npc_dota_hero_slark"
+            or enemyName == "npc_dota_hero_marci"
+            or enemyName == "npc_dota_hero_primal_beast" then
+            forceEscape = distance <= 520
+        end
+
+        if distance <= 180 and not forceEscape and hpPct > 0.68 then
             return false, false
         end
 
@@ -2222,6 +2352,36 @@ local function TrySmartControlCast(hero, control, target, distance, castRange)
     if role == "force" then
         if distance > castRange + 75 then
             return false, false
+        end
+
+        local enemyName = SafeCall(NPC.GetUnitName, target) or ""
+        local myHp = SafeCall(Entity.GetHealth, hero) or 0
+        local myMaxHp = SafeCall(Entity.GetMaxHealth, hero) or 0
+        local hpPct = (myMaxHp > 0) and (myHp / myMaxHp) or 1
+        if distance <= 430 then
+            if enemyName == "npc_dota_hero_axe"
+                or enemyName == "npc_dota_hero_legion_commander"
+                or enemyName == "npc_dota_hero_pudge"
+                or enemyName == "npc_dota_hero_magnataur"
+                or enemyName == "npc_dota_hero_rattletrap"
+                or enemyName == "npc_dota_hero_faceless_void"
+                or enemyName == "npc_dota_hero_slark"
+                or enemyName == "npc_dota_hero_marci"
+                or enemyName == "npc_dota_hero_primal_beast" then
+                return TryCastTarget(control.handle, hero), true
+            end
+
+            if hpPct < 0.62 and (
+                enemyName == "npc_dota_hero_storm_spirit"
+                or enemyName == "npc_dota_hero_queenofpain"
+                or enemyName == "npc_dota_hero_void_spirit"
+                or enemyName == "npc_dota_hero_ember_spirit"
+                or enemyName == "npc_dota_hero_antimage"
+                or enemyName == "npc_dota_hero_earth_spirit"
+                or enemyName == "npc_dota_hero_nyx_assassin"
+            ) then
+                return TryCastTarget(control.handle, hero), true
+            end
         end
 
         local targetDormant = SafeCall(Entity.IsDormant, target) and true or false
@@ -2341,6 +2501,7 @@ end
 
 local function ComputeEnemyThreatScore(localHero, enemy, severity, isInstant, triggerName, now)
     local score = (severity or 0) * THREAT_WEIGHTS.severity
+    local enemyName = SafeCall(NPC.GetUnitName, enemy) or ""
     if isInstant then
         score = score + THREAT_WEIGHTS.instantBonus
     end
@@ -2381,6 +2542,112 @@ local function ComputeEnemyThreatScore(localHero, enemy, severity, isInstant, tr
         if enemyForward and toMe and Dot2D(enemyForward, toMe) > 0.80 then
             score = score + THREAT_WEIGHTS.facing
         end
+
+        if enemyName == "npc_dota_hero_axe" then
+            if dist <= 575 then
+                score = score + 130
+            end
+            if triggerName == "axe_berserkers_call" or triggerName == "reveal" then
+                score = score + 190
+            end
+        elseif enemyName == "npc_dota_hero_legion_commander" then
+            if dist <= 700 then
+                score = score + 120
+            end
+            if triggerName == "legion_commander_duel" or triggerName == "reveal" then
+                score = score + 210
+            end
+        elseif enemyName == "npc_dota_hero_magnataur" then
+            if dist <= 700 then
+                score = score + 130
+            end
+            if triggerName == "magnataur_reverse_polarity" or triggerName == "magnataur_skewer" or triggerName == "reveal" then
+                score = score + 210
+            end
+        elseif enemyName == "npc_dota_hero_pudge" then
+            if dist <= 500 then
+                score = score + 150
+            end
+            if triggerName == "pudge_dismember" or triggerName == "reveal" then
+                score = score + 170
+            end
+        elseif enemyName == "npc_dota_hero_spirit_breaker" then
+            if triggerName == "spirit_breaker_charge_of_darkness" then
+                score = score + 260
+            elseif triggerName == "reveal" and dist <= 800 then
+                score = score + 140
+            end
+        elseif enemyName == "npc_dota_hero_storm_spirit"
+            or enemyName == "npc_dota_hero_queenofpain"
+            or enemyName == "npc_dota_hero_void_spirit"
+            or enemyName == "npc_dota_hero_ember_spirit"
+            or enemyName == "npc_dota_hero_antimage" then
+            if dist <= 700 then
+                score = score + 110
+            end
+            if isInstant or triggerName == "reveal" then
+                score = score + 150
+            end
+        elseif enemyName == "npc_dota_hero_faceless_void" then
+            if dist <= 750 then
+                score = score + 150
+            end
+            if triggerName == "faceless_void_chronosphere"
+                or triggerName == "faceless_void_time_walk"
+                or triggerName == "reveal" then
+                score = score + 240
+            end
+        elseif enemyName == "npc_dota_hero_slark" then
+            if dist <= 650 then
+                score = score + 135
+            end
+            if triggerName == "slark_pounce" or triggerName == "reveal" then
+                score = score + 180
+            end
+        elseif enemyName == "npc_dota_hero_nyx_assassin" then
+            if dist <= 650 then
+                score = score + 120
+            end
+            if triggerName == "nyx_assassin_impale"
+                or triggerName == "nyx_assassin_vendetta"
+                or triggerName == "reveal" then
+                score = score + 170
+            end
+        elseif enemyName == "npc_dota_hero_marci" then
+            if dist <= 650 then
+                score = score + 135
+            end
+            if triggerName == "marci_rebound"
+                or triggerName == "marci_dispose"
+                or triggerName == "reveal" then
+                score = score + 185
+            end
+        elseif enemyName == "npc_dota_hero_earth_spirit" then
+            if dist <= 700 then
+                score = score + 110
+            end
+            if triggerName == "earth_spirit_rolling_boulder" or triggerName == "reveal" then
+                score = score + 160
+            end
+        elseif enemyName == "npc_dota_hero_tusk" then
+            if dist <= 650 then
+                score = score + 120
+            end
+            if triggerName == "tusk_snowball"
+                or triggerName == "tusk_walrus_kick"
+                or triggerName == "reveal" then
+                score = score + 165
+            end
+        elseif enemyName == "npc_dota_hero_primal_beast" then
+            if dist <= 700 then
+                score = score + 140
+            end
+            if triggerName == "primal_beast_onslaught"
+                or triggerName == "primal_beast_pulverize"
+                or triggerName == "reveal" then
+                score = score + 210
+            end
+        end
     end
 
     local myHp = SafeCall(Entity.GetHealth, localHero) or 0
@@ -2403,13 +2670,13 @@ end
 
 local function TryCastControl(hero, control, target, allowCastIntoLinkens)
     if not control or not control.handle or not target then
-        return false, false
+        return false, false, "invalid"
     end
 
     local heroPos = SafeCall(Entity.GetAbsOrigin, hero)
     local targetPos = SafeCall(Entity.GetAbsOrigin, target)
     if not heroPos or not targetPos then
-        return false, false
+        return false, false, "no_position"
     end
 
     local distance = Dist(heroPos, targetPos)
@@ -2430,12 +2697,16 @@ local function TryCastControl(hero, control, target, allowCastIntoLinkens)
 
     local forceLinkensBreaker = allowCastIntoLinkens and SafeCall(NPC.IsLinkensProtected, target)
     if (not forceLinkensBreaker) and (not IsControlUsefulOnTarget(control, target)) then
-        return false, false
+        return false, false, "not_useful"
     end
 
     local smartResultCast, smartResultAttempt = TrySmartControlCast(hero, control, target, distance, castRange)
     if smartResultCast ~= nil then
-        return smartResultCast, smartResultAttempt
+        local role = ResolveControlSmartRole(control) or "smart"
+        if smartResultAttempt then
+            return smartResultCast, smartResultAttempt, smartResultCast and ("smart_" .. role) or ("smart_fail_" .. role)
+        end
+        return smartResultCast, smartResultAttempt, "smart_skip_" .. role
     end
 
     local mode = ResolveControlCastMode(control.handle)
@@ -2443,35 +2714,38 @@ local function TryCastControl(hero, control, target, allowCastIntoLinkens)
 
     if mode == "target" then
         if targetDormant then
-            return false, false
+            return false, false, "target_dormant"
         end
 
         if skipTarget then
-            return false, false
+            return false, false, "linkens_block"
         end
 
         if distance > castRange + 75 then
-            return false, false
+            return false, false, "range_target"
         end
 
-        return TryCastTarget(control.handle, target), true
+        local casted = TryCastTarget(control.handle, target)
+        return casted, true, casted and "cast_target" or "cast_failed_target"
     end
 
     if mode == "position" then
         if distance > rangeForPosition + 75 then
-            return false, false
+            return false, false, "range_position"
         end
 
         local castPoint = SafeCall(Ability.GetCastPoint, control.handle) or 0
         local predictedPos = GetPredictedTargetPos(target, castPoint + 0.12) or targetPos
-        return TryCastPosition(control.handle, predictedPos), true
+        local casted = TryCastPosition(control.handle, predictedPos)
+        return casted, true, casted and "cast_position" or "cast_failed_position"
     end
 
     if distance > rangeForPosition + 75 then
-        return false, false
+        return false, false, "range_notarget"
     end
 
-    return TryCastNoTarget(control.handle), true
+    local casted = TryCastNoTarget(control.handle)
+    return casted, true, casted and "cast_notarget" or "cast_failed_notarget"
 end
 
 local function ScoreControlForTarget(hero, target, control, orderIndex, controlCount, triggerName, isInstant, now)
@@ -2488,6 +2762,7 @@ local function ScoreControlForTarget(hero, target, control, orderIndex, controlC
     local distance = Dist(heroPos, targetPos)
     local mode = ResolveControlCastMode(control.handle)
     local role = ResolveControlSmartRole(control)
+    local enemyName = SafeCall(NPC.GetUnitName, target) or ""
     local roleWeight = CONTROL_ROLE_WEIGHTS[role] or 185
     local castPoint = math.max(0, GetControlCastPoint(control))
     local score = roleWeight
@@ -2595,6 +2870,94 @@ local function ScoreControlForTarget(hero, target, control, orderIndex, controlC
 
         if (not isInstant) and (now - (STATE.lastCastTime or 0)) < 0.30 then
             score = score - 300
+        end
+    end
+
+    if enemyName == "npc_dota_hero_storm_spirit"
+        or enemyName == "npc_dota_hero_queenofpain"
+        or enemyName == "npc_dota_hero_void_spirit"
+        or enemyName == "npc_dota_hero_ember_spirit"
+        or enemyName == "npc_dota_hero_antimage" then
+        if role == "hex" then
+            score = score + 260
+        elseif role == "stun" then
+            score = score + 190
+        elseif role == "silence" then
+            score = score + 135
+        elseif role == "root" then
+            score = score + 90
+        end
+    end
+
+    if enemyName == "npc_dota_hero_axe"
+        or enemyName == "npc_dota_hero_legion_commander"
+        or enemyName == "npc_dota_hero_magnataur"
+        or enemyName == "npc_dota_hero_pudge"
+        or enemyName == "npc_dota_hero_rattletrap" then
+        if role == "hex" then
+            score = score + 150
+        elseif role == "stun" then
+            score = score + 120
+        end
+
+        if distance <= 480 and (role == "blink" or role == "force" or role == "self_defense" or role == "escape_line") then
+            score = score + 190
+        end
+    end
+
+    if enemyName == "npc_dota_hero_faceless_void"
+        or enemyName == "npc_dota_hero_marci"
+        or enemyName == "npc_dota_hero_primal_beast"
+        or enemyName == "npc_dota_hero_tusk" then
+        if role == "hex" then
+            score = score + 180
+        elseif role == "stun" then
+            score = score + 160
+        elseif role == "silence" then
+            score = score + 105
+        end
+
+        if distance <= 520 and (role == "blink" or role == "force" or role == "self_defense" or role == "escape_line") then
+            score = score + 220
+        end
+    end
+
+    if enemyName == "npc_dota_hero_slark"
+        or enemyName == "npc_dota_hero_nyx_assassin"
+        or enemyName == "npc_dota_hero_earth_spirit" then
+        if role == "hex" then
+            score = score + 170
+        elseif role == "stun" then
+            score = score + 140
+        elseif role == "root" then
+            score = score + 120
+        elseif role == "silence" then
+            score = score + 92
+        end
+    end
+
+    if triggerName == "faceless_void_chronosphere"
+        or triggerName == "marci_rebound"
+        or triggerName == "primal_beast_onslaught"
+        or triggerName == "slark_pounce"
+        or triggerName == "earth_spirit_rolling_boulder"
+        or triggerName == "tusk_snowball" then
+        if role == "hex" or role == "stun" then
+            score = score + 150
+        elseif role == "blink" or role == "force" or role == "self_defense" or role == "escape_line" then
+            score = score + 130
+        end
+    end
+
+    if enemyName == "npc_dota_hero_enigma"
+        or enemyName == "npc_dota_hero_witch_doctor"
+        or enemyName == "npc_dota_hero_crystal_maiden"
+        or enemyName == "npc_dota_hero_shadow_shaman" then
+        if triggerName == "channel" or triggerName == "enigma_black_hole" or triggerName == "witch_doctor_death_ward"
+            or triggerName == "crystal_maiden_freezing_field" or triggerName == "shadow_shaman_shackles" then
+            if role == "stun" or role == "hex" or role == "silence" or role == "cyclone" then
+                score = score + 280
+            end
         end
     end
 
@@ -2997,13 +3360,19 @@ local function FindTriggeredEnemy(localHero, now, controls)
     local bestScore = -100000
     local bestTrigger = nil
     local bestInstant = false
+    local bestSkip = ""
 
     for i = 1, #enemies do
         local enemy = enemies[i]
+        local enemyName = U.FormatUnitDebugName(enemy)
         if IsEnemyMagicImmune(enemy) and not HasAnyControlPiercingMagicImmune(controls) then
-            -- skip: no control pierces BKB
+            if bestSkip == "" then
+                bestSkip = enemyName .. " magic immune"
+            end
         elseif GetEnemyInterruptedUntil(enemy, now) then
-            -- skip: recently interrupted, don't waste control
+            if bestSkip == "" then
+                bestSkip = enemyName .. " interrupted"
+            end
         else
         local instantSeverity, instantTrigger = GetInstantEnemyCast(enemy, now)
         local followupSeverity, followupTrigger = GetLinkensFollowupTarget(enemy, now)
@@ -3033,13 +3402,19 @@ local function FindTriggeredEnemy(localHero, now, controls)
                         bestTrigger = trigger
                         bestInstant = isInstant
                     end
+                elseif bestSkip == "" then
+                    bestSkip = enemyName .. " target cap"
                 end
+            elseif bestSkip == "" then
+                bestSkip = enemyName .. " no trigger"
             end
+        elseif bestSkip == "" then
+            bestSkip = enemyName .. " invalid"
         end
         end
     end
 
-    return bestTarget, bestTrigger, bestInstant
+    return bestTarget, bestTrigger, bestInstant, bestSkip, bestScore
 end
 
 local function V2(x, y)
@@ -3105,36 +3480,62 @@ local function SyncPanelThemeColors()
     local accentBase = GetStyleColor(style, "primary", Color(129, 161, 193, 230))
     local mutedBase = GetStyleColor(style, "slider_background", Color(140, 152, 180, 215))
 
-    local bg = WithAlpha(bgBase, 242)
-    local header = LerpColor(bgBase, Color(0, 0, 0, 255), 0.08, 248)
-    local section = LerpColor(bgBase, accentBase, 0.06, 220)
-    local accentSoft = LerpColor(accentBase, Color(255, 255, 255, 255), 0.22, 228)
-    local danger = LerpColor(Color(230, 100, 100, 255), accentBase, 0.08, 200)
-    local selectedGlow = WithAlpha(LerpColor(accentBase, Color(255, 255, 255, 255), 0.35, 255), 165)
+    local bg = WithAlpha(bgBase, 220)
+    local header = WithAlpha(bgBase, 0)
+    local headerGlass = WithAlpha(bgBase, 0)
+    local section = WithAlpha(LerpColor(bgBase, Color(16, 18, 30, 255), 0.35, 255), 72)
+    local cardBg = WithAlpha(LerpColor(bgBase, Color(22, 25, 40, 255), 0.42, 255), 128)
+    local rowBg = WithAlpha(LerpColor(bgBase, Color(18, 20, 30, 255), 0.46, 255), 94)
+    local accentSoft = WithAlpha(accentBase, 255)
+    local accentStrong = WithAlpha(accentBase, 255)
+    local danger = WithAlpha(LerpColor(Color(230, 100, 100, 255), accentBase, 0.05, 255), 220)
+    local success = WithAlpha(LerpColor(Color(78, 214, 148, 255), accentBase, 0.08, 255), 228)
+    local warning = WithAlpha(LerpColor(Color(255, 196, 92, 255), accentBase, 0.06, 255), 228)
+    local selectedGlow = WithAlpha(accentBase, 44)
 
     local colors = {
         bg = bg,
         header = header,
-        outline = WithAlpha(outlineBase, 200),
+        headerGlass = headerGlass,
+        headerBorder = WithAlpha(outlineBase, 80),
+        outline = WithAlpha(outlineBase, 80),
         text = WithAlpha(textBase, 255),
         accent = accentSoft,
-        muted = WithAlpha(LerpColor(textBase, mutedBase, 0.45, 255), 240),
+        accentStrong = accentStrong,
+        muted = WithAlpha(LerpColor(textBase, mutedBase, 0.56, 255), 210),
+        dim = WithAlpha(mutedBase, 180),
         sectionBg = section,
-        divider = WithAlpha(outlineBase, 140),
-        buttonBg = LerpColor(bgBase, accentBase, 0.12, 228),
-        buttonBorder = WithAlpha(accentBase, 240),
-        panelShadow = Color(0, 0, 0, 92),
+        cardBg = cardBg,
+        rowBg = rowBg,
+        divider = WithAlpha(mutedBase, 54),
+        buttonBg = WithAlpha(LerpColor(bgBase, Color(0, 0, 0, 255), 0.16, 255), 88),
+        buttonBorder = WithAlpha(outlineBase, 68),
+        panelShadow = Color(0, 0, 0, 24),
+        panelGlow = WithAlpha(accentBase, 6),
         offText = WithAlpha(danger, 235),
-        corner = WithAlpha(accentBase, 100),
-        okBorder = WithAlpha(accentBase, 218),
-        coolBorder = WithAlpha(LerpColor(accentBase, mutedBase, 0.40, 255), 188),
-        offBorder = WithAlpha(danger, 190),
-        heroOffBorder = WithAlpha(danger, 200),
-        heroOnBorder = WithAlpha(accentBase, 220),
-        sectionBorder = WithAlpha(outlineBase, 130),
-        dangerousBorder = WithAlpha(LerpColor(Color(180, 130, 220, 255), accentBase, 0.18, 255), 220),
-        secondaryBorder = WithAlpha(accentBase, 200),
+        offBg = WithAlpha(LerpColor(bgBase, Color(100, 26, 26, 255), 0.32, 255), 156),
+        corner = WithAlpha(accentBase, 62),
+        okBorder = WithAlpha(accentBase, 148),
+        okFill = WithAlpha(success, 42),
+        success = success,
+        warning = warning,
+        coolBorder = WithAlpha(LerpColor(accentBase, mutedBase, 0.40, 255), 116),
+        offBorder = WithAlpha(danger, 150),
+        heroOffBorder = WithAlpha(danger, 150),
+        heroOnBorder = WithAlpha(accentBase, 154),
+        sectionBorder = WithAlpha(outlineBase, 42),
+        dangerousBorder = WithAlpha(LerpColor(Color(180, 130, 220, 255), accentBase, 0.14, 255), 168),
+        secondaryBorder = WithAlpha(accentBase, 138),
         selectedHighlight = selectedGlow,
+        badgeBg = WithAlpha(LerpColor(bgBase, Color(0, 0, 0, 255), 0.16, 255), 122),
+        badgeBorder = WithAlpha(outlineBase, 54),
+        badgeAccentBg = WithAlpha(LerpColor(accentBase, bgBase, 0.18, 255), 118),
+        badgeAccentBorder = WithAlpha(accentStrong, 96),
+        badgeDangerBg = WithAlpha(LerpColor(danger, bgBase, 0.24, 255), 126),
+        badgeSuccessBg = WithAlpha(LerpColor(success, bgBase, 0.24, 255), 126),
+        badgeWarningBg = WithAlpha(LerpColor(warning, bgBase, 0.24, 255), 126),
+        indexBg = WithAlpha(LerpColor(bgBase, Color(0, 0, 0, 255), 0.20, 255), 132),
+        cooldownBg = WithAlpha(Color(0, 0, 0, 255), 170),
     }
 
     STATE.panelTheme.colors = colors
@@ -3333,17 +3734,17 @@ local function ComputePanelGeometry(controls, enemyGroups)
     cols = Clamp(cols, 3, 8)
 
     local icon = Clamp(math.floor(STATE.panel.iconSize or PANEL_LAYOUT.icon), 24, 64)
-    local iconGap = Clamp(RoundInt(icon * 0.16), 4, 14)
+    local iconGap = Clamp(RoundInt(icon * 0.12), 3, 12)
     local enemyIcon = Clamp(RoundInt(icon * 0.82), 20, 52)
-    local enemyIconGap = Clamp(RoundInt(enemyIcon * 0.16), 3, 10)
-    local padding = Clamp(RoundInt(icon * 0.30), 10, 20)
-    local header = Clamp(RoundInt(icon * 0.82), 28, 50)
-    local sectionTitle = Clamp(RoundInt(icon * 0.38), 12, 24)
-    local sectionGap = Clamp(RoundInt(icon * 0.18), 5, 12)
-    local footer = Clamp(RoundInt(icon * 0.72), 24, 44)
-    local edgeTab = Clamp(RoundInt(icon * 0.76), 20, 40)
-    local corner = Clamp(RoundInt(icon * 0.22), 6, 12)
-    local resizeHandle = Clamp(RoundInt(icon * 0.30), 10, 18)
+    local enemyIconGap = Clamp(RoundInt(enemyIcon * 0.12), 3, 8)
+    local padding = Clamp(RoundInt(icon * 0.26), 9, 18)
+    local header = Clamp(RoundInt(icon * 0.76), 28, 46)
+    local sectionTitle = Clamp(RoundInt(icon * 0.36), 12, 22)
+    local sectionGap = Clamp(RoundInt(icon * 0.16), 5, 12)
+    local footer = Clamp(RoundInt(icon * 0.62), 22, 38)
+    local edgeTab = Clamp(RoundInt(icon * 0.64), 18, 34)
+    local corner = Clamp(RoundInt(icon * 0.18), 5, 10)
+    local resizeHandle = Clamp(RoundInt(icon * 0.26), 10, 16)
 
     local controlCount = #controls
     local ownRows = (controlCount > 0) and math.ceil(controlCount / cols) or 1
@@ -3363,7 +3764,7 @@ local function ComputePanelGeometry(controls, enemyGroups)
     local enemyContentH = enemyRows * enemyIcon + (enemyRows - 1) * enemyIconGap
 
     local contentW = math.max(ownContentW, enemyContentW)
-    local minExpandedWidth = Clamp(RoundInt(icon * 8.6), 300, 460)
+    local minExpandedWidth = Clamp(RoundInt(icon * 8.2), 300, 500)
     local expandedWidth = math.max(padding * 2 + contentW, minExpandedWidth)
     local collapsed = STATE.panel.collapsed and true or false
     local dock = STATE.panel.dock or 0
@@ -3381,7 +3782,7 @@ local function ComputePanelGeometry(controls, enemyGroups)
             padding + header +
             sectionGap + sectionTitle + 2 + ownContentH +
             sectionGap + sectionTitle + 2 + enemyContentH +
-            footer
+            footer + 2
     end
 
     return {
@@ -3466,14 +3867,17 @@ local function BuildPanelRects(controls, enemyGroups)
     local toggleW = Clamp(RoundInt(geom.icon * 0.72), 20, 34)
     local toggleH = Clamp(RoundInt(geom.icon * 0.46), 16, 22)
     local toggleX = panel.x + geom.w - geom.padding - toggleW
-    if geom.collapsed and panel.dock == -1 then
-        toggleX = 2
-    elseif geom.collapsed and panel.dock == 1 then
-        toggleX = panel.x + 2
+    local toggleY = panel.y + math.max(5, math.floor(((geom.header + geom.padding) - toggleH) * 0.5) - 1)
+    if geom.collapsed and (panel.dock == -1 or panel.dock == 1) then
+        local visibleTabX = (panel.dock == -1) and (panel.x + geom.w - tabW) or panel.x
+        toggleW = Clamp(math.min(toggleW, math.max(14, tabW - 4)), 14, 28)
+        toggleH = Clamp(math.min(toggleH, math.max(14, geom.h - 6)), 14, 20)
+        toggleX = visibleTabX + math.floor((tabW - toggleW) * 0.5)
+        toggleY = panel.y + math.floor((geom.h - toggleH) * 0.5)
     end
     rects.toggleBtn = {
         x = toggleX,
-        y = panel.y + math.floor((geom.header + geom.padding - toggleH) * 0.5),
+        y = toggleY,
         w = toggleW,
         h = toggleH,
     }
@@ -3483,7 +3887,7 @@ local function BuildPanelRects(controls, enemyGroups)
     end
 
     local gridX = panel.x + geom.padding
-    local y = panel.y + geom.padding + geom.header + math.max(2, geom.sectionGap - 1)
+    local y = panel.y + geom.padding + geom.header + math.max(4, geom.sectionGap)
     rects.ownTitle = { x = gridX, y = y, w = geom.contentW, h = geom.sectionTitle }
     y = y + geom.sectionTitle + 4
 
@@ -3869,12 +4273,52 @@ local function DrawPriorityPanel(hero, controls, enemyGroups)
 
     local tc = SyncPanelThemeColors()
     local colBg = tc.bg
-    local colHeader = tc.header
     local colOutline = tc.outline
     local colText = tc.text
     local colAccent = tc.accent
     local colMuted = tc.muted
-    local colSectionBg = tc.sectionBg
+    local roundAll = GetDrawFlagsRoundAll()
+
+    local ownEnabled = 0
+    local ownReady = 0
+    local selectedOrder = 0
+    for i = 1, #controls do
+        local control = controls[i]
+        if control and control.panelEnabled ~= false then
+            ownEnabled = ownEnabled + 1
+            if CanUseControl(hero, control.handle) then
+                ownReady = ownReady + 1
+            end
+        end
+        if control and control.id == STATE.selectedPriorityId then
+            selectedOrder = i
+        end
+    end
+
+    local trackedHeroes = 0
+    local trackedAbilities = 0
+    local dangerousAbilities = 0
+    for i = 1, #enemyGroups do
+        local group = enemyGroups[i]
+        if group and group.enabled then
+            trackedHeroes = trackedHeroes + 1
+        end
+        local abilities = group and group.abilities or nil
+        if abilities then
+            for j = 1, #abilities do
+                local ability = abilities[j]
+                if ability and ability.enabled then
+                    trackedAbilities = trackedAbilities + 1
+                    if (ability.severity or 0) >= 3 then
+                        dangerousAbilities = dangerousAbilities + 1
+                    end
+                end
+            end
+        end
+    end
+
+    local contentLeft = rects.panel.x + geom.padding
+    local contentRight = rects.panel.x + rects.panel.w - geom.padding
 
     if Render and Render.Blur then
         local blurFlags = (Enum and Enum.DrawFlags and (Enum.DrawFlags.None or Enum.DrawFlags.NONE)) or 0
@@ -3889,81 +4333,30 @@ local function DrawPriorityPanel(hero, controls, enemyGroups)
         )
     end
 
-    local shadowOff = 4
-    SafeCall(
-        Render.FilledRect,
-        V2(rects.panel.x + shadowOff, rects.panel.y + shadowOff),
-        V2(rects.panel.x + rects.panel.w + shadowOff, rects.panel.y + rects.panel.h + shadowOff),
-        tc.panelShadow,
-        geom.corner + 2,
-        GetDrawFlagsRoundAll()
-    )
-
     SafeCall(
         Render.FilledRect,
         V2(rects.panel.x, rects.panel.y),
         V2(rects.panel.x + rects.panel.w, rects.panel.y + rects.panel.h),
-        colOutline,
+        WithAlpha(colBg, 210),
         geom.corner,
-        GetDrawFlagsRoundAll()
+        roundAll
     )
-
-    SafeCall(
-        Render.FilledRect,
-        V2(rects.panel.x + 1, rects.panel.y + 1),
-        V2(rects.panel.x + rects.panel.w - 1, rects.panel.y + rects.panel.h - 1),
-        colBg,
-        math.max(1, geom.corner - 1),
-        GetDrawFlagsRoundAll()
-    )
-
-    SafeCall(
-        Render.FilledRect,
-        V2(rects.header.x + 1, rects.header.y + 1),
-        V2(rects.header.x + rects.header.w - 1, rects.header.y + rects.header.h - 1),
-        colHeader,
-        math.max(1, geom.corner - 1),
-        GetDrawFlagsRoundAll()
-    )
-    local headerTopLine = tc.selectedHighlight or colAccent
-    SafeCall(
-        Render.FilledRect,
-        V2(rects.panel.x + 1, rects.panel.y + 1),
-        V2(rects.panel.x + rects.panel.w - 1, rects.panel.y + 2),
-        WithAlpha(headerTopLine, 140),
-        math.max(1, geom.corner - 1),
-        GetDrawFlagsRoundAll()
-    )
-
-    local titleX = rects.panel.x + geom.padding
-    local titleY = rects.panel.y + 6
-    local titleRightLimit = rects.panel.x + rects.panel.w - geom.padding
-    if rects.toggleBtn and rects.toggleBtn.x > rects.panel.x and rects.toggleBtn.x < (rects.panel.x + rects.panel.w) then
-        titleRightLimit = rects.toggleBtn.x - 6
-    end
-    if titleRightLimit < titleX + 60 then
-        titleRightLimit = rects.panel.x + rects.panel.w - geom.padding
-    end
-    local titleMaxW = math.max(60, titleRightLimit - titleX)
-    local titleText = FitTextToWidth(STATE.fontMain, 13, L("panel_title"), titleMaxW)
-    DrawTextSoft(STATE.fontMain, 13, titleText, titleX, titleY, colText, 140)
     DrawRect(
-        rects.panel.x + 1,
-        rects.header.y + rects.header.h,
-        rects.panel.x + rects.panel.w - 1,
-        rects.header.y + rects.header.h + 1,
-        tc.divider,
-        0,
+        rects.panel.x,
+        rects.panel.y,
+        rects.panel.x + rects.panel.w,
+        rects.panel.y + rects.panel.h,
+        WithAlpha(tc.headerBorder or colOutline, 40),
+        geom.corner,
         1
     )
-    local accentH = math.max(1, math.floor((geom.corner - 2) * 0.4) + 1)
     SafeCall(
         Render.FilledRect,
-        V2(rects.panel.x + 1, rects.header.y + 1),
-        V2(rects.panel.x + rects.panel.w - 1, rects.header.y + accentH + 1),
-        WithAlpha(colAccent, 192),
-        math.max(1, geom.corner - 2),
-        GetDrawFlagsRoundAll()
+        V2(rects.panel.x, rects.panel.y),
+        V2(rects.panel.x + rects.panel.w, rects.panel.y + 2),
+        WithAlpha(tc.accentStrong or colAccent, 206),
+        0,
+        roundAll
     )
 
     local function drawBtn(rect, text)
@@ -3971,23 +4364,15 @@ local function DrawPriorityPanel(hero, controls, enemyGroups)
             Render.FilledRect,
             V2(rect.x, rect.y),
             V2(rect.x + rect.w, rect.y + rect.h),
-            tc.buttonBg,
-            5,
-            GetDrawFlagsRoundAll()
+            WithAlpha(tc.buttonBg, 116),
+            4,
+            roundAll
         )
-        DrawRect(rect.x, rect.y, rect.x + rect.w, rect.y + rect.h, tc.buttonBorder, 5, 1)
-        SafeCall(
-            Render.FilledRect,
-            V2(rect.x + 1, rect.y + 1),
-            V2(rect.x + rect.w - 1, rect.y + 2),
-            WithAlpha(colAccent, 160),
-            2,
-            GetDrawFlagsRoundAll()
-        )
+        DrawRect(rect.x, rect.y, rect.x + rect.w, rect.y + rect.h, WithAlpha(tc.buttonBorder, 68), 4, 1)
         local sz = GetTextSize(STATE.fontMain, 12, text)
         local tx = rect.x + math.floor((rect.w - (sz.x or 0)) * 0.5)
         local ty = rect.y + math.floor((rect.h - (sz.y or 0)) * 0.5) - 1
-        DrawTextSoft(STATE.fontMain, 12, text, tx, ty, colText, 110)
+        DrawTextSoft(STATE.fontMain, 12, text, tx, ty, colText, 96)
     end
 
     local toggleText
@@ -3996,83 +4381,163 @@ local function DrawPriorityPanel(hero, controls, enemyGroups)
     else
         toggleText = (STATE.panel.dock == 1) and ">" or "<"
     end
-    drawBtn(rects.toggleBtn, toggleText)
 
-    local hintX = rects.panel.x + geom.padding
-    local hintRightLimit = rects.panel.x + rects.panel.w - geom.padding
-    if rects.toggleBtn and rects.toggleBtn.x > rects.panel.x and rects.toggleBtn.x < (rects.panel.x + rects.panel.w) then
-        hintRightLimit = rects.toggleBtn.x - 6
-    end
-    if hintRightLimit < hintX + 60 then
-        hintRightLimit = rects.panel.x + rects.panel.w - geom.padding
-    end
-    local hintMaxW = math.max(60, hintRightLimit - hintX)
-    local hintY = titleY + 16
-    local hintText = FitTextToWidth(STATE.fontSmall, 10, L("panel_hint"), hintMaxW)
-    if rects.collapsed then
-        DrawTextSoft(STATE.fontSmall, 10, hintText, hintX, hintY, colMuted, 110)
+    if rects.collapsed and (STATE.panel.dock == -1 or STATE.panel.dock == 1) then
+        local tabX0 = (STATE.panel.dock == -1) and (rects.panel.x + rects.panel.w - geom.edgeTab) or rects.panel.x
+        local tabX1 = tabX0 + geom.edgeTab
+        local tabY0 = rects.panel.y
+        local tabY1 = rects.panel.y + rects.panel.h
+        local tabRound = math.max(5, geom.corner - 1)
+
+        if Render and Render.Blur then
+            local blurFlags = (Enum and Enum.DrawFlags and (Enum.DrawFlags.None or Enum.DrawFlags.NONE)) or 0
+            SafeCall(Render.Blur, V2(tabX0, tabY0), V2(tabX1, tabY1), 1.0, 1.0, 0, blurFlags)
+        end
+
+        SafeCall(
+            Render.FilledRect,
+            V2(tabX0, tabY0),
+            V2(tabX1, tabY1),
+            WithAlpha(tc.sectionBg or colBg, 214),
+            tabRound,
+            roundAll
+        )
+        DrawRect(tabX0, tabY0, tabX1, tabY1, WithAlpha(tc.headerBorder or colOutline, 58), tabRound, 1)
+        SafeCall(
+            Render.FilledRect,
+            V2(tabX0, tabY0),
+            V2(tabX1, tabY0 + 2),
+            WithAlpha(tc.accentStrong or colAccent, 196),
+            0,
+            roundAll
+        )
+
+        drawBtn(rects.toggleBtn, toggleText)
         return
     end
 
-    DrawTextSoft(STATE.fontSmall, 10, hintText, hintX, hintY, colMuted, 110)
+    local titleX = contentLeft
+    local titleY = rects.panel.y + 7
+    local titleRightLimit = contentRight
+    if rects.toggleBtn and rects.toggleBtn.x > rects.panel.x and rects.toggleBtn.x < (rects.panel.x + rects.panel.w) then
+        titleRightLimit = rects.toggleBtn.x - 8
+    end
+    if titleRightLimit < titleX + 60 then
+        titleRightLimit = contentRight
+    end
+    local titleMaxW = math.max(60, titleRightLimit - titleX)
+    local titleText = FitTextToWidth(STATE.fontMain, 13, L("panel_title"), titleMaxW)
+    DrawTextSoft(STATE.fontMain, 13, titleText, titleX + 4, titleY, colText, 138)
 
-    local function drawSectionTitle(rect, text)
+    local summaryText = "R " .. tostring(ownReady) .. "/" .. tostring(math.max(ownEnabled, 0))
+        .. "  H " .. tostring(trackedHeroes)
+        .. "  A " .. tostring(trackedAbilities)
+    if selectedOrder > 0 then
+        summaryText = summaryText .. "  P#" .. tostring(selectedOrder)
+    end
+    local summary = FitTextToWidth(STATE.fontSmall, 9, summaryText, titleMaxW)
+    DrawTextSoft(STATE.fontSmall, 9, summary, titleX + 4, titleY + 15, WithAlpha(colMuted, 226), 84)
+
+    DrawRect(
+        contentLeft + 4,
+        rects.header.y + rects.header.h,
+        contentRight - 4,
+        rects.header.y + rects.header.h + 1,
+        WithAlpha(tc.divider, 56),
+        0,
+        1
+    )
+
+    drawBtn(rects.toggleBtn, toggleText)
+
+    if rects.collapsed then
+        return
+    end
+
+    local function drawSectionTitle(rect, text, statText)
         if not rect then
             return
         end
-        local tt = FitTextToWidth(STATE.fontMain, 11, text, math.max(80, rect.w))
-        DrawTextSoft(STATE.fontMain, 11, tt, rect.x, rect.y + 1, colText, 125)
-        local ts = GetTextSize(STATE.fontMain, 11, tt)
-        local lineX0 = rect.x + (ts.x or 0) + 8
+        local statWidth = 0
+        if statText and statText ~= "" then
+            local statSize = GetTextSize(STATE.fontSmall, 9, statText)
+            statWidth = statSize.x or 0
+        end
+
+        local textLimit = math.max(80, contentRight - rect.x - statWidth - 18)
+        local tt = FitTextToWidth(STATE.fontMain, 10, text, textLimit)
+        DrawTextSoft(STATE.fontMain, 10, tt, rect.x + 4, rect.y + 1, tc.accentStrong or colAccent, 102)
+
+        local ts = GetTextSize(STATE.fontMain, 10, tt)
+        local lineX0 = rect.x + 4 + (ts.x or 0) + 8
+        local lineX1 = contentRight - statWidth - ((statWidth > 0) and 8 or 0)
         local lineY = rect.y + math.floor(rect.h * 0.55)
-        local lineX1 = rects.panel.x + rects.panel.w - geom.padding
-        if lineX1 > lineX0 + 8 then
-            DrawRect(lineX0, lineY, lineX1, lineY + 1, WithAlpha(colMuted, 85), 0, 1)
+        if lineX1 > lineX0 + 6 then
+            DrawRect(lineX0, lineY, lineX1, lineY + 1, WithAlpha(tc.divider, 48), 0, 1)
+        end
+
+        if statWidth > 0 then
+            DrawTextSoft(STATE.fontSmall, 9, statText, contentRight - statWidth, rect.y + 2, WithAlpha(colMuted, 214), 80)
         end
     end
 
-    local sectionRound = math.max(4, geom.corner - 4)
+    local sectionRound = math.max(4, geom.corner - 3)
     local function drawSectionBox(x0, y0, x1, y1, alphaMul)
         SafeCall(
             Render.FilledRect,
             V2(x0, y0),
             V2(x1, y1),
-            WithAlpha(colSectionBg, alphaMul or 218),
+            WithAlpha(tc.sectionBg or tc.cardBg or colBg, math.min(alphaMul or 72, 78)),
             sectionRound,
-            GetDrawFlagsRoundAll()
+            roundAll
         )
-        DrawRect(x0, y0, x1, y1, tc.sectionBorder, sectionRound, 1)
+        DrawRect(x0, y0, x1, y1, WithAlpha(tc.sectionBorder, 28), sectionRound, 1)
     end
 
     local function drawOffBadge(x, y, w, h, small)
-        local bw = small and 16 or 20
+        local fontSize = small and 7 or 8
+        local text = "OFF"
+        local textSize = GetTextSize(STATE.fontSmall, fontSize, text)
+        local bw = (textSize.x or 0) + 6
         local bh = small and 9 or 10
-        local bx = x + w - bw - 2
-        local by = y + h - bh - 2
+        local bx = x + w - bw - 3
+        local by = y + h - bh - 3
         SafeCall(
             Render.FilledRect,
             V2(bx, by),
             V2(bx + bw, by + bh),
-            WithAlpha(LerpColor(colBg, Color(90, 26, 26, 255), 0.40, 255), 220),
+            tc.offBg or WithAlpha(LerpColor(colBg, Color(90, 26, 26, 255), 0.40, 255), 214),
             4,
-            GetDrawFlagsRoundAll()
+            roundAll
         )
         DrawRect(bx, by, bx + bw, by + bh, tc.offBorder, 4, 1)
-        DrawTextSoft(STATE.fontSmall, small and 7 or 8, "OFF", bx + 2, by + 1, tc.offText, 120)
+        DrawTextSoft(STATE.fontSmall, fontSize, text, bx + 3, by + 1, tc.offText, 108)
     end
 
-    local boxX0 = rects.panel.x + geom.padding - 4
-    local boxX1 = rects.panel.x + rects.panel.w - geom.padding + 4
+    local function drawStatusDot(cx, cy, color, size)
+        local s = size or 5
+        SafeCall(
+            Render.FilledRect,
+            V2(cx, cy),
+            V2(cx + s, cy + s),
+            color,
+            math.max(2, math.floor(s * 0.5)),
+            roundAll
+        )
+    end
 
-    local ownY0 = rects.ownTitle.y + rects.ownTitle.h + 3
-    local ownY1 = ownY0 + geom.icon + 8
+    local boxX0 = contentLeft - 2
+    local boxX1 = contentRight + 2
+
+    local ownY0 = rects.ownTitle.y + rects.ownTitle.h + 4
+    local ownY1 = ownY0 + geom.icon + 10
     if #rects.ownIcons > 0 then
         ownY0 = rects.ownIcons[1].y - 4
         ownY1 = rects.ownIcons[#rects.ownIcons].y + rects.ownIcons[#rects.ownIcons].h + 4
     end
 
-    local enemyY0 = rects.enemyTitle.y + rects.enemyTitle.h + 3
-    local enemyY1 = enemyY0 + geom.enemyIcon + 8
+    local enemyY0 = rects.enemyTitle.y + rects.enemyTitle.h + 4
+    local enemyY1 = enemyY0 + geom.enemyIcon + 10
     if #rects.enemyRows > 0 then
         enemyY0 = rects.enemyRows[1].hero.y - 4
         local last = rects.enemyRows[#rects.enemyRows]
@@ -4084,24 +4549,28 @@ local function DrawPriorityPanel(hero, controls, enemyGroups)
         enemyY1 = rowBottom + 4
     end
 
-    drawSectionTitle(rects.ownTitle, L("panel_own"))
-    drawSectionTitle(rects.enemyTitle, L("panel_enemy"))
-    drawSectionBox(boxX0, ownY0, boxX1, ownY1, 208)
-    drawSectionBox(boxX0, enemyY0, boxX1, enemyY1, 200)
+    drawSectionTitle(rects.ownTitle, L("panel_own"), tostring(ownReady) .. "/" .. tostring(math.max(ownEnabled, 0)))
+    local enemyStatText = tostring(trackedAbilities)
+    if dangerousAbilities > 0 then
+        enemyStatText = enemyStatText .. " !" .. tostring(dangerousAbilities)
+    end
+    drawSectionTitle(rects.enemyTitle, L("panel_enemy"), enemyStatText)
+    drawSectionBox(boxX0, ownY0, boxX1, ownY1, 74)
+    drawSectionBox(boxX0, enemyY0, boxX1, enemyY1, 68)
 
     if #controls == 0 then
         DrawTextSoft(
             STATE.fontSmall,
             11,
             L("panel_empty_own"),
-            rects.panel.x + geom.padding,
-            rects.ownTitle.y + 18,
+            rects.panel.x + geom.padding + 2,
+            rects.ownTitle.y + 19,
             colMuted,
             115
         )
     end
 
-    local iconRound = 6
+    local iconRound = math.max(5, geom.corner - 2)
     for i = 1, #controls do
         local control = controls[i]
         local r = rects.ownIcons[i]
@@ -4111,25 +4580,35 @@ local function DrawPriorityPanel(hero, controls, enemyGroups)
         local alpha = (ready and enabled) and 255 or 88
         local isSelected = STATE.selectedPriorityId == control.id
 
-        local bg = (ready and enabled)
-            and LerpColor(colSectionBg, colAccent, 0.11, 236)
-            or LerpColor(colSectionBg, Color(0, 0, 0, 255), 0.10, 224)
+        local bg = enabled
+            and LerpColor(tc.cardBg or colBg, colAccent, ready and 0.05 or 0.02, ready and 138 or 118)
+            or WithAlpha(tc.cardBg or colBg, 88)
         SafeCall(
             Render.FilledRect,
             V2(r.x, r.y),
             V2(r.x + r.w, r.y + r.h),
             bg,
             iconRound,
-            GetDrawFlagsRoundAll()
+            roundAll
         )
         if isSelected and tc.selectedHighlight then
             SafeCall(
                 Render.FilledRect,
                 V2(r.x + 1, r.y + 1),
                 V2(r.x + r.w - 1, r.y + r.h - 1),
-                WithAlpha(tc.selectedHighlight, 72),
+                WithAlpha(tc.selectedHighlight, 32),
                 iconRound - 1,
-                GetDrawFlagsRoundAll()
+                roundAll
+            )
+        end
+        if enabled then
+            SafeCall(
+                Render.FilledRect,
+                V2(r.x + 1, r.y + 1),
+                V2(r.x + r.w - 1, r.y + 3),
+                WithAlpha(tc.accentStrong or colAccent, isSelected and 86 or (ready and 54 or 28)),
+                iconRound - 1,
+                roundAll
             )
         end
 
@@ -4137,6 +4616,9 @@ local function DrawPriorityPanel(hero, controls, enemyGroups)
         if not hasIcon then
             DrawTextSoft(STATE.fontSmall, 10, control.kind == "ability" and "A" or "I", r.x + 13, r.y + 10, colText, 100)
         end
+
+        local dotColor = enabled and (ready and (tc.success or colAccent) or (tc.warning or colAccent)) or tc.offText
+        drawStatusDot(r.x + r.w - 7, r.y + 4, dotColor, 4)
 
         local cdRemain = SafeCall(Ability.GetCooldown, control.handle) or 0
         if cdRemain > 0 then
@@ -4154,9 +4636,9 @@ local function DrawPriorityPanel(hero, controls, enemyGroups)
                     Render.FilledRect,
                     V2(tx, ty),
                     V2(tx + tw, ty + th),
-                    Color(0, 0, 0, 200),
+                    tc.cooldownBg or Color(0, 0, 0, 200),
                     4,
-                    GetDrawFlagsRoundAll()
+                    roundAll
                 )
                 DrawTextSoft(cdFont, cdSize, cdStr, tx + 3, ty + 2, Color(255, 255, 255, 250), 140)
             end
@@ -4164,14 +4646,14 @@ local function DrawPriorityPanel(hero, controls, enemyGroups)
 
         local border = tc.coolBorder
         if isSelected then
-            border = colAccent
+            border = tc.accentStrong or colAccent
         elseif enabled then
             border = ready and tc.okBorder or tc.coolBorder
         else
             border = tc.offBorder
         end
 
-        DrawRect(r.x, r.y, r.x + r.w, r.y + r.h, border, iconRound, 1.5)
+        DrawRect(r.x, r.y, r.x + r.w, r.y + r.h, border, iconRound, 1)
         local idxTxt = tostring(i)
         local idxSz = GetTextSize(STATE.fontSmall, 9, idxTxt)
         local idxW = (idxSz.x or 0) + 6
@@ -4179,9 +4661,9 @@ local function DrawPriorityPanel(hero, controls, enemyGroups)
             Render.FilledRect,
             V2(r.x + 2, r.y + 2),
             V2(r.x + 2 + idxW, r.y + 12),
-            WithAlpha(colBg, 200),
+            tc.indexBg or WithAlpha(colBg, 108),
             4,
-            GetDrawFlagsRoundAll()
+            roundAll
         )
         DrawTextSoft(STATE.fontSmall, 9, idxTxt, r.x + 4, r.y + 2, Color(255, 255, 255, 240), 120)
         if not enabled then
@@ -4205,29 +4687,31 @@ local function DrawPriorityPanel(hero, controls, enemyGroups)
         local rowRect = rects.enemyRows[i]
         local group = enemyGroups[i]
         if rowRect and group then
+            local heroEnabled = group.enabled and true or false
             local rowY0 = rowRect.hero.y - 2
             local rowY1 = rowRect.hero.y + rowRect.hero.h + 2
             SafeCall(
                 Render.FilledRect,
                 V2(boxX0 + 2, rowY0),
                 V2(boxX1 - 2, rowY1),
-                WithAlpha(LerpColor(colSectionBg, Color(0, 0, 0, 255), 0.06, 255), 148),
-                4,
-                GetDrawFlagsRoundAll()
+                WithAlpha(tc.rowBg or LerpColor(tc.cardBg or colBg, Color(0, 0, 0, 255), 0.06, 255), heroEnabled and 82 or 62),
+                6,
+                roundAll
             )
-            local heroEnabled = group.enabled and true or false
+            DrawRect(boxX0 + 2, rowY0, boxX1 - 2, rowY1, WithAlpha(tc.sectionBorder, heroEnabled and 34 or 24), 6, 1)
             local heroBg = heroEnabled
-                and LerpColor(colSectionBg, colAccent, 0.10, 236)
-                or LerpColor(colSectionBg, Color(0, 0, 0, 255), 0.09, 222)
+                and LerpColor(tc.cardBg or colBg, colAccent, 0.04, 132)
+                or WithAlpha(tc.cardBg or colBg, 90)
             SafeCall(
                 Render.FilledRect,
                 V2(rowRect.hero.x, rowRect.hero.y),
                 V2(rowRect.hero.x + rowRect.hero.w, rowRect.hero.y + rowRect.hero.h),
                 heroBg,
                 iconRound,
-                GetDrawFlagsRoundAll()
+                roundAll
             )
             DrawImage(group.heroIconPath, rowRect.hero.x + 1, rowRect.hero.y + 1, rowRect.hero.w - 2, heroEnabled and 255 or 95)
+            drawStatusDot(rowRect.hero.x + rowRect.hero.w - 8, rowRect.hero.y + 4, heroEnabled and (tc.success or colAccent) or tc.offText, 5)
             DrawRect(
                 rowRect.hero.x,
                 rowRect.hero.y,
@@ -4247,22 +4731,36 @@ local function DrawPriorityPanel(hero, controls, enemyGroups)
                 if r and ability then
                     local abilityEnabled = ability.enabled and true or false
                     local active = heroEnabled and abilityEnabled
+                    local slotAccent = ((ability.severity or 0) >= 3) and tc.dangerousBorder or tc.secondaryBorder
                     local bg = active
-                        and LerpColor(colSectionBg, colAccent, 0.09, 230)
-                        or LerpColor(colSectionBg, Color(0, 0, 0, 255), 0.08, 220)
+                        and LerpColor(tc.cardBg or colBg, colAccent, 0.04, 124)
+                        or WithAlpha(tc.cardBg or colBg, 84)
                     SafeCall(
                         Render.FilledRect,
                         V2(r.x, r.y),
                         V2(r.x + r.w, r.y + r.h),
                         bg,
                         iconRound,
-                        GetDrawFlagsRoundAll()
+                        roundAll
                     )
+                    if abilityEnabled then
+                        SafeCall(
+                            Render.FilledRect,
+                            V2(r.x + 1, r.y + 1),
+                            V2(r.x + r.w - 1, r.y + 2),
+                            WithAlpha(slotAccent, active and 78 or 26),
+                            iconRound - 1,
+                            roundAll
+                        )
+                    end
 
                     local alpha = active and 255 or 90
                     DrawImage(ability.iconPath, r.x + 1, r.y + 1, r.w - 2, alpha)
+                    if abilityEnabled then
+                        drawStatusDot(r.x + r.w - 7, r.y + 4, (ability.severity or 0) >= 3 and slotAccent or (tc.warning or colAccent), 4)
+                    end
 
-                    local border = abilityEnabled and ((ability.severity or 0) >= 3 and tc.dangerousBorder or tc.secondaryBorder)
+                    local border = abilityEnabled and slotAccent
                         or tc.offBorder
                     DrawRect(r.x, r.y, r.x + r.w, r.y + r.h, border, iconRound, 1)
 
@@ -4273,6 +4771,31 @@ local function DrawPriorityPanel(hero, controls, enemyGroups)
             end
         end
     end
+
+    local footerY = rects.panel.y + rects.panel.h - geom.footer + 8
+    DrawRect(
+        contentLeft,
+        footerY - 5,
+        contentRight,
+        footerY - 4,
+        WithAlpha(tc.divider, 52),
+        0,
+        1
+    )
+    local footerLeftText = selectedOrder > 0 and ("Priority #" .. tostring(selectedOrder)) or "Drag to reorder"
+    local footerLeft = FitTextToWidth(STATE.fontSmall, 9, footerLeftText, math.max(90, rects.panel.w * 0.42))
+    DrawTextSoft(STATE.fontSmall, 9, footerLeft, contentLeft, footerY, WithAlpha(colText, 230), 86)
+    local footerHint = FitTextToWidth(STATE.fontSmall, 9, L("panel_hint"), math.max(120, contentRight - contentLeft - 126))
+    local footerHintSize = GetTextSize(STATE.fontSmall, 9, footerHint)
+    DrawTextSoft(
+        STATE.fontSmall,
+        9,
+        footerHint,
+        math.max(contentLeft + 126, contentRight - (footerHintSize.x or 0)),
+        footerY,
+        WithAlpha(colMuted, 218),
+        80
+    )
 
     local showHandles = true
     if MENU.ResizeHandlesNear and MENU.ResizeHandlesNear.Get and MENU.ResizeHandlesNear:Get() then
@@ -4287,23 +4810,113 @@ local function DrawPriorityPanel(hero, controls, enemyGroups)
     end
 
     if showHandles then
-        local function drawCornerHandle(rect)
+        local cx, cy = SafeCall(Input.GetCursorPos)
+        local function drawCornerHandle(rect, corner)
+            local hovered = (cx and cy and IsPointInRect(cx, cy, rect)) and true or false
+            local arm = math.max(7, math.floor(rect.w * 0.78))
+            local thick = hovered and 3 or 2
+            local base = hovered and WithAlpha(tc.accentStrong or tc.corner, 188) or WithAlpha(tc.corner, 134)
+            local glow = hovered and WithAlpha(tc.buttonBg, 96) or WithAlpha(tc.buttonBg, 54)
             SafeCall(
                 Render.FilledRect,
-                V2(rect.x + 1, rect.y + 1),
-                V2(rect.x + rect.w - 1, rect.y + rect.h - 1),
-                tc.corner,
-                3,
-                GetDrawFlagsRoundAll()
+                V2(rect.x, rect.y),
+                V2(rect.x + rect.w, rect.y + rect.h),
+                glow,
+                4,
+                roundAll
             )
+
+            if corner == "tl" then
+                SafeCall(Render.FilledRect, V2(rect.x + 1, rect.y + 1), V2(rect.x + arm, rect.y + 1 + thick), base, 2, roundAll)
+                SafeCall(Render.FilledRect, V2(rect.x + 1, rect.y + 1), V2(rect.x + 1 + thick, rect.y + arm), base, 2, roundAll)
+            elseif corner == "tr" then
+                SafeCall(Render.FilledRect, V2(rect.x + rect.w - arm, rect.y + 1), V2(rect.x + rect.w - 1, rect.y + 1 + thick), base, 2, roundAll)
+                SafeCall(Render.FilledRect, V2(rect.x + rect.w - 1 - thick, rect.y + 1), V2(rect.x + rect.w - 1, rect.y + arm), base, 2, roundAll)
+            elseif corner == "bl" then
+                SafeCall(Render.FilledRect, V2(rect.x + 1, rect.y + rect.h - 1 - thick), V2(rect.x + arm, rect.y + rect.h - 1), base, 2, roundAll)
+                SafeCall(Render.FilledRect, V2(rect.x + 1, rect.y + rect.h - arm), V2(rect.x + 1 + thick, rect.y + rect.h - 1), base, 2, roundAll)
+            else
+                SafeCall(Render.FilledRect, V2(rect.x + rect.w - arm, rect.y + rect.h - 1 - thick), V2(rect.x + rect.w - 1, rect.y + rect.h - 1), base, 2, roundAll)
+                SafeCall(Render.FilledRect, V2(rect.x + rect.w - 1 - thick, rect.y + rect.h - arm), V2(rect.x + rect.w - 1, rect.y + rect.h - 1), base, 2, roundAll)
+            end
         end
 
-        drawCornerHandle(rects.resize.tl)
-        drawCornerHandle(rects.resize.tr)
-        drawCornerHandle(rects.resize.bl)
-        drawCornerHandle(rects.resize.br)
+        drawCornerHandle(rects.resize.tl, "tl")
+        drawCornerHandle(rects.resize.tr, "tr")
+        drawCornerHandle(rects.resize.bl, "bl")
+        drawCornerHandle(rects.resize.br, "br")
     end
 end
+
+function U.DrawDecisionDebugOverlay()
+    if not MENU.Enabled or not MENU.Enabled:Get() then
+        return
+    end
+    if not MENU.PanelEnabled or not MENU.PanelEnabled:Get() then
+        return
+    end
+    if not MENU.DebugOverlay or not MENU.DebugOverlay.Get or not MENU.DebugOverlay:Get() then
+        return
+    end
+    if STATE.panel.collapsed then
+        return
+    end
+
+    local dbg = STATE.debugInfo
+    if not dbg then
+        return
+    end
+
+    local lines = dbg.lines or {}
+    if (dbg.status == nil or dbg.status == "") and #lines == 0 then
+        return
+    end
+
+    EnsureFonts()
+
+    local tc = SyncPanelThemeColors()
+    local title = L("debug_overlay_title")
+    local header = title .. ((dbg.status and dbg.status ~= "") and ("  [" .. dbg.status .. "]") or "")
+    local maxWidth = GetTextSize(STATE.fontMain, 11, header).x or 0
+    for i = 1, #lines do
+        local lineWidth = GetTextSize(STATE.fontSmall, 9, tostring(lines[i] or "")).x or 0
+        if lineWidth > maxWidth then
+            maxWidth = lineWidth
+        end
+    end
+
+    local width = Clamp(math.floor(maxWidth + 24), 190, 360)
+    local height = 18 + (#lines * 13) + 12
+    local screen = (Render and (SafeCall(Render.ScreenSize) or SafeCall(Render.GetScreenSize))) or Vec2(1920, 1080)
+    local screenW = screen.x or 1920
+    local screenH = screen.y or 1080
+
+    local x = (STATE.panel.x or 0) + (STATE.panel.w or 0) + 10
+    local y = STATE.panel.y or 0
+    if x + width > screenW - 8 then
+        x = math.max(8, (STATE.panel.x or 0) - width - 10)
+    end
+    if y + height > screenH - 8 then
+        y = math.max(8, screenH - height - 8)
+    end
+
+    if Render and Render.Blur then
+        local blurFlags = (Enum and Enum.DrawFlags and (Enum.DrawFlags.None or Enum.DrawFlags.NONE)) or 0
+        SafeCall(Render.Blur, V2(x, y), V2(x + width, y + height), 1.0, 1.0, 0, blurFlags)
+    end
+
+    local roundAll = GetDrawFlagsRoundAll()
+    SafeCall(Render.FilledRect, V2(x, y), V2(x + width, y + height), WithAlpha(tc.bg, 196), 7, roundAll)
+    DrawRect(x, y, x + width, y + height, WithAlpha(tc.outline, 42), 7, 1)
+    SafeCall(Render.FilledRect, V2(x, y), V2(x + width, y + 2), WithAlpha(tc.accentStrong or tc.accent, 172), 0, roundAll)
+
+    DrawTextSoft(STATE.fontMain, 11, header, x + 8, y + 6, tc.text, 108)
+    for i = 1, #lines do
+        local line = FitTextToWidth(STATE.fontSmall, 9, tostring(lines[i] or ""), width - 16)
+        DrawTextSoft(STATE.fontSmall, 9, line, x + 8, y + 21 + ((i - 1) * 13), WithAlpha(tc.muted, 228), 82)
+    end
+end
+
 local function RefreshMenus(localHero, force)
     UpdateOwnControlMenus(localHero, force)
     UpdateEnemyTriggerMenus(localHero, force)
@@ -4402,6 +5015,34 @@ script.OnUpdate = function()
     end
 
     local now = GetTime()
+    local function debugLine(labelKey, value)
+        if value == nil then
+            return ""
+        end
+        local text = tostring(value)
+        if text == "" then
+            return ""
+        end
+        return L(labelKey) .. ": " .. text
+    end
+
+    local function debugPreview(sequence)
+        if not sequence or #sequence == 0 then
+            return ""
+        end
+
+        local parts = {}
+        local limit = math.min(4, #sequence)
+        for i = 1, limit do
+            parts[#parts + 1] = U.FormatControlDebugName(sequence[i])
+        end
+        return debugLine("debug_preview", table.concat(parts, " > "))
+    end
+
+    if not STATE.panelPositionLoaded then
+        LoadPanelPosition()
+    end
+
     if now - STATE.lastRefreshTime > 0.50 then
         RefreshMenus(hero, false)
         STATE.lastRefreshTime = now
@@ -4428,10 +5069,17 @@ script.OnUpdate = function()
     if IsHeroDisabled(hero) then return end
     if SafeCall(NPC.GetChannellingAbility, hero) then return end
 
-    if #controls == 0 then return end
+    if #controls == 0 then
+        U.SetDebugState(L("debug_idle"), debugLine("debug_reason", L("debug_no_controls")))
+        return
+    end
 
-    local target, triggerName, isInstant = FindTriggeredEnemy(hero, now, controls)
+    local target, triggerName, isInstant, skipReason, targetScore = FindTriggeredEnemy(hero, now, controls)
     if not target then
+        U.SetDebugState(
+            L("debug_idle"),
+            debugLine("debug_reason", (skipReason ~= "" and skipReason) or L("debug_no_target"))
+        )
         return
     end
 
@@ -4443,10 +5091,22 @@ script.OnUpdate = function()
     end
 
     if now - STATE.lastCastTime < castDelay then
+        U.SetDebugState(
+            L("debug_wait"),
+            debugLine("debug_target", U.FormatUnitDebugName(target)),
+            debugLine("debug_trigger", triggerName or "unknown"),
+            debugLine("debug_reason", "cast_delay")
+        )
         return
     end
 
     if now - STATE.lastOrderAttemptTime < retryDelay then
+        U.SetDebugState(
+            L("debug_wait"),
+            debugLine("debug_target", U.FormatUnitDebugName(target)),
+            debugLine("debug_trigger", triggerName or "unknown"),
+            debugLine("debug_reason", "retry_delay")
+        )
         return
     end
 
@@ -4454,7 +5114,7 @@ script.OnUpdate = function()
     if linkensProtected and not IsCastIntoLinkensEnabled() then
         local breaker = FindBestLinkensBreaker(hero, controls, target)
         if breaker then
-            local casted, attempted = TryCastControl(hero, breaker, target, true)
+            local casted, attempted, reason = TryCastControl(hero, breaker, target, true)
             if attempted then
                 STATE.lastOrderAttemptTime = now
             end
@@ -4463,18 +5123,33 @@ script.OnUpdate = function()
             RegisterTargetUsage(target, now)
             RegisterEnemyInterrupted(target, now)
             RegisterLinkensFollowupTarget(target, now, "linkens_followup")
+            U.SetDebugState(
+                L("debug_cast"),
+                debugLine("debug_target", U.FormatUnitDebugName(target)),
+                debugLine("debug_trigger", "linkens_break"),
+                debugLine("debug_control", U.FormatControlDebugName(breaker)),
+                debugLine("debug_reason", reason or "breaker")
+            )
             return
         end
             if attempted then
+                U.SetDebugState(
+                    L("debug_blocked"),
+                    debugLine("debug_target", U.FormatUnitDebugName(target)),
+                    debugLine("debug_trigger", "linkens_break"),
+                    debugLine("debug_control", U.FormatControlDebugName(breaker)),
+                    debugLine("debug_reason", reason or "breaker_failed")
+                )
                 return
             end
         end
     end
 
     local castSequence = BuildSmartControlSequence(hero, target, controls, triggerName, isInstant, now)
+    local previewLine = debugPreview(castSequence)
     for i = 1, #castSequence do
         local control = castSequence[i]
-        local casted, attempted = TryCastControl(hero, control, target, false)
+        local casted, attempted, reason = TryCastControl(hero, control, target, false)
         if attempted then
             STATE.lastOrderAttemptTime = now
         end
@@ -4484,13 +5159,37 @@ script.OnUpdate = function()
             RegisterTargetUsage(target, now)
             RegisterEnemyInterrupted(target, now)
             ConsumeLinkensFollowupTarget(target)
+            U.SetDebugState(
+                L("debug_cast"),
+                debugLine("debug_target", U.FormatUnitDebugName(target)),
+                debugLine("debug_trigger", triggerName or "unknown"),
+                debugLine("debug_control", U.FormatControlDebugName(control)),
+                debugLine("debug_score", tostring(math.floor((targetScore or 0) + 0.5))),
+                previewLine
+            )
             return
         end
 
         if attempted then
+            U.SetDebugState(
+                L("debug_blocked"),
+                debugLine("debug_target", U.FormatUnitDebugName(target)),
+                debugLine("debug_trigger", triggerName or "unknown"),
+                debugLine("debug_control", U.FormatControlDebugName(control)),
+                debugLine("debug_reason", reason or "attempt_failed"),
+                previewLine
+            )
             return
         end
     end
+
+    U.SetDebugState(
+        L("debug_blocked"),
+        debugLine("debug_target", U.FormatUnitDebugName(target)),
+        debugLine("debug_trigger", triggerName or "unknown"),
+        debugLine("debug_reason", "no_cast_path"),
+        previewLine
+    )
 end
 
 script.OnDraw = function()
@@ -4506,6 +5205,7 @@ script.OnDraw = function()
     local controls = GetCachedControls(hero)
     local panelEnemies = BuildEnemyPanelEntries(hero)
     DrawPriorityPanel(hero, controls, panelEnemies)
+    U.DrawDecisionDebugOverlay()
 end
 
 script.OnPrepareUnitOrders = function()
@@ -4553,6 +5253,7 @@ script.OnGameEnd = function()
     STATE.persistOwnEnabled = {}
     STATE.persistEnemyAbilityEnabled = {}
     STATE.persistEnemyHeroEnabled = {}
+    STATE.panelPositionLoaded = false
     STATE.panel.dragging = false
     STATE.panel.resizing = false
     STATE.panel.resizeCorner = ""
