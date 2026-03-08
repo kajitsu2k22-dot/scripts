@@ -1,11 +1,10 @@
 local script = {}
 
 --------------------------------------------------------------------------------
--- ABILITY LAST HIT v2.0 — авто-добитие крипов способностями
--- Активируется при зажатом бинде Last Hit Helper
--- Сканирует ближайших вражеских крипов и добивает их способностями
--- author: Copilot
--- Created: 2026-03-08
+-- Skill LastHit
+-- Smart spell last hit for creeps.
+-- Automatically finds the best nuke for a secure last hit.
+-- author: Euphoria
 --------------------------------------------------------------------------------
 
 local UI = {}
@@ -20,7 +19,8 @@ local lastTargetTime = 0
 local lastTargetLockDuration = 0
 local TARGET_COOLDOWN_MIN = 0.15
 local TARGET_COOLDOWN_MAX = 1.25
-local DEBUG_PREFIX = "[AbilityLH] "
+local AUTO_ATTACK_RANGE_EPSILON = 50
+local DEBUG_PREFIX = "[SkillLH] "
 local lastDebugTime = 0
 local DEBUG_INTERVAL = 1.0
 local DEBUG_REPEAT_INTERVAL = 8.0
@@ -137,9 +137,17 @@ local I18N = {
     },
 }
 
-local creepHPTracker = {}  -- [entityIndex] = { hp=N, time=T, dps=N }
+local creepHPTracker = {}  -- [entityIndex] = { hp=N, time=T, dps=N, samples=N }
 local TRACKER_CLEANUP_INTERVAL = 5.0
 local lastTrackerCleanup = 0
+local HP_PREDICT_MIN_SAMPLE_DT = 0.08
+local HP_PREDICT_WINDOW_GRACE = 0.07
+local HP_PREDICT_CONFIDENCE_BASE = 0.58
+local HP_PREDICT_CONFIDENCE_STEP = 0.07
+local HP_PREDICT_CONFIDENCE_MAX = 0.82
+local HP_PREDICT_BASE_RESERVE = 8
+local HP_PREDICT_SAMPLE_RESERVE = 4
+local HP_PREDICT_RESERVE_MAX = 28
 
 local function dbg(msg)
     if UI.Debug and UI.Debug:Get() then
@@ -981,16 +989,18 @@ local function getAttackScaledAbilityDamage(hero, ability, info)
     if not info then return 0 end
 
     local attackDamage = 0
-    if NPC.GetTotalDamage then
-        local ok, value = pcall(NPC.GetTotalDamage, hero)
+    if NPC.GetMinDamage then
+        local ok, value = pcall(NPC.GetMinDamage, hero)
         if ok and value and value > 0 then attackDamage = value end
     end
     if attackDamage == 0 then
-        local ok, value = pcall(function() return hero:GetTotalDamage() end)
-        if ok and value and value > 0 then attackDamage = value end
+        if NPC.GetTotalDamage then
+            local ok, value = pcall(NPC.GetTotalDamage, hero)
+            if ok and value and value > 0 then attackDamage = value end
+        end
     end
-    if attackDamage == 0 and NPC.GetMinDamage then
-        local ok, value = pcall(NPC.GetMinDamage, hero)
+    if attackDamage == 0 then
+        local ok, value = pcall(function() return hero:GetTotalDamage() end)
         if ok and value and value > 0 then attackDamage = value end
     end
     if attackDamage <= 0 then return 0 end
@@ -1735,6 +1745,146 @@ end
 --------------------------------------------------------------------------------
 
 --- Обновить HP-трекер, вернуть предсказанный HP через deltaTime секунд
+local function getPredictionDamageWindow(deltaTime)
+    if not deltaTime or deltaTime <= 0 then
+        return 0
+    end
+
+    return math.max(0, deltaTime - math.min(HP_PREDICT_WINDOW_GRACE, deltaTime * 0.35))
+end
+
+local function getPredictionConfidence(sampleCount)
+    local samples = math.max(0, sampleCount or 0)
+    return math.min(HP_PREDICT_CONFIDENCE_MAX, HP_PREDICT_CONFIDENCE_BASE + samples * HP_PREDICT_CONFIDENCE_STEP)
+end
+
+local function getPredictionReserve(projectedDamage, sampleCount)
+    local missingSamples = math.max(0, 3 - (sampleCount or 0))
+    local reserve = HP_PREDICT_BASE_RESERVE + missingSamples * HP_PREDICT_SAMPLE_RESERVE + projectedDamage * 0.22
+    return math.min(HP_PREDICT_RESERVE_MAX, reserve)
+end
+
+local function canSecureLastHit(damage, targetHP, safetyMargin)
+    local margin = math.max(0, safetyMargin or 0)
+    return damage > 0 and targetHP > 0 and damage >= (targetHP + margin)
+end
+
+local function getSpellKillSafetyMargin(info, hitDelay, usePrediction, effectiveDmg)
+    local margin = 0
+    local referenceDmg = math.max(0, effectiveDmg or 0)
+
+    if usePrediction then
+        margin = margin + 6
+    end
+
+    if hitDelay and hitDelay > 0.12 then
+        margin = margin + math.min(14, hitDelay * 12)
+    end
+
+    if info then
+        if info.attackPctKey or info.critPctKey then
+            margin = margin + math.max(10, math.min(18, referenceDmg * 0.05))
+        end
+
+        if info.dmgTypeOverride == "physical" then
+            margin = margin + math.max(5, math.min(9, referenceDmg * 0.03))
+        end
+
+        if info.projSpeed and info.projSpeed > 0 then
+            margin = margin + 4
+        end
+
+        if info.delayedAoE then
+            margin = margin + 5
+        end
+
+        if info.autoDetected then
+            margin = margin + 4
+        end
+
+        if hitDelay and hitDelay > 0.25 and (info.attackPctKey or info.critPctKey or info.dmgTypeOverride == "physical") then
+            margin = margin + 4
+        end
+    end
+
+    return math.floor(margin + 0.5)
+end
+
+local function getSecureSpellDamage(effectiveDmg, info, hitDelay, usePrediction)
+    local safetyMargin = getSpellKillSafetyMargin(info, hitDelay, usePrediction, effectiveDmg)
+    return math.max(0, effectiveDmg - safetyMargin), safetyMargin
+end
+
+local function getRequiredPredictionKillMargin(info, hitDelay, effectiveDmg)
+    local margin = 4
+    local referenceDmg = math.max(0, effectiveDmg or 0)
+
+    if hitDelay and hitDelay > 0.15 then
+        margin = margin + math.min(6, hitDelay * 8)
+    end
+
+    if info then
+        if info.projSpeed and info.projSpeed > 0 then
+            margin = margin + 3
+        end
+
+        if info.attackPctKey or info.critPctKey then
+            margin = margin + math.max(4, math.min(9, referenceDmg * 0.025))
+        end
+
+        if info.dmgTypeOverride == "physical" then
+            margin = margin + 3
+        end
+
+        if info.delayedAoE then
+            margin = margin + 3
+        end
+
+        if info.autoDetected then
+            margin = margin + 2
+        end
+    end
+
+    return math.floor(margin + 0.5)
+end
+
+local function getMaxPredictionGap(info, hitDelay, effectiveDmg)
+    local gap = 22
+    local referenceDmg = math.max(0, effectiveDmg or 0)
+
+    if hitDelay and hitDelay > 0.2 then
+        gap = gap - math.min(6, hitDelay * 8)
+    end
+
+    if info then
+        if info.projSpeed and info.projSpeed > 0 then
+            gap = gap - 4
+        end
+
+        if info.attackPctKey or info.critPctKey then
+            gap = gap - 6
+        end
+
+        if info.dmgTypeOverride == "physical" then
+            gap = gap - 4
+        end
+
+        if info.delayedAoE then
+            gap = gap - 3
+        end
+
+        if info.autoDetected then
+            gap = gap - 2
+        end
+    end
+
+    if referenceDmg > 0 then
+        gap = math.min(gap, math.max(8, referenceDmg * 0.12))
+    end
+
+    return math.max(8, math.floor(gap + 0.5))
+end
+
 local function predictCreepHP(creep, deltaTime)
     local idx = Entity.GetIndex(creep)
     local hp  = Entity.GetHealth(creep) or 0
@@ -1743,18 +1893,30 @@ local function predictCreepHP(creep, deltaTime)
     local entry = creepHPTracker[idx]
     if entry then
         local dt = now - entry.time
-        if dt >= 0.1 then
+        if dt >= HP_PREDICT_MIN_SAMPLE_DT then
             local currentDPS = (entry.hp - hp) / dt
             if currentDPS < 0 then currentDPS = 0 end
-            local smoothDPS = entry.dps * 0.4 + currentDPS * 0.6
-            creepHPTracker[idx] = { hp = hp, time = now, dps = smoothDPS }
-            return math.max(0, hp - smoothDPS * deltaTime), smoothDPS
-        else
-            return math.max(0, hp - (entry.dps or 0) * deltaTime), entry.dps or 0
+            local previousDPS = entry.dps or 0
+            local smoothDPS = previousDPS * 0.7 + currentDPS * 0.3
+            entry = {
+                hp = hp,
+                time = now,
+                dps = smoothDPS,
+                samples = math.min((entry.samples or 0) + 1, 8),
+            }
+            creepHPTracker[idx] = entry
         end
+
+        local projectedWindow = getPredictionDamageWindow(deltaTime)
+        local predictedDPS = math.max(0, (entry.dps or 0) * getPredictionConfidence(entry.samples))
+        local projectedDamage = predictedDPS * projectedWindow
+        local reserve = getPredictionReserve(projectedDamage, entry.samples)
+        local adjustedDamage = math.max(0, projectedDamage - reserve)
+
+        return math.max(0, hp - adjustedDamage), predictedDPS
     end
 
-    creepHPTracker[idx] = { hp = hp, time = now, dps = 0 }
+    creepHPTracker[idx] = { hp = hp, time = now, dps = 0, samples = 0 }
     return hp, 0
 end
 
@@ -1861,7 +2023,7 @@ local function getCreepHpForAoECheck(hero, ability, info, creep, usePrediction)
     return predictCreepHP(creep, getHitDelay(hero, ability, creep, info))
 end
 
-local function scoreLineProjectileKills(hero, ability, info, targetCreep, creeps, baseDmg, buffer, usePrediction)
+local function scoreLineProjectileKills(hero, ability, info, targetCreep, creeps, baseDmg, usePrediction)
     local startPos = Entity.GetAbsOrigin(hero)
     local endPos = getLineCastEndPosition(hero, ability, info, targetCreep)
     local lineRadius = getAbilityLineRadiusValue(ability, info)
@@ -1877,8 +2039,10 @@ local function scoreLineProjectileKills(hero, ability, info, targetCreep, creeps
                 local distanceToLine = pointSegmentDistance2D(creepPos, startPos, endPos)
                 if distanceToLine <= lineRadius + hull then
                     local damage = applyResistance(baseDmg, ability, info, creep)
+                    local hitDelay = getHitDelay(hero, ability, creep, info)
+                    local secureDamage = getSecureSpellDamage(damage, info, hitDelay, usePrediction)
                     local hp = getCreepHpForAoECheck(hero, ability, info, creep, usePrediction)
-                    if hp > 0 and hp <= damage + buffer then
+                    if canSecureLastHit(secureDamage, hp) then
                         kills = kills + 1
                     end
                 end
@@ -1889,10 +2053,10 @@ local function scoreLineProjectileKills(hero, ability, info, targetCreep, creeps
     return kills
 end
 
-local function scoreAoEKills(hero, ability, info, targetCreep, creeps, baseDmg, buffer, usePrediction)
+local function scoreAoEKills(hero, ability, info, targetCreep, creeps, baseDmg, usePrediction)
     if info.beh == "target" and not info.radius and not info.lineProjectile then return 1 end
     if info.lineProjectile then
-        return scoreLineProjectileKills(hero, ability, info, targetCreep, creeps, baseDmg, buffer, usePrediction)
+        return scoreLineProjectileKills(hero, ability, info, targetCreep, creeps, baseDmg, usePrediction)
     end
 
     local aoeRadius = info.radius or 350
@@ -1920,8 +2084,10 @@ local function scoreAoEKills(hero, ability, info, targetCreep, creeps, baseDmg, 
                 -- skip primary target
             elseif dist <= aoeRadius then
                 local eDmg = applyResistance(baseDmg, ability, info, creep)
+                local hitDelay = getHitDelay(hero, ability, creep, info)
+                local secureDamage = getSecureSpellDamage(eDmg, info, hitDelay, usePrediction)
                 local hp   = getCreepHpForAoECheck(hero, ability, info, creep, usePrediction)
-                if hp > 0 and hp <= eDmg + buffer then
+                if canSecureLastHit(secureDamage, hp) then
                     kills = kills + 1
                 end
             end
@@ -1931,7 +2097,7 @@ local function scoreAoEKills(hero, ability, info, targetCreep, creeps, baseDmg, 
     return kills
 end
 
-local function evaluateCastOpportunity(hero, ability, info, creep, creeps, buffer, usePrediction, useAoE, baseDmg)
+local function evaluateCastOpportunity(hero, ability, info, creep, creeps, usePrediction, useAoE, baseDmg)
     local damage = baseDmg or getAbilityDamage(hero, ability, info)
     if damage <= 0 then
         return nil
@@ -1941,21 +2107,45 @@ local function evaluateCastOpportunity(hero, ability, info, creep, creeps, buffe
     local hp = Entity.GetHealth(creep) or 0
     local hitDelay = getHitDelay(hero, ability, creep, info)
     local predictedHP = hp
+    local secureDamage = effectiveDmg
+    local killSafetyMargin = 0
+    local requiredKillMargin = 0
+    local maxPredictionGap = 0
+    local predictionGap = 0
 
     if usePrediction then
         predictedHP = predictCreepHP(creep, hitDelay)
     end
 
-    local killAtImpact = predictedHP > 0 and predictedHP <= effectiveDmg + buffer
+    secureDamage, killSafetyMargin = getSecureSpellDamage(effectiveDmg, info, hitDelay, usePrediction)
+
+    if usePrediction and hitDelay > 0.05 then
+        requiredKillMargin = getRequiredPredictionKillMargin(info, hitDelay, effectiveDmg)
+    end
+
+    local killMargin = secureDamage - predictedHP
+    predictionGap = math.max(0, hp - secureDamage)
+    if usePrediction and hitDelay > 0.05 then
+        maxPredictionGap = getMaxPredictionGap(info, hitDelay, effectiveDmg)
+    end
+    local killAtImpact = canSecureLastHit(secureDamage, predictedHP) and killMargin >= requiredKillMargin
+    if killAtImpact and maxPredictionGap > 0 and predictionGap > maxPredictionGap then
+        killAtImpact = false
+    end
     local allowImmediateKill = hitDelay <= 0.05
     if not usePrediction and hitDelay <= 0.12 and not (info.delayedAoE or getAbilityImpactDelay(ability, info) > 0.05) then
         allowImmediateKill = true
     end
-    local killNow = allowImmediateKill and hp > 0 and hp <= effectiveDmg + buffer
+    local immediateDamage = effectiveDmg
+    local immediateSafetyMargin = 0
+    if not allowImmediateKill then
+        immediateDamage, immediateSafetyMargin = getSecureSpellDamage(effectiveDmg, info, hitDelay, false)
+    end
+    local killNow = allowImmediateKill and canSecureLastHit(immediateDamage, hp, immediateSafetyMargin)
 
     local aoeKills = 0
     if useAoE and (info.radius or info.lineProjectile) then
-        aoeKills = scoreAoEKills(hero, ability, info, creep, creeps, damage, buffer, usePrediction)
+        aoeKills = scoreAoEKills(hero, ability, info, creep, creeps, damage, usePrediction)
     end
 
     local primaryKills = ((killAtImpact or killNow) and not info.excludePrimaryTarget) and 1 or 0
@@ -1970,9 +2160,15 @@ local function evaluateCastOpportunity(hero, ability, info, creep, creeps, buffe
     return {
         baseDmg = damage,
         effectiveDmg = effectiveDmg,
+        secureDmg = secureDamage,
         hp = hp,
         predictedHP = predictedHP,
         hitDelay = hitDelay,
+        killSafetyMargin = killSafetyMargin,
+        killMargin = killMargin,
+        requiredKillMargin = requiredKillMargin,
+        predictionGap = predictionGap,
+        maxPredictionGap = maxPredictionGap,
         killAtImpact = killAtImpact,
         killNow = killNow,
         extraAoEKills = extraAoEKills,
@@ -2035,7 +2231,11 @@ local function isHeroAttacking(hero)
     return false
 end
 
-local function canAutoAttackKill(hero, creep, buffer)
+local function canAutoAttackKill(hero, creep)
+    if not hero or not creep then
+        return false
+    end
+
     local heroPos   = Entity.GetAbsOrigin(hero)
     local creepPos  = Entity.GetAbsOrigin(creep)
     local dist      = (heroPos - creepPos):Length2D()
@@ -2043,14 +2243,29 @@ local function canAutoAttackKill(hero, creep, buffer)
     local heroHull  = (NPC.GetHullRadius and NPC.GetHullRadius(hero)) or 0
     local creepHull = (NPC.GetHullRadius and NPC.GetHullRadius(creep)) or 0
 
-    if dist > aaRange + heroHull + creepHull + 50 then return false end
+    if dist > aaRange + heroHull + creepHull + AUTO_ATTACK_RANGE_EPSILON then return false end
 
     local aaDmg = getAttackDamage(hero)
     local armorMult = (NPC.GetArmorDamageMultiplier and NPC.GetArmorDamageMultiplier(creep)) or 1
     aaDmg = aaDmg * armorMult
 
     local hp = Entity.GetHealth(creep) or 0
-    return hp > 0 and hp <= aaDmg + buffer
+    return canSecureLastHit(aaDmg, hp)
+end
+
+local function isCreepInHeroAttackRange(hero, creep)
+    if not hero or not creep then
+        return false
+    end
+
+    local heroPos   = Entity.GetAbsOrigin(hero)
+    local creepPos  = Entity.GetAbsOrigin(creep)
+    local dist      = (heroPos - creepPos):Length2D()
+    local aaRange   = getAttackRange(hero)
+    local heroHull  = (NPC.GetHullRadius and NPC.GetHullRadius(hero)) or 0
+    local creepHull = (NPC.GetHullRadius and NPC.GetHullRadius(creep)) or 0
+
+    return dist <= aaRange + heroHull + creepHull + AUTO_ATTACK_RANGE_EPSILON
 end
 
 --------------------------------------------------------------------------------
@@ -2226,6 +2441,218 @@ local function styleMenuWidget(widget, text, tooltip, icon, image)
     return widget
 end
 
+local unpackArgs = unpack or table.unpack
+local GLOBAL_BIND_WIDGET_CANDIDATES = {
+    {
+        label = "global-key",
+        args = { "Creeps", "Main", "[v2]Last Hit Helper", "Main", "Global Settings", "Key" },
+    },
+    {
+        label = "global-hotkey",
+        args = { "Creeps", "Main", "[v2]Last Hit Helper", "Main", "Global Settings", "Hotkey" },
+    },
+    {
+        label = "global-additional-hotkey-7",
+        args = { "Creeps", "Main", "[v2]Last Hit Helper", "Main", "Global Settings", "Additional Settings", "Hotkey" },
+    },
+    {
+        label = "global-additional-hotkey-8",
+        args = { "Creeps", "Main", "[v2]Last Hit Helper", "Main", "Global Settings", "Additional Settings", "Additional Settings", "Hotkey" },
+    },
+}
+local GLOBAL_BIND_TYPE_CANDIDATES = {
+    {
+        label = "global-bind-type",
+        args = { "Creeps", "Main", "[v2]Last Hit Helper", "Main", "Global Settings", "Bind Type" },
+    },
+}
+
+local function getEnumName(enumTable, value)
+    if not enumTable or value == nil then
+        return tostring(value)
+    end
+
+    for name, enumValue in pairs(enumTable) do
+        if enumValue == value then
+            return tostring(name)
+        end
+    end
+
+    return tostring(value)
+end
+
+local function probeMenuWidget(widget)
+    local probe = {
+        exists = widget ~= nil,
+        hasGet = widget and widget.Get ~= nil or false,
+        hasGetKey = widget and widget.GetKey ~= nil or false,
+        hasGetItem = widget and widget.GetItem ~= nil or false,
+        typeName = "nil",
+        typeValue = nil,
+        getValue = nil,
+        getKeyValue = nil,
+        getItemValue = nil,
+    }
+
+    if not widget then
+        return probe
+    end
+
+    if widget.Type and Enum and Enum.WidgetType then
+        local ok, widgetType = pcall(function() return widget:Type() end)
+        if ok then
+            probe.typeValue = widgetType
+            probe.typeName = getEnumName(Enum.WidgetType, widgetType)
+        else
+            probe.typeName = "type_error"
+        end
+    end
+
+    if widget.Get then
+        local ok, value = pcall(function() return widget:Get() end)
+        if ok then
+            probe.getValue = value
+        else
+            probe.getValue = "get_error"
+        end
+    end
+
+    if widget.GetKey then
+        local ok, value = pcall(function() return widget:GetKey() end)
+        if ok then
+            probe.getKeyValue = value
+        else
+            probe.getKeyValue = "getkey_error"
+        end
+    end
+
+    if widget.GetItem then
+        local ok, value = pcall(function() return widget:GetItem() end)
+        if ok then
+            probe.getItemValue = value
+        else
+            probe.getItemValue = "getitem_error"
+        end
+    end
+
+    return probe
+end
+
+local function isValidBindWidget(widget)
+    local probe = probeMenuWidget(widget)
+    local typeName = string.lower(tostring(probe.typeName or ""))
+    if string.find(typeName, "bind", 1, true) then
+        return true
+    end
+
+    if probe.hasGetKey then
+        return true
+    end
+
+    return type(probe.getValue) == "number"
+end
+
+local function findMenuWidgetByCandidates(candidates, validator)
+    if not (Menu and Menu.Find) then
+        return nil, nil
+    end
+
+    for _, candidate in ipairs(candidates) do
+        local ok, widget = pcall(Menu.Find, unpackArgs(candidate.args))
+        if ok and validator(widget) then
+            return widget, candidate.label
+        end
+    end
+
+    return nil, nil
+end
+
+local function getGlobalHoldBindWidget()
+    local widget, label = findMenuWidgetByCandidates(GLOBAL_BIND_WIDGET_CANDIDATES, isValidBindWidget)
+    if widget then
+        return widget, label
+    end
+
+    return UI.Key, "ui-key-fallback"
+end
+
+local function getGlobalBindTypeWidget()
+    return findMenuWidgetByCandidates(GLOBAL_BIND_TYPE_CANDIDATES, function(widget)
+        return widget and widget.GetItem ~= nil
+    end)
+end
+
+local function getMenuBindKeyCode(widget)
+    if not widget then
+        return nil
+    end
+
+    if widget.GetKey then
+        local ok, keyCode = pcall(function() return widget:GetKey() end)
+        if ok then
+            return keyCode
+        end
+    end
+
+    if widget.Get then
+        local ok, value = pcall(function() return widget:Get() end)
+        if ok and type(value) == "number" then
+            return value
+        end
+    end
+
+    return nil
+end
+
+local function getMenuBindMode()
+    local widget = getGlobalBindTypeWidget()
+    if not widget or not widget.GetItem then
+        return "hold"
+    end
+
+    local ok, item = pcall(function() return widget:GetItem() end)
+    if not ok or type(item) ~= "string" then
+        return "hold"
+    end
+
+    local mode = string.lower(item)
+    if string.find(mode, "toggle", 1, true) then
+        return "toggle"
+    end
+
+    return "hold"
+end
+
+local function isMenuBindPressed(widget)
+    if not widget then
+        return false
+    end
+
+    if widget.Get then
+        local ok, isPressed = pcall(function() return widget:Get() end)
+        if ok and type(isPressed) == "boolean" then
+            return isPressed
+        end
+    end
+
+    local keyCode = getMenuBindKeyCode(widget)
+    if keyCode and Input and Input.IsKeyDown then
+        if getMenuBindMode() == "toggle" and widget.Get then
+            local ok, isActive = pcall(function() return widget:Get() end)
+            if ok then
+                return isActive and true or false
+            end
+        end
+
+        local ok, isDown = pcall(Input.IsKeyDown, keyCode)
+        if ok then
+            return isDown and true or false
+        end
+    end
+
+    return false
+end
+
 local function addGearSection(gear, text, image)
     if not gear then return nil end
 
@@ -2293,7 +2720,7 @@ end
 
 local function legacy_OnScriptsLoaded_v20()
     local group = Menu.Create(
-        "Creeps", "Main", "[v2]Last Hit Helper", "Main", "Ability Last Hit"
+        "Creeps", "Main", "[v2]Last Hit Helper", "Main", "Skill LastHit"
     )
     menuGroup = group
 
@@ -2429,7 +2856,7 @@ end
 
 local function legacy_OnScriptsLoaded_v21()
     local group = Menu.Create(
-        "Creeps", "Main", "[v2]Last Hit Helper", "Main", "Spell CS"
+        "Creeps", "Main", "[v2]Last Hit Helper", "Main", "Skill LastHit"
     )
     menuGroup = group
 
@@ -2510,7 +2937,7 @@ end
 
 local function legacy_OnScriptsLoaded_v22()
     local group = Menu.Create(
-        "Creeps", "Main", "[v2]Last Hit Helper", "Main", "Spell CS"
+        "Creeps", "Main", "[v2]Last Hit Helper", "Main", "Skill LastHit"
     )
     menuGroup = group
 
@@ -2585,17 +3012,15 @@ end
 
 script.OnScriptsLoaded = function()
     MENU_LANG = detectMenuLanguage()
+    UI.Key = getGlobalHoldBindWidget()
 
     local group = Menu.Create(
-        "Creeps", "Main", "[v2]Last Hit Helper", "Main", "Spell CS"
+        "Creeps", "Main", "[v2]Last Hit Helper", "Main", "Skill LastHit"
     )
     menuGroup = group
 
     UI.Enable = group:Switch(t("enable"), false)
     styleMenuWidget(UI.Enable, t("enable"), t("enable_tip"), "\u{f0e7}", nil)
-
-    UI.Key = group:Bind(t("hotkey"), Enum.ButtonCode.KEY_V)
-    styleMenuWidget(UI.Key, t("hotkey"), t("hotkey_tip"), "\u{f11c}", nil)
 
     local gear = UI.Enable:Gear(t("settings"))
     UI.SettingsGear = gear
@@ -2622,24 +3047,20 @@ script.OnScriptsLoaded = function()
 
     UI.SearchRange = gear:Slider(t("search_range"), 400, 1200, 900, "%d")
     UI.MinMana = gear:Slider(t("min_mana"), 0, 80, 15, "%d%%")
-    UI.Buffer = gear:Slider(t("buffer"), -20, 60, 5, "%d")
     UI.Debug = gear:Switch(t("debug"), false)
 
     styleMenuWidget(UI.Conditions, t("conditions"), t("conditions_tip"), "\u{f070}", nil)
     styleMenuWidget(UI.CreepTypes, t("creeps"), t("creeps_tip"), "\u{f0c0}", nil)
     styleMenuWidget(UI.SearchRange, t("search_range"), t("search_range_tip"), "\u{f140}", nil)
     styleMenuWidget(UI.MinMana, t("min_mana"), t("min_mana_tip"), "\u{f043}", nil)
-    styleMenuWidget(UI.Buffer, t("buffer"), t("buffer_tip"), "\u{f21e}", nil)
     styleMenuWidget(UI.Debug, t("debug"), t("debug_tip"), "\u{f188}", nil)
 
     UI.Enable:SetCallback(function()
         local on = UI.Enable:Get()
-        UI.Key:Disabled(not on)
         UI.Conditions:Disabled(not on)
         UI.CreepTypes:Disabled(not on)
         UI.SearchRange:Disabled(not on)
         UI.MinMana:Disabled(not on)
-        UI.Buffer:Disabled(not on)
         UI.Debug:Disabled(not on)
         if UI.Skills then
             UI.Skills:Disabled(not on)
@@ -2647,7 +3068,7 @@ script.OnScriptsLoaded = function()
     end, true)
 
     refreshSkillsWidgetState()
-    Log.Write(DEBUG_PREFIX .. "Menu v2.4 adaptive UI initialized OK")
+    Log.Write(DEBUG_PREFIX .. "Skill LastHit menu initialized OK")
 end
 
 --------------------------------------------------------------------------------
@@ -2656,7 +3077,8 @@ end
 
 script.OnUpdate = function()
     if not UI.Enable or not UI.Enable:Get() then return end
-    if not UI.Key or not UI.Key:IsDown() then return end
+    local holdBind = getGlobalHoldBindWidget()
+    if not isMenuBindPressed(holdBind) then return end
 
     local myHero = Heroes.GetLocal()
     if not myHero then dbgThrottle("No local hero") return end
@@ -2703,11 +3125,9 @@ script.OnUpdate = function()
         buildSkillsSelector(heroName, heroAbilities, heroAbilitySignature)
     end
 
-    local buffer        = UI.Buffer and UI.Buffer:Get() or 5
     local searchRange   = UI.SearchRange and UI.SearchRange:Get() or 900
     local usePrediction = isConditionEnabled(CONDITION_ITEMS.predict, UI.PredictHP, true)
     local useAoE        = isConditionEnabled(CONDITION_ITEMS.aoe, UI.AoEMode, true)
-    local smartPriority = isConditionEnabled(CONDITION_ITEMS.smart, UI.SmartPriority, true)
 
     local creeps = NPCs.InRadius(
         Entity.GetAbsOrigin(myHero), searchRange,
@@ -2786,20 +3206,21 @@ script.OnUpdate = function()
                             and (now - lastTargetTime) < lastTargetLockDuration then
                             -- skip
 
-                        -- Smart priority
-                        elseif smartPriority and canAutoAttackKill(myHero, creep, buffer) then
-                            -- skip
+                        -- Respect hero attack range
+                        elseif isCreepInHeroAttackRange(myHero, creep) then
+                            -- skip attack-range creeps
 
                         else
                             local eval = evaluateCastOpportunity(
-                                myHero, ability, info, creep, creeps, buffer, usePrediction, useAoE, baseDmg
+                                myHero, ability, info, creep, creeps, usePrediction, useAoE, baseDmg
                             )
 
                             dbgThrottle(string.format(
-                                "%s → %s hp=%d pred=%.0f dmg=%.0f buf=%d kill=%s",
+                                "%s → %s hp=%d pred=%.0f dmg=%.0f margin=%.0f need=%.0f gap=%.0f/%.0f kill=%s",
                                 info.name,
                                 NPC.GetUnitName(creep) or "?",
-                                eval.hp, eval.predictedHP, eval.effectiveDmg, buffer,
+                                eval.hp, eval.predictedHP, eval.secureDmg, eval.killMargin, eval.requiredKillMargin or 0,
+                                eval.predictionGap or 0, eval.maxPredictionGap or 0,
                                 tostring(eval.killAtImpact or eval.killNow)
                             ))
 
@@ -2849,8 +3270,20 @@ script.OnUpdate = function()
     end
 
     local finalEval = evaluateCastOpportunity(
-        myHero, bestAbility, bestInfo, bestCreep, creeps, buffer, usePrediction, useAoE
+        myHero, bestAbility, bestInfo, bestCreep, creeps, usePrediction, useAoE
     )
+    if isCreepInHeroAttackRange(myHero, bestCreep) then
+        dbgThrottleKey(
+            "attack-range:" .. tostring(Entity.GetIndex(bestCreep)) .. ":" .. bestInfo.name,
+            string.format(
+                "Skip attack-range creep %s → %s",
+                bestInfo.name,
+                NPC.GetUnitName(bestCreep) or "?"
+            ),
+            0.2
+        )
+        return
+    end
     if not finalEval or not (finalEval.killAtImpact or finalEval.killNow or finalEval.canAoEKill) then
         dbgThrottleKey(
             "revalidate:" .. tostring(Entity.GetIndex(bestCreep)) .. ":" .. bestInfo.name,
@@ -2860,7 +3293,7 @@ script.OnUpdate = function()
                 NPC.GetUnitName(bestCreep) or "?",
                 finalEval and finalEval.hp or (Entity.GetHealth(bestCreep) or 0),
                 finalEval and finalEval.predictedHP or 0,
-                finalEval and finalEval.effectiveDmg or 0
+                finalEval and finalEval.secureDmg or 0
             ),
             0.2
         )
@@ -2869,12 +3302,16 @@ script.OnUpdate = function()
 
     local castReason = (finalEval.killAtImpact or finalEval.killNow) and "kill" or "aoe"
     dbg(string.format(
-        "CAST %s → %s (hp=%d pred=%.0f dmg=%.0f score=%.0f reason=%s)",
+        "CAST %s → %s (hp=%d pred=%.0f dmg=%.0f margin=%.0f need=%.0f gap=%.0f/%.0f score=%.0f reason=%s)",
         bestInfo.name,
         NPC.GetUnitName(bestCreep) or "?",
         finalEval.hp,
         finalEval.predictedHP,
-        finalEval.effectiveDmg,
+        finalEval.secureDmg,
+        finalEval.killMargin,
+        finalEval.requiredKillMargin or 0,
+        finalEval.predictionGap or 0,
+        finalEval.maxPredictionGap or 0,
         bestScore,
         castReason
     ))
@@ -2903,7 +3340,6 @@ isHeroAttacking = function(hero)
     end
 
     local searchRange = UI.SearchRange and UI.SearchRange:Get() or 900
-    local buffer = UI.Buffer and UI.Buffer:Get() or 5
     local creeps = NPCs.InRadius(
         Entity.GetAbsOrigin(hero), searchRange,
         Entity.GetTeamNum(hero), Enum.TeamType.TEAM_ENEMY
@@ -2914,7 +3350,7 @@ isHeroAttacking = function(hero)
     end
 
     for _, creep in ipairs(creeps) do
-        if isCreepValid(creep) and canAutoAttackKill(hero, creep, buffer) then
+        if isCreepValid(creep) and canAutoAttackKill(hero, creep) then
             return true
         end
     end
