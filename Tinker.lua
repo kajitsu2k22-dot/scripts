@@ -1,28 +1,32 @@
 -- Fallback jungle spots data if LIB_HEROES_DATA is not available
 local FALLBACK_JUNGLE_SPOTS = {
-  -- Radiant jungle camps (patch 7.40, provided by user)
-  {pos = Vector(-4014.1, 1052.4, 256.0), team = 2, type = 1, index = 1},
-  {pos = Vector(-5102.7, -105.4, 256.0), team = 2, type = 4, index = 2},
-  {pos = Vector(-7990.0, -1738.2, 256.0), team = 2, type = 2, index = 3},
-  {pos = Vector(-8367.4, -576.9, 256.0), team = 2, type = 2, index = 4},
-  {pos = Vector(-812.2, -7538.8, 134.0), team = 2, type = 2, index = 5},
-  {pos = Vector(-2341.2, -8374.5, 128.0), team = 2, type = 1, index = 6},
-  {pos = Vector(3231.9, -8365.0, 0.0), team = 2, type = 1, index = 7},
-  {pos = Vector(4868.5, -8299.8, 0.0), team = 2, type = 4, index = 8},
-  {pos = Vector(4084.7, -5187.9, 128.0), team = 2, type = 1, index = 9},
-  {pos = Vector(4615.0, -3720.0, 128.0), team = 2, type = 2, index = 10},
+  -- Radiant jungle camps (patch 7.41, updated by user)
+  {pos = Vector(-2024.9, -4744.7, 128.0), team = 2, type = 1, index = 1},
+  {pos = Vector(-1464.9, -3301.2, 128.0), team = 2, type = 1, index = 2},
+  {pos = Vector(1852.9, -4030.5, 256.0), team = 2, type = 2, index = 3},
+  {pos = Vector(220.8, -5138.7, 136.0), team = 2, type = 3, index = 4},
+  {pos = Vector(3968.7, -4945.3, 128.0), team = 2, type = 1, index = 5},
+  {pos = Vector(4719.7, -3739.1, 128.0), team = 2, type = 2, index = 6},
+  {pos = Vector(2777.7, -8362.7, 8.0), team = 2, type = 3, index = 7},
+  {pos = Vector(4413.8, -8422.6, 0.0), team = 2, type = 1, index = 8},
+  {pos = Vector(-688.7, -7689.9, 134.0), team = 2, type = 3, index = 9},
+  {pos = Vector(-2442.1, -8424.3, 128.0), team = 2, type = 2, index = 10},
+  {pos = Vector(-8009.0, -1800.1, 256.0), team = 2, type = 1, index = 11},
+  {pos = Vector(-8361.3, -539.7, 256.0), team = 2, type = 2, index = 12},
+  {pos = Vector(-5062.7, -122.1, 256.0), team = 2, type = 4, index = 13},
+  {pos = Vector(-3973.2, 1014.1, 256.0), team = 2, type = 2, index = 14},
 
-  -- Dire jungle camps (patch 7.40, provided by user)
-  {pos = Vector(4232.1, 39.8, 256.0), team = 3, type = 4, index = 11},
-  {pos = Vector(3327.2, -1333.3, 256.0), team = 3, type = 1, index = 12},
-  {pos = Vector(8463.4, 1304.0, 256.0), team = 3, type = 1, index = 13},
-  {pos = Vector(7899.2, -114.0, 256.0), team = 3, type = 2, index = 14},
-  {pos = Vector(1064.9, 2566.2, 128.0), team = 3, type = 2, index = 15},
-  {pos = Vector(1309.2, 4235.9, 128.0), team = 3, type = 2, index = 16},
-  {pos = Vector(-4723.6, 8215.5, 0.0), team = 3, type = 4, index = 17},
-  {pos = Vector(-3367.3, 7484.8, 0.0), team = 3, type = 1, index = 18},
-  {pos = Vector(-4061.7, 4912.9, 128.0), team = 3, type = 1, index = 19},
-  {pos = Vector(-4863.8, 4020.4, 128.0), team = 3, type = 2, index = 20},
+  -- Dire jungle camps (patch 7.41)
+  {pos = Vector(4232.1, 39.8, 256.0), team = 3, type = 4, index = 15},
+  {pos = Vector(3327.2, -1333.3, 256.0), team = 3, type = 1, index = 16},
+  {pos = Vector(8463.4, 1304.0, 256.0), team = 3, type = 1, index = 17},
+  {pos = Vector(7899.2, -114.0, 256.0), team = 3, type = 2, index = 18},
+  {pos = Vector(1064.9, 2566.2, 128.0), team = 3, type = 2, index = 19},
+  {pos = Vector(1309.2, 4235.9, 128.0), team = 3, type = 2, index = 20},
+  {pos = Vector(-4723.6, 8215.5, 0.0), team = 3, type = 4, index = 21},
+  {pos = Vector(-3367.3, 7484.8, 0.0), team = 3, type = 1, index = 22},
+  {pos = Vector(-4061.7, 4912.9, 128.0), team = 3, type = 1, index = 23},
+  {pos = Vector(-4863.8, 4020.4, 128.0), team = 3, type = 2, index = 24},
 }
 
 local function GetJungleSpots()
@@ -71,10 +75,9 @@ local translation   = {
     item_blink = "Blink Dagger",
     item_shiva = "Shiva's Guard",
 
-    auto_defense_matrix = "Auto Defense Matrix",
-    gear_matrix_options = "Defense Matrix Settings",
-    matrix_precast = "Auto‑cast at Fountain",
-    matrix_panic = "Use while Escaping",
+    auto_deploy_turrets = "Auto Deploy Turrets",
+    gear_turrets_options = "Deploy Turrets Settings",
+    turrets_panic = "Use while Escaping (Push)",
 
     prefer_bounty = "Prioritize High‑Gold Camps",
 
@@ -112,6 +115,11 @@ local translation   = {
     debug_show_spot_metrics = "Show Camp Metrics",
     debug_pretty_map = "Use Polished Map Drawing",
     debug_bounty = "Show Gold on Map/Overlay",
+ 
+    mana_options_label = "Mana Management",
+    mana_return_frac = "Return to Fountain below %",
+    mana_resume_frac = "Resume Farming at %",
+    mana_fmt = "%d%%",
 
     tooltip_autofarm =
     "Autofarm is still in development (enemies may catch you).\nRecommended once March of the Machines is Level 4 and Rearm is Level 1."
@@ -133,10 +141,9 @@ local translation   = {
     item_blink = "Блинк‑даггер",
     item_shiva = "Шива",
 
-    auto_defense_matrix = "Авто Defense Matrix",
-    gear_matrix_options = "Настройки Defense Matrix",
-    matrix_precast = "Автокаст у фонтана",
-    matrix_panic = "Использовать при побеге",
+    auto_deploy_turrets = "Авто Deploy Turrets",
+    gear_turrets_options = "Настройки Турелей",
+    turrets_panic = "Использовать при побеге (Пуш)",
 
     prefer_bounty = "Предпочитать более выгодные кемпы",
 
@@ -174,6 +181,11 @@ local translation   = {
     debug_show_spot_metrics = "Показывать метрики лагерей",
     debug_pretty_map = "Красивое оформление карты",
     debug_bounty = "Показывать золото на карте/оверлее",
+ 
+    mana_options_label = "Управление маной",
+    mana_return_frac = "Возвращаться на базу при %",
+    mana_resume_frac = "Вылетать с базы при %",
+    mana_fmt = "%d%%",
 
     tooltip_autofarm =
     "Скрипт всё ещё в разработке (враги могут поймать).\nРекомендуется включать при March of the Machines 4 уровня и Rearm 1 уровня."
@@ -226,9 +238,9 @@ Config             = {
     { L("item_blink"),  "panorama/images/items/blink_png.vtex_c",  true },
     { L("item_shiva"),  "panorama/images/items/shivas_guard_png.vtex_c", true }
   }, true),
-  AutoMatrix = utilityMenu:Switch(L("auto_defense_matrix"), true,
-    "panorama/images/spellicons/tinker_defense_matrix_png.vtex_c"),
-  Matrix = {},
+  AutoTurrets = utilityMenu:Switch(L("auto_deploy_turrets"), true,
+    "panorama/images/spellicons/tinker_deploy_turrets_png.vtex_c"),
+  Turrets = {},
   PreferBounty = autoFarmMenu:Switch(L("prefer_bounty"), true, "\u{f3d1}"),
   BlinkGroup = utilityMenu:Label(L("blink_options_label"), "panorama/images/items/blink_png.vtex_c"),
   Blink = {},
@@ -240,15 +252,15 @@ Config             = {
   Debug = {
     Overlay = debugMenu:Switch(L("debug_overlay"), false, "\u{f108}"),
     World   = debugMenu:Switch(L("debug_world"), false, "\u{f279}"),
-  }
+  },
+  Mana = {}
 }
 
 Config.AutoFarm:ToolTip(L("tooltip_autofarm"))
 
 do
-  local g                         = Config.AutoMatrix:Gear(L("gear_matrix_options"))
-  Config.Matrix.PrecastAtFountain = g:Switch(L("matrix_precast"), true, "\u{f2cd}")
-  Config.Matrix.UseDuringPanic    = g:Switch(L("matrix_panic"), true, "\u{f002}")
+  local g                         = Config.AutoTurrets:Gear(L("gear_turrets_options"))
+  Config.Turrets.UseInPanic       = g:Switch(L("turrets_panic"), true, "\u{f54b}")
 
   local sg                        = Config.StatusOverlay:Gear(L("gear_overlay_options"))
   Config.Status.Lock              = sg:Switch(L("status_lock"), true, "\u{f023}")
@@ -277,6 +289,10 @@ do
   local botg                      = Config.BottleGroup:Gear(L("gear_bottle_behavior"))
   Config.Bottle.UseHP             = botg:Switch(L("bottle_use_hp"), true, "\u{f004}")
   Config.Bottle.UseMana           = botg:Switch(L("bottle_use_mana"), true, "\u{f0d0}")
+
+  local mg                        = autoFarmMenu:Label(L("mana_options_label"), "\u{f54b}"):Gear(L("mana_options_label"))
+  Config.Mana.ReturnFrac          = mg:Slider(L("mana_return_frac"), 5, 50, 20, L("mana_fmt"))
+  Config.Mana.ResumeFrac          = mg:Slider(L("mana_resume_frac"), 50, 100, 85, L("mana_fmt"))
 end
 
 local function SyncMarchSlidersDisabled()
@@ -426,6 +442,7 @@ State = {
   Rearm = nil,
   March = nil,
   Laser = nil,
+  Turrets = nil,
   KeenTeleport = nil,
   Blink = nil,
   Shiva = nil,
@@ -433,7 +450,7 @@ State = {
   FarmState = "IDLE",
   CurrentFarmSpot = nil,
 
-  MatrixCastTime = 0,
+  TurretsCastTime = 0,
 
   NextOrderTime = 0,
   OrdersThisUpdate = 0,
@@ -477,7 +494,7 @@ State = {
   LastHPTime = 0,
   PanicCooldownUntil = 0,
   PanicArmingSince = nil,
-  LastPanicMatrixAt = 0,
+  LastPanicTurretsAt = 0,
   PanicReason = nil,
 
   TargetSpotKey = nil,
@@ -1126,15 +1143,14 @@ local function FindTraversablePointNear(pos)
   if not (GridNav and GridNav.IsTraversable) then return pos end
   if GridNav.IsTraversable(pos) then return pos end
 
-  local offsets = {
-    Vector(80, 0, 0), Vector(-80, 0, 0),
-    Vector(0, 80, 0), Vector(0, -80, 0),
-    Vector(56, 56, 0), Vector(-56, 56, 0),
-    Vector(56, -56, 0), Vector(-56, -56, 0),
-  }
-  for _, off in ipairs(offsets) do
-    local p = pos + off
-    if GridNav.IsTraversable(p) then return p end
+  -- Расширенный поиск по кольцам для нахождения ближайшей проходимой точки
+  for r = 40, 400, 60 do
+    local steps = 8 + math.floor(r / 25)
+    for i = 0, steps - 1 do
+      local ang = (i / steps) * math.pi * 2
+      local p = pos + Vector(math.cos(ang) * r, math.sin(ang) * r, 0)
+      if GridNav.IsTraversable(p) then return p end
+    end
   end
   return nil
 end
@@ -1195,15 +1211,50 @@ end
 local function RecenterSpot(spot)
   if not spot then return end
   if spot.single then
-    if spot.camp1 and spot.camp1.pos then spot.pos = spot.camp1.pos end
+    if spot.camp1 and spot.camp1.pos then
+      spot.pos = FindTraversablePointNear(spot.camp1.pos) or spot.camp1.pos
+    end
   else
     if spot.camp1 and spot.camp1.pos and spot.camp2 and spot.camp2.pos then
-      spot.pos = (spot.camp1.pos + spot.camp2.pos) / 2
+      local center = (spot.camp1.pos + spot.camp2.pos) / 2
+      spot.pos = FindTraversablePointNear(center) or center
     end
   end
 end
 
 local function IsCampAncient(camp) return camp and camp.type == 4 end
+
+local function HasAliveNeutralNear(pos, radius)
+  if not pos then return false end
+  local ents = NPCs.GetAll() or {}
+  for _, e in ipairs(ents) do
+    if e and Entity.IsAlive(e) and not Entity.IsDormant(e) then
+      local team = Entity.GetTeamNum(e)
+      -- Нейтралы — это всегда команда 4. NPC.IsNeutral может быть не у всех.
+      if team == 4 then
+        local origin = Entity.GetAbsOrigin(e)
+        if origin and origin:Distance(pos) <= radius then
+          return true
+        end
+      end
+    end
+  end
+  return false
+end
+
+local function CampLikelyAlive(camp)
+  if not camp or camp.farmed or not camp.pos then return false end
+  
+  -- Проверка через GridNav: если мы видим место спавна
+  if GridNav and GridNav.IsVisible and GridNav.IsVisible(camp.pos) then
+    -- Если видим, но нейтралов там нет — считаем зафармленным
+    return HasAliveNeutralNear(camp.pos, 430)
+  end
+
+  -- Если мы НЕ видим зону (Fog of War), мы не можем знать пустая она или нет.
+  -- В этом случае считаем её живой (так как camp.farmed == false).
+  return true
+end
 local function ComputeMarchCastInfo(spot)
   if not spot then return nil end
   local castPos = spot.pos
@@ -1409,7 +1460,7 @@ function Tinker.FindTreeBlinkPos(heroPos, wavePos)
   local baseDir = (fountainPos - wavePos):Normalized()
 
   -- Собираем все живые деревья в радиусе поиска
-  local allTrees = Trees.InRadius(wavePos, searchR, 0, 0) or {}
+  local allTrees = Trees.InRadius(wavePos, searchR, true) or {}
   local treePositions = {}
   for _, tree in ipairs(allTrees) do
     local tp = getTreePos(tree)
@@ -1684,7 +1735,10 @@ function Tinker.FindBestFarmSpot()
         table.insert(allCamps, camp)
         local isAnc = IsCampAncient(camp)
         if (isAnc and wantAncient) or (not isAnc and wantNonAnc) then
-          selectedSet[camp] = true
+          -- ПРОВЕРКА: Если кемп в Вижене и пустой — пропускаем его в списке кандидатов
+          if CampLikelyAlive(camp) then
+            selectedSet[camp] = true
+          end
         end
       end
     end
@@ -1727,7 +1781,8 @@ function Tinker.FindBestFarmSpot()
     end
 
     if bestPair then
-      bestJungleSpot  = { pos = (bestPair[1].pos + bestPair[2].pos) / 2, camp1 = bestPair[1], camp2 = bestPair[2], gold = bestPairGold }
+      local c = (bestPair[1].pos + bestPair[2].pos) / 2
+      bestJungleSpot  = { pos = FindTraversablePointNear(c) or c, camp1 = bestPair[1], camp2 = bestPair[2], gold = bestPairGold }
       bestJungleScore = bestPairScore
     else
       local bestSingle, bestSingleScore, bestSingleGold = nil, math.huge, 0
@@ -1752,7 +1807,7 @@ function Tinker.FindBestFarmSpot()
         end
       end
       if bestSingle then
-        bestJungleSpot  = { pos = bestSingle.pos, camp1 = bestSingle, single = true, gold = bestSingleGold }
+        bestJungleSpot  = { pos = FindTraversablePointNear(bestSingle.pos) or bestSingle.pos, camp1 = bestSingle, single = true, gold = bestSingleGold }
         bestJungleScore = bestSingleScore
       end
     end
@@ -1792,7 +1847,7 @@ function Tinker.FindBestFarmSpot()
       if score < bestLaneScore then
         bestLaneScore = score
         bestLaneSpot  = {
-          pos        = pos,
+          pos        = FindTraversablePointNear(pos) or pos,
           camp1      = { pos = pos, type = 5, index = "lane_" .. tostring(#wave.creeps), farmed = false, isLane = true },
           single     = true,
           isLane     = true,
@@ -1877,8 +1932,14 @@ end
 
 function Tinker.NeedsToReturnToFountain()
   if not State.KeenTeleport then return false end
+  local curMana   = NPC.GetMana(State.Hero) or 0
+  local maxMana   = NPC.GetMaxMana(State.Hero) or 1
+  local threshold = (Config.Mana.ReturnFrac and Config.Mana.ReturnFrac:Get() or 20) / 100.0
+  
+  if curMana < (maxMana * threshold) then return true end
+
   local escapeMana = Tinker.GetEscapeManaCost()
-  return (NPC.GetMana(State.Hero) or 0) < escapeMana
+  return curMana < escapeMana
 end
 
 function Tinker.ShouldRequestTeleport(pos, force)
@@ -2146,24 +2207,7 @@ local function FindNearestEnemyLaneCreepInRange(origin, range, preferred)
   return best
 end
 
-local function HasAliveNeutralNear(pos, radius)
-  if not pos then return false end
-  for _, e in ipairs(NPCs.GetAll() or {}) do
-    if e and Entity.IsAlive(e) and not Entity.IsDormant(e) and not NPC.IsWaitingToSpawn(e) then
-      local isNeutral = (NPC.IsNeutral and NPC.IsNeutral(e)) or (Entity.GetTeamNum(e) == 4)
-      if isNeutral and Entity.GetAbsOrigin(e):Distance(pos) <= radius then
-        return true
-      end
-    end
-  end
-  return false
-end
 
-local function CampLikelyAlive(camp)
-  if not camp or camp.farmed or not camp.pos then return false end
-  if CountCampAliveCreeps(camp) > 0 then return true end
-  return HasAliveNeutralNear(camp.pos, 430)
-end
 
 local function CanShivaHitCamp(heroPos, camp, radius)
   if not camp or not camp.pos then return false end
@@ -2314,26 +2358,43 @@ function Tinker.ProcessAfterMarchCheck()
   end
 end
 
-local function TryCastMatrix(mode)
-  if not Config.AutoMatrix:Get() then return false end
-  local m = NPC.GetAbility(State.Hero, "tinker_defense_matrix")
-  if not m or Ability.CanBeExecuted(m) ~= -1 then return false end
+local function TryCastTurrets(mode)
+  if not Config.AutoTurrets:Get() then return false end
+  local t = State.Turrets
+  if not t or Ability.CanBeExecuted(t) ~= -1 then return false end
 
-  if mode == "precast" then
-    if not Config.Matrix.PrecastAtFountain:Get() then return false end
-    if not HasFountainBuff() then return false end
-    if State.IsChanneling then return false end
-    local matrixMod = NPC.GetModifier(State.Hero, "modifier_tinker_defense_matrix")
-    if matrixMod and Modifier.GetDuration(matrixMod) > 7 then return false end
-    if GameRules.GetGameTime() - (State.MatrixCastTime or 0) < 0.2 then return false end
-    local ok = Utils.CastAbility(m, Enum.UnitOrder.DOTA_UNIT_ORDER_CAST_TARGET, State.Hero)
-    if ok then State.MatrixCastTime = GameRules.GetGameTime() end
-    return ok
-  elseif mode == "panic" then
-    if not Config.Matrix.UseDuringPanic:Get() then return false end
-    if GameRules.GetGameTime() - (State.LastPanicMatrixAt or 0) < Constants.PANIC_MATRIX_COOLDOWN then return false end
-    local ok = Utils.CastAbility(m, Enum.UnitOrder.DOTA_UNIT_ORDER_CAST_TARGET, State.Hero)
-    if ok then State.LastPanicMatrixAt = GameRules.GetGameTime() end
+  if mode == "panic" then
+    if not Config.Turrets.UseInPanic:Get() then return false end
+
+    local myPos = Entity.GetAbsOrigin(State.Hero)
+    local enemyPts = Tinker.GetEnemyLastKnownPositions()
+    local castPos = myPos
+
+    if #enemyPts > 0 then
+      local ex, ey, ez = 0, 0, 0
+      local nearCnt = 0
+      for _, ep in ipairs(enemyPts) do
+        if myPos:Distance(ep) < 1200 then
+          ex = ex + ep.x; ey = ey + ep.y; ez = ez + ep.z
+          nearCnt = nearCnt + 1
+        end
+      end
+
+      if nearCnt > 0 then
+        local avgEnemy = Vector(ex / nearCnt, ey / nearCnt, ez / nearCnt)
+        local dirAway = (myPos - avgEnemy):Normalized()
+        -- Cast point: between me and enemy to push me further away
+        castPos = myPos - dirAway * 80
+      end
+    else
+      -- No enemies seen, but panic arming? Push towards fountain
+      local fountainPos = (State.HeroTeam == 2) and Constants.FOUNTAIN_RADIANT or Constants.FOUNTAIN_DIRE
+      local dirToHome = (fountainPos - myPos):Normalized()
+      castPos = myPos - dirToHome * 80
+    end
+
+    local ok = Utils.CastAbility(t, Enum.UnitOrder.DOTA_UNIT_ORDER_CAST_POSITION, castPos)
+    if ok then State.LastPanicTurretsAt = GameRules.GetGameTime() end
     return ok
   end
   return false
@@ -2380,7 +2441,7 @@ function Tinker.HandlePanic()
     State.PendingTPForce = true
     return true
   end
-  TryCastMatrix("panic")
+  TryCastTurrets("panic")
 
   if Tinker.TryTeleportTo(fountainPos, true) then
     State.LastFarmTPAt = now
@@ -2404,17 +2465,35 @@ function Tinker.HandlePanic()
   return true
 end
 
---- Проверяет, находится ли герой под жёстким контролем (стан, хекс, циклон)
+--- Проверяет, находится ли герой под жёстким контролем (стан, хекс, циклон, оцепенение)
 local function IsHeroHardDisabled()
   if not State.Hero then return true end
-  if NPC.HasModifier(State.Hero, "modifier_stunned") then return true end
-  if NPC.HasModifier(State.Hero, "modifier_cyclone") then return true end
-  if NPC.HasModifier(State.Hero, "modifier_sheepstick_debuff") then return true end
-  if NPC.HasModifier(State.Hero, "modifier_lion_voodoo") then return true end
-  if NPC.HasModifier(State.Hero, "modifier_shadow_shaman_voodoo") then return true end
-  if NPC.HasModifier(State.Hero, "modifier_ice_blast") then return true end
-  if NPC.HasModifier(State.Hero, "modifier_bashed") then return true end
-  if NPC.HasModifier(State.Hero, "modifier_rooted") then return true end
+  
+  -- Используем встроенные методы API для надёжности
+  if NPC.IsStunned(State.Hero) then return true end
+  if NPC.IsRooted(State.Hero) then return true end
+  if NPC.IsSilenced(State.Hero) then return true end
+  
+  -- Дополнительные специфичные модификаторы (включая оцепенение Големов)
+  local badMods = {
+    "modifier_stunned",
+    "modifier_cyclone",
+    "modifier_rooted",
+    "modifier_bashed",
+    "modifier_petrified", -- Общий флаг оцепенения
+    "modifier_rock_golem_petrify", -- Специфичный для мобов
+    "modifier_medusa_stone_gaze",
+    "modifier_eul_cyclone",
+    "modifier_brewmaster_storm_cyclone",
+    "modifier_shadow_shaman_voodoo",
+    "modifier_lion_voodoo",
+    "modifier_sheepstick_debuff"
+  }
+  
+  for _, m in ipairs(badMods) do
+    if NPC.HasModifier(State.Hero, m) then return true end
+  end
+
   return false
 end
 
@@ -2645,11 +2724,29 @@ function Tinker.HandleFarming()
       return
     end
 
-    -- ═══ Таймаут ходьбы пешком: если слишком долго идём — бросаем ═══
-    if State.MovingToSpotSince > 0 and not State.MovingAfterTeleport then
+    -- ═══ Stuck detection: если застряли в текстурах или топчимся на месте ═══
+    if State.MovingToSpotSince > 0 and not State.IsChanneling then
+      local myPos = Entity.GetAbsOrigin(State.Hero)
+      if not State.LastTrackedPos or (now - (State.LastTrackedAt or 0)) > 0.5 then
+        State.HeroMoveDist = myPos:Distance(State.LastTrackedPos or myPos)
+        State.LastTrackedPos = myPos
+        State.LastTrackedAt = now
+      end
+
       local walkTime = now - State.MovingToSpotSince
-      if walkTime > (Constants.WALK_TO_SPOT_MAX_TIME or 12.0) then
-        AbortToIdle("walk_timeout")
+      local distToSpot = myPos:Distance(spot.pos)
+      
+      -- Если за 12 секунд не дошли или топчемся на месте 3+ секунд (не достигая цели)
+      local isStuck = (walkTime > (Constants.WALK_TO_SPOT_MAX_TIME or 12.0))
+      if distToSpot > 150 and (State.HeroMoveDist or 0) < 10 then
+        State.StuckAcc = (State.StuckAcc or 0) + (now - (State.LastTrackedAt or 0))
+        if State.StuckAcc > 3.0 then isStuck = true end
+      else
+        State.StuckAcc = 0
+      end
+
+      if isStuck then
+        AbortToIdle("stuck_or_timeout")
         return
       end
     end
@@ -2710,7 +2807,11 @@ function Tinker.HandleFarming()
     local distToLand = myPos:Distance(intended)
     local allowedMax = Constants.MARCH_CAST_RANGE * (spot.single and 1.0 or Constants.MARCH_PAIR_COVERAGE_FRAC)
 
-    if castInfo.maxDist <= allowedMax and myPos:Distance(castInfo.pos) <= Constants.MARCH_CAST_RANGE then
+    -- В лесу идем до упора (80 ед.), чтобы блинк или ходьба дали идеальную точку для Pair.
+    -- На линии кастуем сразу, как только достаем до точки (MARCH_CAST_RANGE), чтобы не подставляться.
+    local arrivalDist = spot.isLane and Constants.MARCH_CAST_RANGE or (Constants.FARM_ARRIVAL_DISTANCE or 80)
+
+    if myPos:Distance(castInfo.pos) <= arrivalDist then
       State.MovingAfterTeleport = false
       State.MovingToSpotSince   = 0
       State.FarmState           = "FARMING_SPOT"
@@ -2725,6 +2826,17 @@ function Tinker.HandleFarming()
           return
         end
       end
+
+      -- ПРОВЕРКА ПЕРЕД КАСТОМ: Если мы уже на месте и кемп пустой — уходим сразу
+      if not spot.isLane then
+        local c1Alive = CampLikelyAlive(spot.camp1)
+        local c2Alive = (not spot.single and spot.camp2) and CampLikelyAlive(spot.camp2) or false
+        if not c1Alive and not c2Alive then
+          MarkSpotFarmedAndLeave()
+          return
+        end
+      end
+
       return
     end
 
@@ -2749,25 +2861,27 @@ function Tinker.HandleFarming()
     end
     local holdBlink = (State.PendingTPPos ~= nil) or IsBlinkLockedNow()
 
-    if not holdBlink
-        and not HasFountainBuff()
+    -- Агрессивный блинк: только для ЛЕСНЫХ лагерей.
+    -- На линии (lane) мы НЕ блинкаемся в крипа, а идем пешком/ждем,
+    -- чтобы сохранить блинк для ухода в деревья после прокаста.
+    if not spot.isLane
+        and not holdBlink
         and Config.ItemsToUse:Get(L("item_blink"))
-        and IsBlinkTravelEnabled()
         and State.Blink
         and Ability.CanBeExecuted(State.Blink) == -1 then
+      
       local blinkDist = myPos:Distance(castInfo.pos)
-      local farmBlinkMin = Constants.FARM_BLINK_MIN_DISTANCE or 200
-      if blinkDist > farmBlinkMin then
-        local preserveForTreeBlink = spot.isLane and IsTreeBlinkLaneEnabled()
-            and blinkDist <= ((Constants.BLINK_MAX_RANGE or 1200) * 1.25)
-        if not preserveForTreeBlink then
-          local blinkPos = blinkDist <= Constants.BLINK_MAX_RANGE
-              and castInfo.pos
-              or (myPos + (castInfo.pos - myPos):Normalized() * Constants.BLINK_MAX_RANGE)
-          blinkPos = FindTraversablePointNear(blinkPos)
-          if blinkPos and not IsPointHardUnsafe(blinkPos) then
-            if Utils.CastAbility(State.Blink, Enum.UnitOrder.DOTA_UNIT_ORDER_CAST_POSITION, blinkPos) then return end
-          end
+      local maxBlink = Constants.BLINK_MAX_RANGE or 1200
+      
+      -- Блинкаемся ТОЛЬКО когда можем достать до цели за один прыжок.
+      -- Это гарантирует, что мы окажемся ровно в точке "Pair" и сразу начнем каст.
+      -- Уменьшили минимальную дистанцию до 50, чтобы блинк работал даже на коротких отрезках.
+      if blinkDist <= maxBlink and blinkDist > 50 then
+        local blinkPos = castInfo.pos
+        -- Проверяем, что точка проходима, но не смещаем её слишком сильно.
+        blinkPos = FindTraversablePointNear(blinkPos)
+        if blinkPos and not IsPointHardUnsafe(blinkPos) then
+          if Utils.CastAbility(State.Blink, Enum.UnitOrder.DOTA_UNIT_ORDER_CAST_POSITION, blinkPos) then return end
         end
       end
     end
@@ -2782,6 +2896,17 @@ function Tinker.HandleFarming()
       State.CurrentSpotMarchCasts    = 0
       State.CurrentSpotMarchRequired = nil
       return
+    end
+
+    -- НЕПРЕРЫВНАЯ ПРОВЕРКА НА ПУСТОТУ: Если мы видим лагеря и они пусты — уходим.
+    -- Это предотвратит каст маршей если мы уже прилетели и "увидели", что там пусто.
+    if not spot.isLane then
+      local c1Alive = CampLikelyAlive(spot.camp1)
+      local c2Alive = (not spot.single and spot.camp2) and CampLikelyAlive(spot.camp2) or false
+      if not c1Alive and not c2Alive then
+        MarkSpotFarmedAndLeave()
+        return
+      end
     end
 
     local t = GameRules.GetGameTime()
@@ -3057,18 +3182,16 @@ function Tinker.HandleFarming()
       local curMana     = NPC.GetMana(State.Hero) or 0
       local cycleCost   = Tinker.GetCampCycleManaCost()
       local minTPNeed   = Tinker.GetManaNeededBeforeTP()
-      local minFracNeed = maxMana * Constants.FOUNTAIN_MIN_MANA_FRAC
+      local resumeThreshold = (Config.Mana.ResumeFrac and Config.Mana.ResumeFrac:Get() or 85) / 100.0
+      local minFracNeed = maxMana * resumeThreshold
       -- Не улетаем с фонтана, пока маны не хватит хотя бы на tp + march + rearm + tp_home
       local need        = math.max(minFracNeed, minTPNeed, math.min(cycleCost, maxMana * 0.95))
       -- Также ждём восстановления HP (не улетаем с низким ХП)
       local hp    = Entity.GetHealth(State.Hero) or 0
       local maxHP = Entity.GetMaxHealth(State.Hero) or 1
       local hpOK  = (hp / math.max(1, maxHP)) >= 0.85
-      if curMana >= need and hpOK then
-        -- Прекастим матрицу перед вылетом
-        TryCastMatrix("precast")
+        -- Deploy Turrets removed from farm
         State.FarmState = "IDLE"
-      end
       return
     end
 
@@ -3136,31 +3259,31 @@ function Tinker.HandleFarming()
 end
 
 local Theme = {
-  bg           = Color(14, 16, 20, 205),
-  bg2          = Color(20, 23, 29, 225),
-  border       = Color(70, 78, 92, 205),
-  shadow       = Color(0, 0, 0, 180),
+  bg           = Color(24, 12, 18, 235),    -- Deep Petal Dark
+  bg2          = Color(255, 180, 200, 22),  -- Subtle Blossom
+  border       = Color(255, 182, 193, 115), -- Faded Sakura Border
+  shadow       = Color(40, 10, 20, 150),
 
-  text         = Color(230, 235, 245, 255),
-  dim          = Color(160, 170, 185, 255),
+  text         = Color(255, 245, 250, 255), -- Snowy White
+  dim          = Color(255, 220, 235, 170), -- Soft Dim Pink
 
-  good         = Color(120, 255, 180, 255),
-  warn         = Color(255, 220, 130, 255),
-  bad          = Color(255, 120, 120, 255),
+  good         = Color(160, 255, 210, 255),
+  warn         = Color(255, 230, 160, 255),
+  bad          = Color(255, 120, 160, 255), -- Less aggressive red
 
-  accent       = Color(120, 220, 255, 255),
-  accent2      = Color(120, 255, 180, 255),
-  gold         = Color(255, 220, 110, 255),
+  accent       = Color(255, 115, 165, 255), -- Deep Sakura
+  accent2      = Color(255, 185, 205, 255), -- Light Petal
+  gold         = Color(255, 235, 130, 255),
 
-  ringCast     = Color(120, 255, 120, 165),
-  ringPair     = Color(120, 180, 255, 140),
-  ringFail     = Color(255, 120, 120, 150),
+  ringCast     = Color(255, 180, 200, 165),
+  ringPair     = Color(200, 220, 255, 140),
+  ringFail     = Color(255, 130, 150, 150),
 
-  campDot      = Color(255, 210, 120, 220),
+  campDot      = Color(255, 200, 215, 220),
 
-  tpAnchor     = Color(200, 140, 255, 245),
-  tpAnchorRing = Color(200, 140, 255, 155),
-  tpAnchorPath = Color(200, 140, 255, 170),
+  tpAnchor     = Color(230, 190, 255, 245),
+  tpAnchorRing = Color(230, 190, 255, 155),
+  tpAnchorPath = Color(230, 190, 255, 170),
 }
 
 local UI = {
@@ -3248,7 +3371,7 @@ end
 
 local function CampTag(pos, txt)
   local s, vis = W2S(pos); if not vis then return end
-  Chip(s + Vec2(10, -8), txt, Theme.text, Color(22, 25, 31, 225))
+  Chip(s + Vec2(10, -8), txt, Theme.text, Color(50, 22, 35, 210))
 end
 
 local function DrawTPAnchorDebug(targetPos, pathEndPos, tagText)
@@ -3276,7 +3399,7 @@ local function DrawTPAnchorDebug(targetPos, pathEndPos, tagText)
   WorldDot(ap, Theme.accent2)
   local s, vis = W2S(ap)
   if vis then
-    Chip(s + Vec2(12, -22), label, has and Theme.tpAnchor or Theme.bad, Color(20, 22, 28, 230))
+    Chip(s + Vec2(12, -22), label, has and Theme.tpAnchor or Theme.bad, Color(45, 20, 30, 220))
   end
 end
 
@@ -3310,7 +3433,9 @@ local function DrawWorldSpotNeo(spot)
   if spot.camp2 and spot.camp2.pos then
     WorldDot(spot.camp2.pos, Theme.campDot)
     WorldDashed(castPos, spot.camp2.pos, Color(255, 255, 255, 80), 1.2, 7, 5)
-    WorldDashed(spot.camp1.pos, spot.camp2.pos, Color(255, 230, 140, 95), 1.4, 8, 5)
+    if spot.camp1 and spot.camp1.pos then
+        WorldDashed(spot.camp1.pos, spot.camp2.pos, Color(255, 230, 140, 95), 1.4, 8, 5)
+    end
     if Config.Debug.Pretty:Get() then CampTag(spot.camp2.pos, "B") end
   end
 
@@ -3319,7 +3444,7 @@ local function DrawWorldSpotNeo(spot)
   if Config.Debug.Bounty:Get() and vis then
     local typ = spot.single and "Single" or "Pair"
     local g   = FormatGold(spot.gold or 0)
-    Chip(s + Vec2(12, -26), string.format("%s • %s", typ, g), Theme.gold, Color(20, 22, 28, 225))
+    Chip(s + Vec2(12, -26), string.format("%s • %s", typ, g), Theme.gold, Color(45, 20, 30, 225))
   end
 
   DrawTPAnchorDebug(castPos, castPos, nil)
@@ -3338,15 +3463,39 @@ local function DrawWorldSpotMinimal(spot)
   if spot.camp1 and spot.camp1.pos then WorldDot(spot.camp1.pos, Theme.campDot) end
   if spot.camp2 and spot.camp2.pos then WorldDot(spot.camp2.pos, Theme.campDot) end
   WorldArrow(heroPos, castPos, Theme.accent2, 1.8)
-  DrawTPAnchorDebug(castPos, castPos, nil)
+  if castPos then
+    DrawTPAnchorDebug(castPos, castPos, nil)
+  end
+end
+
+local CampLogger = {
+  index = 1,
+  selectionType = nil, -- 1:Small, 2:Medium, 3:Large, 4:Ancient
+  mousePrevDown = false,
+  btnRects = {},
+}
+
+local function LogCampAt(pos, campType)
+  if not pos or not Engine.IsInGame() then return end
+  local hero = Heroes.GetLocal()
+  if not hero then return end
+  local team = Entity.GetTeamNum(hero)
+  if team ~= 2 and team ~= 3 then return end
+
+  Log.Write(string.format(
+    "Camp spot: {pos = Vector(%.1f, %.1f, %.1f), team = %d, type = %d, index = %d},",
+    pos.x, pos.y, pos.z, team, campType, CampLogger.index
+  ))
+  CampLogger.index = CampLogger.index + 1
+  CampLogger.selectionType = nil
 end
 
 local function DrawDockOverlay()
   EnsureFonts()
 
-  local w        = 360
+  local w_base   = 340
   local screen   = Render.ScreenSize()
-  local x        = screen.x - w - 24
+  local x        = screen.x - w_base - 24
   local y        = 110
   local pad      = UI.pad
   local tNow     = GameRules.GetGameTime()
@@ -3364,10 +3513,9 @@ local function DrawDockOverlay()
 
   local tpLockRemain = math.max(0, (State.TeleportLockUntil or 0) - tNow)
   table.insert(lines, { "TP lock",
-    string.format("movingAfterTP=%s  remain=%.1fs  pending=%s",
+    string.format("movingAfterTP=%s  remain=%.1fs",
       tostring(State.MovingAfterTeleport),
-      tpLockRemain,
-      tostring(State.PendingTPPos ~= nil)),
+      tpLockRemain),
     (tpLockRemain > 0) and Theme.warn or Theme.dim
   })
 
@@ -3378,83 +3526,46 @@ local function DrawDockOverlay()
     local fit        = castInfo.maxDist <= allowedMax
 
     table.insert(lines, { "Spot",
-      string.format("key=%s  commitRem=%.1f  lastFarmTP=%.1f",
+      string.format("key=%s  rem=%.1fs",
         tostring(State.TargetSpotKey),
-        math.max(0, (State.SpotCommitUntil or 0) - tNow),
-        math.max(0, tNow - (State.LastFarmTPAt or 0))),
+        math.max(0, (State.SpotCommitUntil or 0) - tNow)),
       Theme.dim })
 
-    if Config.Debug.Bounty:Get() then
-      table.insert(lines, { "Bounty", FormatGold(spot.gold or 0), Theme.gold })
-    end
-
     if Config.Debug.Spot:Get() then
-      local spotTypeStr
-      if spot.isLane then
-        local lc = spot.laneCreeps and #spot.laneCreeps or 0
-        spotTypeStr = "lane (" .. lc .. " creeps)"
-      elseif spot.single then
-        spotTypeStr = "single"
-      else
-        spotTypeStr = "pair (" .. math.floor(Constants.MARCH_PAIR_COVERAGE_FRAC * 100) .. "% cover)"
-      end
+      local spotTypeStr = spot.isLane and "lane" or (spot.single and "single" or "pair")
       table.insert(lines, { "Type", spotTypeStr, spot.isLane and Theme.accent or Theme.dim })
       table.insert(lines,
-        { "Max Camp Dist", string.format("%.0f / %.0f", castInfo.maxDist, allowedMax), fit and Theme.good or Theme.bad })
-      table.insert(lines,
-        { "Hero->Cast", string.format("%.0f / %d", Entity.GetAbsOrigin(State.Hero):Distance(castInfo.pos),
-          Constants.MARCH_CAST_RANGE), Theme.dim })
+        { "Cast Range", string.format("%.0f / %.0f", castInfo.maxDist, allowedMax), fit and Theme.good or Theme.bad })
     end
-    local isCountMode = Config.MarchControl.UseCustom:Get() or (spot.isLane)
-    local mode = spot.isLane and "Lane Count" or (Config.MarchControl.UseCustom:Get() and "Custom Count" or "Until Cleared")
-    table.insert(lines, { "March Mode", mode, Theme.accent })
-    if isCountMode then
-      local req = State.CurrentSpotMarchRequired or 0
-      local have = State.CurrentSpotMarchCasts or 0
-      table.insert(lines, { "Marches", string.format("%d / %d", have, req), (have >= req and Theme.good or Theme.dim) })
-    end
-    if spot.isLane then
-      local bias = Tinker.GetAdaptiveLaneBias()
-      table.insert(lines, { "Lane Bias", string.format("%.1f", bias), bias < 0 and Theme.good or Theme.warn })
-      if State.LaneTreeBlinkDone then
-        table.insert(lines, { "Tree Blink", "Done", Theme.good })
-      elseif IsTreeBlinkLaneEnabled() then
-        table.insert(lines, { "Tree Blink", "Pending", Theme.warn })
-      end
-    end
+    local req = State.CurrentSpotMarchRequired or 0
+    local have = State.CurrentSpotMarchCasts or 0
+    table.insert(lines, { "Marches", string.format("%d / %d", have, req), (have >= req and Theme.good or Theme.dim) })
   end
 
-  if Config.Debug.Orders:Get() then
-    local nextReady = math.max(0, (State.NextOrderTime or 0) - tNow)
-    table.insert(lines,
-      { "Orders", string.format("tick=%d  perSec=%d  next=%.2fs", State.OrdersThisUpdate or 0, State.OrdersPerSec or 0,
-        nextReady), Theme.dim })
-    if State.LastOrderDebug then
-      local lod = State.LastOrderDebug
-      local tag = lod.allowed and "sent" or ("blocked:" .. (lod.reason or "?"))
-      local pos = lod.tpos and (" to(" .. math.floor(lod.tpos.x) .. "," .. math.floor(lod.tpos.y) .. ")") or ""
-      table.insert(lines,
-        { "Last Order", string.format("%s%s [%s]%s", lod.order or "?", lod.ability and ("(" .. lod.ability .. ")") or "",
-          tag, pos), lod.allowed and Theme.good or Theme.bad })
-    end
-  end
-
+  -- Measure width
   local labelW = 0
+  local valW   = 0
   for _, r in ipairs(lines) do
-    local ts = Render.TextSize(UI.fonts.small, 14, r[1])
-    if ts.x > labelW then labelW = ts.x end
+    local tsL = Render.TextSize(UI.fonts.small, 14, r[1])
+    local tsV = Render.TextSize(UI.fonts.small, 14, r[2])
+    if tsL.x > labelW then labelW = tsL.x end
+    if tsV.x > valW then valW = tsV.x end
   end
   labelW         = labelW + 12
-  local contentH = #lines * UI.rowH + pad * 2
+  local w        = math.max(w_base, labelW + valW + pad * 2 + 10)
+
+  -- Camp Logger Section
+  local loggerH = 45
+  local contentH = #lines * UI.rowH + pad * 2 + loggerH
 
   local start    = Vec2(x, y)
   local end_     = Vec2(x + w, y + contentH + 10)
-  Render.Shadow(start, end_, Theme.shadow, 14, UI.rounding)
-  Render.Blur(start, end_, 0.85, 0.9, UI.rounding)
-  Render.FilledRect(start, end_, Theme.bg2, UI.rounding)
-  Render.Rect(start, end_, Theme.border, UI.rounding, nil, 1.0)
+  Render.Shadow(start, end_, Theme.shadow, 20, UI.rounding)
+  Render.Blur(start, end_, 0.95, 0.98, UI.rounding)
+  Render.FilledRect(start, end_, Theme.bg, UI.rounding)
+  Render.Rect(start, end_, Theme.border, UI.rounding, nil, 1.25)
 
-  Chip(Vec2(x + pad, y - 22), "Auto Push&Farm — Debug", Theme.text, Color(18, 20, 26, 230))
+  Chip(Vec2(x + pad, y - 22), "Umbrella - Tinker [Petals Edition]", Theme.text, Theme.accent)
 
   local ry = y + pad + 6
   for _, r in ipairs(lines) do
@@ -3462,6 +3573,60 @@ local function DrawDockOverlay()
     Render.Text(UI.fonts.small, 14, r[2], Vec2(x + pad + labelW, ry), r[3])
     ry = ry + UI.rowH
   end
+
+  -- Draw Logger Buttons
+  ry = ry + 8
+  Render.Line(Vec2(x + pad, ry), Vec2(x + w - pad, ry), Theme.border, 1.0)
+  ry = ry + 12
+  Render.Text(UI.fonts.small, 13, "Camp Logger:", Vec2(x + pad, ry), Theme.accent2)
+  
+  local btnW = (w - pad * 2 - 15) / 4
+  local bx = x + pad
+  local names = { "S", "M", "L", "A" }
+  CampLogger.btnRects = {}
+  for i=1, 4 do
+    local over = false
+    local active = (CampLogger.selectionType == i)
+    local s_ = Vec2(bx, ry + 18)
+    local e_ = Vec2(bx + btnW, ry + 38)
+    
+    if Input and Input.GetCursorPos then
+      local mx, my = Input.GetCursorPos()
+      if mx >= s_.x and mx <= e_.x and my >= s_.y and my <= e_.y then
+        over = true
+        if Input.IsKeyDown(Enum.ButtonCode.KEY_MOUSE1) and not CampLogger.mousePrevDown then
+          CampLogger.selectionType = active and nil or i
+        end
+      end
+    end
+    
+    local col = active and Theme.accent or (over and Theme.accent2 or Theme.bg2)
+    Render.FilledRect(s_, e_, col, 4)
+    Render.Rect(s_, e_, Theme.border, 4, nil, 1.0)
+    Render.Text(UI.fonts.small, 13, names[i], Vec2(bx + btnW/2 - 5, ry + 20), active and Theme.bg or Theme.text)
+    bx = bx + btnW + 5
+  end
+  
+  if CampLogger.selectionType then
+    local wp = Input.GetWorldCursorPos()
+    if wp then
+      WorldRing(wp, 100, Theme.accent, 2.0, 32)
+      local sp, vis = Render.WorldToScreen(wp)
+      if vis then
+        Render.Text(UI.fonts.small, 14, "Click to Log Camp", sp + Vec2(15, -15), Theme.accent)
+      end
+      if Input.IsKeyDown(Enum.ButtonCode.KEY_MOUSE1) and not CampLogger.mousePrevDown then
+        -- Check if we are clicking the UI
+        local mx, my = Input.GetCursorPos()
+        local inUI = (mx >= start.x and mx <= end_.x and my >= start.y and my <= end_.y)
+        if not inUI then
+          LogCampAt(wp, CampLogger.selectionType)
+        end
+      end
+    end
+  end
+  
+  CampLogger.mousePrevDown = Input.IsKeyDown(Enum.ButtonCode.KEY_MOUSE1)
 end
 local function DrawStatusOverlay()
   if not Config.StatusOverlay:Get() then return end
@@ -3477,17 +3642,17 @@ local function DrawStatusOverlay()
   local colText = isOn and Theme.good or Theme.bad
   local padX, padY = 10, 7
   local ts = Render.TextSize(UI.fonts.bold, 15, label)
-  local w = math.max(140, ts.x + padX * 2 + 6)
+  local w = math.max(150, ts.x + padX * 2 + 10)
   local h = ts.y + padY * 2
   local s = pos
   local e = Vec2(pos.x + w, pos.y + h)
-  Render.Shadow(s, e, Theme.shadow, 12, 8)
-  Render.Blur(s, e, 0.7, 0.9, 8)
-  Render.FilledRect(s, e, Theme.bg2, 8)
-  Render.Rect(s, e, Theme.border, 8, nil, 1.0)
-  local barW = 5
-  Render.FilledRect(s, Vec2(s.x + barW, e.y), colBar, 8)
-  Render.Text(UI.fonts.bold, 15, label, Vec2(pos.x + padX + barW + 4, pos.y + padY), colText)
+  Render.Shadow(s, e, Theme.shadow, 14, 10)
+  Render.Blur(s, e, 0.85, 0.95, 10)
+  Render.FilledRect(s, e, Theme.bg, 10)
+  Render.Rect(s, e, Theme.border, 10, nil, 1.1)
+  local barW = 6
+  Render.FilledRect(s, Vec2(s.x + barW, e.y), colBar, 10)
+  Render.Text(UI.fonts.bold, 15, label, Vec2(pos.x + padX + barW + 6, pos.y + padY), colText)
   if not Config.Status.Lock:Get() and Input and Input.GetCursorPos and Input.IsKeyDown then
     local x, y = Input.GetCursorPos()
     local inside = (x >= s.x and x <= e.x and y >= s.y and y <= e.y)
@@ -3511,31 +3676,8 @@ local function DrawStatusOverlay()
   end
 end
 
--- Helper: camp coordinate logger.
--- Press F6/F7/F8/F9 while standing in a camp to log a ready-to-paste entry:
---   {pos = Vector(x, y, z), team = <2/3>, type = <1..4>, index = <n>},
--- Types: 1 small, 2 medium, 3 large, 4 ancient.
-local CampLogger = {
-  prev = { f6 = false, f7 = false, f8 = false, f9 = false },
-  index = 1,
-}
-
-local function LogCampHere(campType)
-  if not Engine.IsInGame() then return end
-  local hero = Heroes.GetLocal()
-  if not hero then return end
-  local team = Entity.GetTeamNum(hero)
-  if team ~= 2 and team ~= 3 then return end
-
-  local p = Entity.GetAbsOrigin(hero)
-  Log.Write(string.format(
-    "Camp spot: {pos = Vector(%.1f, %.1f, %.1f), team = %d, type = %d, index = %d},",
-    p.x, p.y, p.z, team, campType, CampLogger.index
-  ))
-  CampLogger.index = CampLogger.index + 1
-end
-
 local function HandleCampLoggerHotkeys()
+  -- Traditional hotkeys (F6..F9) kept as fallback
   if not Input or not Input.IsKeyDown then return end
 
   local d6 = Input.IsKeyDown(Enum.ButtonCode.KEY_F6)
@@ -3543,15 +3685,19 @@ local function HandleCampLoggerHotkeys()
   local d8 = Input.IsKeyDown(Enum.ButtonCode.KEY_F8)
   local d9 = Input.IsKeyDown(Enum.ButtonCode.KEY_F9)
 
-  if d6 and not CampLogger.prev.f6 then LogCampHere(1) end -- small
-  if d7 and not CampLogger.prev.f7 then LogCampHere(2) end -- medium
-  if d8 and not CampLogger.prev.f8 then LogCampHere(3) end -- large
-  if d9 and not CampLogger.prev.f9 then LogCampHere(4) end -- ancient
+  local h = Heroes.GetLocal()
+  if h then
+    local p = Entity.GetAbsOrigin(h)
+    if d6 and not CampLogger.prev_f6 then LogCampAt(p, 1) end
+    if d7 and not CampLogger.prev_f7 then LogCampAt(p, 2) end
+    if d8 and not CampLogger.prev_f8 then LogCampAt(p, 3) end
+    if d9 and not CampLogger.prev_f9 then LogCampAt(p, 4) end
+  end
 
-  CampLogger.prev.f6 = d6
-  CampLogger.prev.f7 = d7
-  CampLogger.prev.f8 = d8
-  CampLogger.prev.f9 = d9
+  CampLogger.prev_f6 = d6
+  CampLogger.prev_f7 = d7
+  CampLogger.prev_f8 = d8
+  CampLogger.prev_f9 = d9
 end
 
 script.OnDraw = function()
@@ -3625,6 +3771,7 @@ script.OnUpdate = function()
   UpdateRearmBlinkHold()
   State.March        = NPC.GetAbility(State.Hero, "tinker_march_of_the_machines")
   State.Laser        = NPC.GetAbility(State.Hero, "tinker_laser")
+  State.Turrets      = NPC.GetAbility(State.Hero, "tinker_deploy_turrets")
   State.KeenTeleport = NPC.GetAbility(State.Hero, "tinker_keen_teleport")
   State.Blink        = NPC.GetItem(State.Hero, "item_blink", true)
       or NPC.GetItem(State.Hero, "item_overwhelming_blink", true)
@@ -3671,7 +3818,6 @@ script.OnUpdate = function()
     UpdateFarmedCampRespawns()
     Tinker.HandleAutoBottle()
   end
-  TryCastMatrix("precast")
 
   Tinker.HandleFarming()
 end

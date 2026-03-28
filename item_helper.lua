@@ -5,7 +5,7 @@ local script = {}
 -- Анализирует вражеский пик, фазу игры и предлагает оптимальные предметы
 -- Локализация: RU / EN / CN
 -- author: Euphoria
--- Updated: 2026-02-24
+-- Updated: 2026-03-28
 --------------------------------------------------------------------------------
 
 --------------------------------------------------------------------------------
@@ -421,7 +421,6 @@ local L_REASONS = {
         item_arcane_blink     = "Blink with cooldown reduction",
         item_mekansm          = "Team heal",
         item_guardian_greaves  = "Greaves: aura + dispel + heal",
-        item_medallion_of_courage = "Armor reduction for fast kills",
         item_silver_edge      = "Break disables passives (Bristle, PA)",
         item_gungir           = "AoE root + lightning vs mobile/illusions",
         item_gungungir        = "AoE root + lightning vs mobile/illusions",
@@ -446,6 +445,14 @@ local L_REASONS = {
         item_phylactery       = "Spell amp + HP for casters",
         item_holy_locket      = "Amplify healing + charges",
         item_hand_of_midas    = "Gold + XP acceleration",
+        item_tiara_of_selemene = "Large mana regen for Scythe/Refresher",
+        item_splintmail       = "Armor + HP for mid-game builds",
+        item_shawl            = "Magic resist for Pipe/Glimmer",
+        item_angels_demise    = "Major spell burst + HP/Mana",
+        item_chasm_stone      = "AOE bonus for abilities (Gleipnir/Shivas)",
+        item_consecrated_wraps = "Self-shield on spell damage",
+        item_crellas_crozier   = "Ethereal + stat steal for casters",
+        item_essence_distiller = "Aggressive Urn upgrade with stats",
     },
     ru = {
         item_magic_wand       = "Быстрый хил vs спама заклинаний",
@@ -502,7 +509,6 @@ local L_REASONS = {
         item_arcane_blink     = "Блинк с уменьшением КД",
         item_mekansm          = "Командный хил",
         item_guardian_greaves  = "Грейвзы: аура + диспел + хил",
-        item_medallion_of_courage = "Снижение брони для быстрых убийств",
         item_silver_edge      = "Break отключает пассивки (Bristle, PA)",
         item_gungir           = "AoE рут + молнии vs иллюзий",
         item_gungungir        = "AoE рут + молнии vs иллюзий",
@@ -527,6 +533,14 @@ local L_REASONS = {
         item_phylactery       = "Усиление заклинаний + HP",
         item_holy_locket      = "Усиление хила + заряды",
         item_hand_of_midas    = "Ускорение золота и опыта",
+        item_tiara_of_selemene = "Реген маны для Хекса/Рефрешера",
+        item_splintmail       = "Броня + HP для мид-гейм сборок",
+        item_shawl            = "Маг. резист для Пайпа/Глиммера",
+        item_angels_demise    = "Мощный маг. урон + HP/Мана",
+        item_chasm_stone      = "Бонус к AoE (Глейпнир/Шива)",
+        item_consecrated_wraps = "Щит при получении маг. урона",
+        item_crellas_crozier   = "Этериал + кража статов",
+        item_essence_distiller = "Агрессивный апгрейд Урны",
     },
     cn = {
         item_magic_wand       = "对付技能骚扰的快速回复",
@@ -582,7 +596,6 @@ local L_REASONS = {
         item_arcane_blink     = "闪烁+冷却缩减",
         item_mekansm          = "团队治疗",
         item_guardian_greaves  = "卫士胫甲: 光环+驱散+治疗",
-        item_medallion_of_courage = "降甲快速击杀",
         item_silver_edge      = "破隐+破除被动技能",
         item_gungungir        = "范围束缚+闪电",
         item_harpoon          = "拉向敌人先手",
@@ -606,6 +619,14 @@ local L_REASONS = {
         item_phylactery       = "技能增幅+生命值",
         item_holy_locket      = "增强治疗效果+充能",
         item_hand_of_midas    = "加速金币和经验",
+        item_tiara_of_selemene = "用于刷新/羊刀的大量回蓝",
+        item_splintmail       = "中期护甲和生命值组件",
+        item_shawl            = "微光/笛子的前期魔抗",
+        item_angels_demise    = "强力法术爆发+HP/MP",
+        item_chasm_stone      = "增加技能范围 (大电锤/希瓦)",
+        item_consecrated_wraps = "受魔伤时获得护盾",
+        item_crellas_crozier   = "虚灵+偷取属性",
+        item_essence_distiller = "攻击性骨灰盒升级",
     },
 }
 
@@ -614,272 +635,170 @@ local L_NEUTRAL_REASONS = {
     en = {
         -- Tier 1
         item_occult_bracelet    = "Mana + INT for spell casters",
-        item_kobold_cup         = "Gold generation + luck for farm",
-        item_chipped_vest       = "Reflect vs phys damage",
-        item_polliwog_charm     = "Heal + mana sustain",
-        item_dormant_curio      = "Stats + vision control",
-        item_duelist_gloves     = "Lifesteal + AGI for sustain",
-        item_weighted_dice      = "Luck + crit chance",
-        item_ash_legion_shield  = "Block + armor vs phys",
-        -- Tier 2
-        item_essence_ring       = "Active HP + mana sustain",
-        item_mana_draught       = "Mana sustain for casters",
-        item_poor_mans_shield   = "Block vs right-clicks",
-        item_searing_signet     = "Burn + magic amp",
-        item_pogo_stick         = "Mobility + initiation",
-        item_defiant_shell      = "Armor + save vs burst",
-        -- Tier 3
-        item_serrated_shiv      = "Armor reduction + bleed",
-        item_gunpowder_gauntlets= "Burst damage + attack speed",
-        item_whisper_of_the_dread= "Silence + magic burst",
-        item_jidi_pollen_bag    = "Slow + heal + mana",
-        item_psychic_headband   = "INT + mana + CDR",
-        item_unrelenting_eye    = "Vision + true strike",
-        -- Tier 4
-        item_crippling_crossbow = "Slow + armor reduction",
-        item_giant_maul         = "Burst + stun",
-        item_rattlecage         = "Armor + reflect + fear",
-        item_idol_of_screeauk   = "Save + dispel + magic resist",
-        item_flayers_bota       = "Mobility + AGI + attack speed",
-        item_metamorphic_mandible= "Stats + armor + HP",
-        -- Tier 5
-        item_desolator_2        = "Armor reduction for phys DPS",
-        item_fallen_sky         = "Initiation + stun",
-        item_demonicon          = "Summons for push",
-        item_minotaur_horn      = "Stun + tankiness",
-        item_spider_legs        = "Mobility + slow",
-        item_riftshadow_prism   = "Magic amp + INT + mana",
-        item_dezun_bloodrite    = "Heal + magic burst + anti-heal",
-        item_divine_regalia     = "Stats + save + ultimate",
-        -- Legacy items (for backwards compatibility)
-        item_fairy_trinket      = "Sustain for supports",
-        item_iron_talon         = "Farm acceleration for melee",
-        item_mysterious_hat     = "Mana + magic burst for casters",
-        item_ocean_heart        = "HP + mana sustain",
-        item_ring_of_aquila     = "Armor + aura for agi heroes",
-        item_keen_optic         = "Attack speed + vision",
-        item_ninja_gear         = "Invis for initiation",
+        item_kobold_cup         = "Movespeed + gold acceleration",
+        item_chipped_vest       = "Reflect vs physical damage",
+        item_polliwog_charm     = "Healing + mana sustain",
+        item_dormant_curio      = "Stats + item effectiveness",
+        item_duelist_gloves     = "Attack speed + AGI for carries",
+        item_weighted_dice      = "Crit chance + luck bonus",
+        item_ash_legion_shield  = "Block + slow vs physical",
+        item_dagger_of_ristul   = "Physical damage bonus (HP cost)",
+        item_stonefeather_satchel= "Stats + movement speed",
         item_possessed_mask     = "Lifesteal for sustain",
-        item_prophet_twigs      = "Stats + tree vision",
-        item_royal_jelly        = "HP + mana + ward",
-        item_safety_bubble      = "Save vs burst damage",
-        item_thief_cloth        = "Evasion + move speed",
-        item_trusty_shovel      = "Gold + potential items",
-        item_wicked_pocket_knife = "Armor reduction on attack",
-        item_ceremonial_robe    = "HP + mana + magic resist",
-        item_clever_apparatus   = "Mana + armor + cooldown",
-        item_dragon_scale       = "Armor + burn aura",
-        item_essence_booster    = "HP + mana sustain",
-        item_flicker            = "Dispel + mobility",
-        item_golem_gauntlets    = "HP + armor + slow",
-        item_havoc_hammer       = "Armor reduction + initiation",
-        item_imp_claw           = "Burst damage on attack",
-        item_mind_breaker       = "Mana burn + int",
-        item_orb_of_destruction = "Armor reduction + slow",
-        item_quicksilver_amulet = "Attack speed + mobility",
-        item_repair_kit         = "Armor + heal + save",
-        item_spell_prism        = "CD reduction + magic amp",
-        item_ballista           = "True strike + knockback",
-        item_book_of_shadows    = "Save + invis + dispel",
-        item_cloak_of_flames    = "Burn aura + armor",
-        item_giants_ring        = "HP + aura radius",
-        item_glimmerdark_shield = "Save + magic resist",
-        item_harlequins_crest   = "Armor + attack speed + evasion",
-        item_paladin_sword      = "Heal + lifesteal",
-        item_panic_button       = "Save vs burst",
-        item_timeless_relic     = "Magic amp + CD reduction",
-        item_titan_sliver       = "HP + debuff reduction",
-        item_ascetics_cap       = "HP + magic resist",
-        item_bullwhip           = "Slow + mobility",
-        item_carapace_of_qaldin = "Armor + reflect",
-        item_demon_shredder     = "Cleave + attack speed",
-        item_frozen_emblem      = "Armor + slow aura",
-        item_illusionsts_cape   = "Illusion count + stats",
-        item_pirate_hat         = "Gold + attack speed",
-        item_princes_knife      = "Armor reduction + slow",
-        item_psycho_mask        = "Lifesteal + fear",
-        item_spy_gadget         = "Invis + vision",
-        item_stormcrafter       = "Magic burst + mobility",
-        item_the_leveller       = "Armor reduction + farm",
-        item_twin_soul          = "Save + heal on death",
-        item_apex               = "Attack speed + armor + agi",
-        item_book_of_the_dead   = "Strong summons for push",
-        item_excalibur          = "Damage + heal active",
-        item_force_field        = "Team save vs burst",
-        item_fusion_rune        = "Magic amp + spell burst",
-        item_mirror_shield      = "Reflect vs magic",
-        item_parasma            = "Magic burst + int",
-        item_seer_stone         = "Vision + magic amp",
+        item_foragers_kit       = "Consumables from trees",
+        -- Tier 2
+        item_essence_ring       = "Active HP gain + mana sustain",
+        item_mana_draught       = "Mana sustain for spellcasters",
+        item_poor_mans_shield   = "Block vs early right-clicks",
+        item_searing_signet     = "Burn + magic damage amp",
+        item_pogo_stick         = "Mobility + jumps for initiation",
+        item_defiant_shell      = "Armor + counter-attack",
+        item_crippling_crossbow = "Slow + armor reduction on hit",
+        item_medallion_of_courage= "Targeted armor reduction",
+        item_seeds_of_serenity   = "Active AoE health regen",
+        -- Tier 3
+        item_serrated_shiv      = "Armor reduction + bleed on hit",
+        item_gunpowder_gauntlets= "AOE burst damage + speed",
+        item_jidi_pollen_bag    = "Aoe health regen reduction",
+        item_psychic_headband   = "INT + mana + cast range CDR",
+        item_unrelenting_eye    = "Vision + true strike bonus",
+        item_cloak_of_flames    = "Burn aura + armor protection",
+        item_spellslinger       = "Mana restore + sustain",
+        item_stormcrafter       = "Magic burst sparks + mobility",
+        item_partisans_brand    = "Mana burn + damage scaling",
+        -- Tier 4
+        item_giant_maul         = "Crit + stun for strength heroes",
+        item_rattlecage         = "Armor + reflect + fear proc",
+        item_idol_of_screeauk   = "Evasion + slow resistance save",
+        item_flayers_bota       = "Burst mobility + attack speed",
+        item_metamorphic_mandible= "Magic resist + movespeed",
+        item_dandelion_amulet   = "Flat magic damage block",
+        item_enchanters_bauble  = "Spell range + magic amp",
+        item_prophets_pendulum  = "Status resist + movement speed",
+        item_conjurers_catalyst = "CDR + status and spell amp",
+        -- Tier 5
+        item_desolator_2        = "Massive armor reduction",
+        item_fallen_sky         = "Global initiation + stun",
+        item_demonicon          = "Strong summons for push",
+        item_minotaur_horn      = "HP + spell immunity active",
+        item_spider_legs        = "Free pathing + mobility",
+        item_riftshadow_prism   = "Magic amp + CDR + stats",
+        item_dezun_bloodrite    = "Heal + magic burst + burst save",
+        item_divine_regalia     = "Large stats + protect active",
+        item_harmonizer         = "Stat copying + lower mana cost",
+        item_heavy_blade        = "Armor + damage + slow",
     },
     ru = {
         -- Tier 1
         item_occult_bracelet    = "Мана + INT для кастеров",
-        item_kobold_cup         = "Золото + удача для фарма",
-        item_chipped_vest       = "Отражение vs физ. урона",
+        item_kobold_cup         = "Скорость + ускорение фарма",
+        item_chipped_vest       = "Отражение физ. урона",
         item_polliwog_charm     = "Хил + мана сустейн",
-        item_dormant_curio      = "Статы + видение",
-        item_duelist_gloves     = "Вампиризм + AGI для сустейна",
-        item_weighted_dice      = "Удача + крит шанс",
-        item_ash_legion_shield  = "Блок + броня vs физ",
+        item_dormant_curio      = "Статы + усиление предметов",
+        item_duelist_gloves     = "Атака + AGI для керри",
+        item_weighted_dice      = "Шанс крита + удача",
+        item_ash_legion_shield  = "Блок + замедление врага",
+        item_dagger_of_ristul   = "Урон ценою здоровья",
+        item_stonefeather_satchel= "Статы + скорость бега",
+        item_possessed_mask     = "Вампиризм для фарма",
+        item_foragers_kit       = "Расходники из деревьев",
         -- Tier 2
-        item_essence_ring       = "Активный HP + мана сустейн",
+        item_essence_ring       = "Прирост HP + мана сустейн",
         item_mana_draught       = "Мана сустейн для кастеров",
-        item_poor_mans_shield   = "Блок vs правых кликов",
+        item_poor_mans_shield   = "Блок vs ранней агрессии",
         item_searing_signet     = "Горение + усиление магии",
-        item_pogo_stick         = "Мобильность + инициация",
-        item_defiant_shell      = "Броня + сейв vs бёрста",
+        item_pogo_stick         = "Мобильность + прыжок",
+        item_defiant_shell      = "Броня + ответный удар",
+        item_crippling_crossbow = "Замедление + минус броня",
+        item_medallion_of_courage= "Снижение брони таргетно",
+        item_seeds_of_serenity   = "Активный АоЕ реген здоровья",
         -- Tier 3
-        item_serrated_shiv      = "Снижение брони + кровотечение",
-        item_gunpowder_gauntlets= "Бёрст урон + скорость атаки",
-        item_whisper_of_the_dread= "Молчание + маг. урон",
-        item_jidi_pollen_bag    = "Замедление + хил + мана",
-        item_psychic_headband   = "INT + мана + КД",
+        item_serrated_shiv      = "Минус броня + кровотечение",
+        item_gunpowder_gauntlets= "АоЕ бёрст + скорость атаки",
+        item_jidi_pollen_bag    = "Срезает вражеский реген",
+        item_psychic_headband   = "INT + мана + дальность",
         item_unrelenting_eye    = "Видение + верный удар",
-        -- Tier 4
-        item_crippling_crossbow = "Замедление + снижение брони",
-        item_giant_maul         = "Бёрст + стан",
-        item_rattlecage         = "Броня + отражение + страх",
-        item_idol_of_screeauk   = "Сейв + диспел + маг. резист",
-        item_flayers_bota       = "Мобильность + AGI + скорость атаки",
-        item_metamorphic_mandible= "Статы + броня + HP",
-        -- Tier 5
-        item_desolator_2        = "Снижение брони для физ. урона",
-        item_fallen_sky         = "Инициация + стан",
-        item_demonicon          = "Саммоны для пуша",
-        item_minotaur_horn      = "Стан + танковость",
-        item_spider_legs        = "Мобильность + замедление",
-        item_riftshadow_prism   = "Усиление магии + INT + мана",
-        item_dezun_bloodrite    = "Хил + маг. бёрст + анти-хил",
-        item_divine_regalia     = "Статы + сейв + ультимейт",
-        -- Legacy items
-        item_fairy_trinket      = "Сустейн для саппортов",
-        item_iron_talon         = "Ускорение фарма для ближников",
-        item_mysterious_hat     = "Мана + маг. урон для кастеров",
-        item_ocean_heart        = "HP + мана сустейн",
-        item_ring_of_aquila     = "Броня + аура для agi героев",
-        item_keen_optic         = "Скорость атаки + видение",
-        item_ninja_gear         = "Инвиз для инициации",
-        item_possessed_mask     = "Вампиризм для сустейна",
-        item_prophet_twigs      = "Статы + видение деревьев",
-        item_royal_jelly        = "HP + мана + вард",
-        item_safety_bubble      = "Спасение vs бёрста",
-        item_thief_cloth        = "Уклонение + скорость",
-        item_trusty_shovel      = "Золото + возможные предметы",
-        item_wicked_pocket_knife = "Снижение брони при атаке",
-        item_ceremonial_robe    = "HP + мана + маг. резист",
-        item_clever_apparatus   = "Мана + броня + КД",
-        item_dragon_scale       = "Броня + аура урона",
-        item_essence_booster    = "HP + мана сустейн",
-        item_flicker            = "Диспел + мобильность",
-        item_golem_gauntlets    = "HP + броня + замедление",
-        item_havoc_hammer       = "Снижение брони + инициация",
-        item_imp_claw           = "Бёрст урон при атаке",
-        item_mind_breaker       = "Сжигание маны + int",
-        item_orb_of_destruction = "Снижение брони + замедление",
-        item_quicksilver_amulet = "Скорость атаки + мобильность",
-        item_repair_kit         = "Броня + хил + сейв",
-        item_spell_prism        = "Сокращение КД + усиление магии",
-        item_ballista           = "True strike + отталкивание",
-        item_book_of_shadows    = "Сейв + инвиз + диспел",
         item_cloak_of_flames    = "Аура урона + броня",
-        item_demonicon          = "Саммоны для пуша",
-        item_giants_ring        = "HP + радиус ауры",
-        item_glimmerdark_shield = "Сейв + маг. резист",
-        item_harlequins_crest   = "Броня + скорость атаки + уклонение",
-        item_paladin_sword      = "Хил + вампиризм",
-        item_panic_button       = "Спасение vs бёрста",
-        item_spider_legs        = "Мобильность + замедление",
-        item_timeless_relic     = "Усиление магии + сокращение КД",
-        item_titan_sliver       = "HP + снижение дебаффов",
-        item_ascetics_cap       = "HP + маг. резист",
-        item_bullwhip           = "Замедление + мобильность",
-        item_carapace_of_qaldin = "Броня + отражение",
-        item_demon_shredder     = "Клив + скорость атаки",
-        item_frozen_emblem      = "Броня + аура замедления",
-        item_illusionsts_cape   = "Количество иллюзий + статы",
-        item_minotaur_horn      = "Стан + танковость",
-        item_pirate_hat         = "Золото + скорость атаки",
-        item_princes_knife      = "Снижение брони + замедление",
-        item_psycho_mask        = "Вампиризм + страх",
-        item_spy_gadget         = "Инвиз + видение",
-        item_stormcrafter       = "Маг. бёрст + мобильность",
-        item_the_leveller       = "Снижение брони + фарм",
-        item_twin_soul          = "Сейв + хил при смерти",
-        item_apex               = "Скорость атаки + броня + agi",
-        item_book_of_the_dead   = "Сильные саммоны для пуша",
-        item_excalibur          = "Урон + активный хил",
-        item_force_field        = "Командный сейв vs бёрста",
-        item_fusion_rune        = "Усиление магии + бёрст",
-        item_mirror_shield      = "Отражение vs магии",
-        item_parasma            = "Маг. бёрст + int",
-        item_seer_stone         = "Видение + усиление магии",
+        item_spellslinger       = "Реген маны + сустейн",
+        item_stormcrafter       = "Маг. искры + мобильность",
+        item_partisans_brand    = "Сжигание маны + урон",
+        -- Tier 4
+        item_giant_maul         = "Крит + оглушение (для силы)",
+        item_rattlecage         = "Броня + отражение + страх",
+        item_idol_of_screeauk   = "Уклонение + сопр. замедлению",
+        item_flayers_bota       = "Блинк + скорость атаки",
+        item_metamorphic_mandible= "Маг. резист + скорость",
+        item_dandelion_amulet   = "Блок магического урона",
+        item_enchanters_bauble  = "Дальность + усиление магии",
+        item_prophets_pendulum  = "Сопр. эффектам + скорость",
+        item_conjurers_catalyst = "КД + усиление заклинаний",
+        -- Tier 5
+        item_desolator_2        = "Огромное снижение брони",
+        item_fallen_sky         = "Глобальная инициация + стан",
+        item_demonicon          = "Сильные саммоны для пуша",
+        item_minotaur_horn      = "HP + БКБ на минималках",
+        item_spider_legs        = "Хождение сквозь препятствия",
+        item_riftshadow_prism   = "Маг. усиление + КД + статы",
+        item_dezun_bloodrite    = "Хил + маг. бёрст + сейв",
+        item_divine_regalia     = "Большие статы + защита",
+        item_harmonizer         = "Копирование статов + мана",
+        item_heavy_blade        = "Броня + урон + замедление",
     },
     cn = {
-        item_fairy_trinket      = "辅助续航",
-        item_iron_talon         = "近战打钱加速",
-        item_mysterious_hat     = "法力+法术爆发",
-        item_ocean_heart        = "生命+法力续航",
-        item_poor_mans_shield   = "格挡物理攻击",
-        item_ring_of_aquila     = "护甲+敏捷光环",
+        -- Tier 1
+        item_occult_bracelet    = "智力英雄的法力回复",
+        item_kobold_cup         = "移动速度+金币获取",
         item_chipped_vest       = "反弹物理伤害",
-        item_essence_ring       = "主动生命+法力回复",
-        item_keen_optic         = "攻速+视野",
-        item_ninja_gear         = "隐身先手",
+        item_polliwog_charm     = "生命+法力续航",
+        item_dormant_curio      = "属性+物品增强",
+        item_duelist_gloves     = "攻速+敏捷核心续航",
+        item_weighted_dice      = "暴击率+幸运加成",
+        item_ash_legion_shield  = "格挡+物理减速",
+        item_dagger_of_ristul   = "血量换攻击",
+        item_stonefeather_satchel= "属性及移速",
         item_possessed_mask     = "吸血续航",
-        item_prophet_twigs      = "属性+树木视野",
-        item_royal_jelly        = "生命+法力+守卫",
-        item_safety_bubble      = "防止爆发伤害",
-        item_thief_cloth        = "闪避+移速",
-        item_trusty_shovel      = "金币+潜在物品",
-        item_wicked_pocket_knife = "攻击减甲",
-        item_ceremonial_robe    = "生命+法力+魔抗",
-        item_clever_apparatus   = "法力+护甲+冷却",
-        item_dragon_scale       = "护甲+灼烧光环",
-        item_essence_booster    = "生命+法力续航",
-        item_fallen_sky         = "先手+眩晕",
-        item_flicker            = "驱散+机动",
-        item_golem_gauntlets    = "生命+护甲+减速",
-        item_havoc_hammer       = "减甲+先手",
-        item_imp_claw           = "攻击爆发伤害",
-        item_mind_breaker       = "烧蓝+智力",
-        item_orb_of_destruction = "减甲+减速",
-        item_quicksilver_amulet = "攻速+机动",
-        item_repair_kit         = "护甲+治疗+保护",
-        item_spell_prism        = "冷却缩减+法术增幅",
-        item_ballista           = "必中+击退",
-        item_book_of_shadows    = "保护+隐身+驱散",
-        item_cloak_of_flames    = "灼烧光环+护甲",
-        item_demonicon          = "召唤物推进",
-        item_giants_ring        = "生命+光环范围",
-        item_glimmerdark_shield = "保护+魔抗",
-        item_harlequins_crest   = "护甲+攻速+闪避",
-        item_paladin_sword      = "治疗+吸血",
-        item_panic_button       = "防止爆发",
-        item_spider_legs        = "机动+减速",
-        item_timeless_relic     = "法术增幅+冷却缩减",
-        item_titan_sliver       = "生命+减益减免",
-        item_ascetics_cap       = "生命+魔抗",
-        item_bullwhip           = "减速+机动",
-        item_carapace_of_qaldin = "护甲+反弹",
-        item_demon_shredder     = "分裂+攻速",
-        item_frozen_emblem      = "护甲+减速光环",
-        item_illusionsts_cape   = "幻象数量+属性",
-        item_minotaur_horn      = "眩晕+肉度",
-        item_pirate_hat         = "金币+攻速",
-        item_princes_knife      = "减甲+减速",
-        item_psycho_mask        = "吸血+恐惧",
-        item_spy_gadget         = "隐身+视野",
-        item_stormcrafter       = "法术爆发+机动",
-        item_the_leveller       = "减甲+打钱",
-        item_twin_soul          = "死亡时保护+治疗",
-        item_apex               = "攻速+护甲+敏捷",
-        item_book_of_the_dead   = "强力召唤物推进",
-        item_excalibur          = "伤害+主动治疗",
-        item_force_field        = "团队防爆发",
-        item_fusion_rune        = "法术增幅+爆发",
-        item_mirror_shield      = "反弹魔法",
-        item_parasma            = "法术爆发+智力",
-        item_seer_stone         = "视野+法术增幅",
+        item_foragers_kit       = "通过树木获得补给",
+        -- Tier 2
+        item_essence_ring       = "增加生命+法力续航",
+        item_mana_draught       = "法师法力续航",
+        item_poor_mans_shield   = "前期格挡物理攻击",
+        item_searing_signet     = "灼烧+魔法增幅",
+        item_pogo_stick         = "机动性+跳跃先手",
+        item_defiant_shell      = "护甲+反击被动",
+        item_crippling_crossbow = "减速+降甲",
+        item_medallion_of_courage= "指向性降低护甲",
+        item_seeds_of_serenity   = "范围内生命恢复",
+        -- Tier 3
+        item_serrated_shiv      = "降甲+流血效果",
+        item_gunpowder_gauntlets= "范围爆发伤害+攻速",
+        item_jidi_pollen_bag    = "降低敌方生命回复",
+        item_psychic_headband   = "智力+法力+施法距离",
+        item_unrelenting_eye    = "视野+真实打击",
+        item_cloak_of_flames    = "灼烧光环+护甲护罩",
+        item_spellslinger       = "法力恢复+续航",
+        item_stormcrafter       = "法术爆发+机动性",
+        item_partisans_brand    = "法力燃烧+伤害成长",
+        -- Tier 4
+        item_giant_maul         = "力量英雄暴击+眩晕",
+        item_rattlecage         = "护甲+反弹+恐惧控场",
+        item_idol_of_screeauk   = "闪避+减速抗性主动",
+        item_flayers_bota       = "爆发位移+攻速",
+        item_metamorphic_mandible= "魔抗+移速主动",
+        item_dandelion_amulet   = "固定格挡魔法伤害",
+        item_enchanters_bauble  = "施法距离增加+魔法增幅",
+        item_prophets_pendulum  = "状态抗性+移速",
+        item_conjurers_catalyst = "冷却缩减+状态增幅",
+        -- Tier 5
+        item_desolator_2        = "大量物理降甲",
+        item_fallen_sky         = "全球先手+眩晕",
+        item_demonicon          = "强力召唤物推进",
+        item_minotaur_horn      = "生命值+主动魔免",
+        item_spider_legs        = "跨越地形机动性",
+        item_riftshadow_prism   = "魔法增幅+冷却+属性",
+        item_dezun_bloodrite    = "治疗+魔法爆发+保命",
+        item_divine_regalia     = "大量属性+主动防护",
+        item_harmonizer         = "属性模仿+减少蓝耗",
+        item_heavy_blade        = "护甲+伤害+减速",
     },
 }
 
@@ -1265,9 +1184,11 @@ local HERO_TAGS = {
     npc_dota_hero_kunkka             = {"phys_burst","disable","cleave"},
     npc_dota_hero_tiny               = {"phys_burst","stun","push","tanky"},
     npc_dota_hero_kez                = {"carry","phys_burst","mobility","invis"},
-    npc_dota_hero_largo              = {"disable","magic_burst","tanky"},
 }
 
+--------------------------------------------------------------------------------
+-- GAME MODE DETECTION
+--------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
 -- GAME MODE DETECTION
 --------------------------------------------------------------------------------
@@ -1282,15 +1203,29 @@ local GAME_MODE = {
     ABILITY_DRAFT = 7,
 }
 
+local function GetEnum(path)
+    local ok, res = pcall(function()
+        local parts = {}
+        for part in path:gmatch("[^%.]+") do table.insert(parts, part) end
+        local curr = _G
+        for _, p in ipairs(parts) do
+            if not curr[p] then return nil end
+            curr = curr[p]
+        end
+        return curr
+    end)
+    return ok and res or nil
+end
+
 local MODE_PHASE_MULTIPLIERS = {
-    [GAME_MODE.UNKNOWN] = {early = 1.0, mid = 1.0, late = 1.0},
-    [GAME_MODE.ALL_PICK] = {early = 1.0, mid = 1.0, late = 1.0},
-    [GAME_MODE.RANKED]   = {early = 1.1, mid = 1.0, late = 0.9},  -- More competitive
-    [GAME_MODE.TURBO]    = {early = 0.6, mid = 0.8, late = 1.2},  -- Faster game, skip early items
-    [GAME_MODE.SINGLE_DRAFT] = {early = 1.0, mid = 1.0, late = 1.0},
-    [GAME_MODE.ALL_RANDOM]   = {early = 1.0, mid = 1.0, late = 1.0},
-    [GAME_MODE.CAPTAINS_MODE] = {early = 1.1, mid = 1.0, late = 0.9},
-    [GAME_MODE.ABILITY_DRAFT] = {early = 0.8, mid = 1.0, late = 1.1},
+    [GAME_MODE.UNKNOWN]        = {early = 1.0, mid = 1.0, late = 1.0},
+    [GAME_MODE.ALL_PICK]       = {early = 1.0, mid = 1.0, late = 1.0},
+    [GAME_MODE.RANKED]         = {early = 1.1, mid = 1.0, late = 0.9},
+    [GAME_MODE.TURBO]          = {early = 0.5, mid = 0.8, late = 1.5}, -- Turbo: skip early, focus late
+    [GAME_MODE.SINGLE_DRAFT]   = {early = 1.0, mid = 1.0, late = 1.0},
+    [GAME_MODE.ALL_RANDOM]     = {early = 1.0, mid = 1.0, late = 1.0},
+    [GAME_MODE.CAPTAINS_MODE]  = {early = 1.1, mid = 1.0, late = 0.9},
+    [GAME_MODE.ABILITY_DRAFT]  = {early = 0.8, mid = 1.0, late = 1.2},
 }
 
 --------------------------------------------------------------------------------
@@ -1385,7 +1320,6 @@ local HERO_ROLES = {
     npc_dota_hero_elder_titan        = {role="offlane",style="utility"},
     npc_dota_hero_phoenix            = {role="offlane",style="magic"},
     npc_dota_hero_ringmaster         = {role="offlane",style="magic"},
-    npc_dota_hero_largo              = {role="offlane",style="magic"},
     npc_dota_hero_kunkka             = {role="offlane",style="hybrid"},
     npc_dota_hero_tiny               = {role="offlane",style="hybrid"},
     npc_dota_hero_beastmaster        = {role="offlane",style="utility"},
@@ -2438,16 +2372,17 @@ local ITEM_COSTS = {
     item_mystic_staff = 2700, item_hyperstone = 2000, item_talisman_of_evasion = 1300,
     item_relic = 3800, item_sacred_relic = 3800,
     -- Specific items
+    -- Specific items
     item_mjollnir = 5600, item_radiance = 5150, item_heart = 5000, item_tarrasque = 5000,
     item_butterfly = 4975, item_satanic = 5050, item_skadi = 5300, item_eye_of_skadi = 5300,
     item_abyssal_blade = 6250, item_nullifier = 4725, item_bloodthorn = 6800,
     item_silver_edge = 5450, item_diffusal_blade = 2500, item_diffusal_blade_2 = 2500,
     item_sheepstick = 5675, item_scythe_of_vyse = 5675, item_gungir = 5500, item_gleipnir = 5500,
     item_pipe = 3475, item_crimson_guard = 3600, item_heavens_halberd = 3550,
-    item_solar_crest = 2625, item_manta = 4600, item_disperser = 5300,
+    item_solar_crest = 2400, item_manta = 4600, item_disperser = 5300,
     item_cyclone = 2725, item_euls = 2725, item_wind_waker = 5150,
-    item_desolator = 3500, item_monkey_king_bar = 4975, item_spirit_vessel = 2980,
-    item_urnd = 2980, item_guardian_greaves = 4950, item_refresher = 5000,
+    item_desolator = 3500, item_monkey_king_bar = 4975, item_spirit_vessel = 2830,
+    item_urnd = 2830, item_guardian_greaves = 4950, item_refresher = 5000,
     item_refresher_orb = 5000, item_overwhelming_blink = 6800, item_swift_blink = 6800,
     item_arcane_blink = 6800, item_hurricane_pike = 4450, item_orchid = 3475,
     item_orchid_malevolence = 3475, item_ethereal_blade = 5200, item_rod_of_atos = 2750,
@@ -2456,11 +2391,15 @@ local ITEM_COSTS = {
     item_yasha_and_kaya = 4100, item_invis_sword = 3000, item_shadow_blade = 3000,
     item_bloodstone = 4600, item_octarine_core = 5275, item_phylactery = 2400,
     item_hand_of_midas = 2200, item_harpoon = 4700, item_dagon = 2850,
-    item_necronomicon = 2400, item_medallion = 1025, item_solar = 2625,
+    item_medallion = 1025, item_solar = 2400,
     item_vladmir = 2200, item_vladmirs_offering = 2200, item_mekansm = 1775,
     item_glimmer = 1950, item_glimmer_cape = 1950,
     item_drum = 1650, item_headdress = 600,
     item_buckler = 200, item_ring_of_basilius = 425, item_basilius = 425,
+    -- 7.41 Additions
+    item_splintmail = 950, item_shawl = 450, item_chasm_stone = 800, item_wizard_hat = 250,
+    item_consecrated_wraps = 2450, item_angels_demise = 4950, item_crellas_crozier = 5200,
+    item_essence_distiller = 3500,
 }
 
 -- Function to get item cost from database
@@ -2492,6 +2431,7 @@ local ITEM_DB = {
     {name="item_wraith_band",    display="Wraith Band",       cost=505,   phase={1},       tags={"agi","phys_dps"}},
     {name="item_null_talisman",  display="Null Talisman",     cost=505,   phase={1},       tags={"int","magic_dps"}},
     {name="item_soul_ring",      display="Soul Ring",         cost=805,   phase={1,2},     tags={"mana","hp","armor","sustain"}},
+    {name="item_wizard_hat",     display="Wizard Hat",        cost=250,   phase={1},       tags={"mana","int"}},
     -- Boots
     {name="item_phase_boots",    display="Phase Boots",       cost=1500,  phase={1,2},     tags={"mobility","phys_dps","armor"}},
     {name="item_power_treads",   display="Power Treads",      cost=1400,  phase={1,2},     tags={"attack_speed","stats","sustain"}},
@@ -2505,6 +2445,7 @@ local ITEM_DB = {
     {name="item_blade_mail",     display="Blade Mail",       cost=2100,   phase={1,2},     tags={"vs_phys","vs_burst","armor","reflect"},
      triggers={"carry","phys_burst","phys_dps"}},
     {name="item_vanguard",       display="Vanguard",         cost=1700,   phase={1,2},     tags={"hp","block","tanky"}},
+    {name="item_splintmail",     display="Splintmail",       cost=950,    phase={1,2},     tags={"armor","vs_phys","hp"}},
     {name="item_pavise",         display="Pavise",           cost=1100,   phase={1,2},     tags={"vs_phys","save","armor"},
      triggers={"phys_dps","phys_burst"}},
     {name="item_crimson_guard",  display="Crimson Guard",    cost=3600,   phase={2,3},     tags={"vs_phys","team","block","armor"},
@@ -2515,12 +2456,14 @@ local ITEM_DB = {
      triggers={"phys_dps","carry","heal","attack_speed"}},
     {name="item_heavens_halberd",display="Heaven's Halberd", cost=3550,   phase={2,3},     tags={"vs_phys","disarm","evasion","hp"},
      triggers={"carry","phys_dps","phys_burst"}},
-    {name="item_solar_crest",    display="Solar Crest",      cost=2625,   phase={1,2},     tags={"armor","vs_phys","buff","debuff"}},
+    {name="item_solar_crest",    display="Solar Crest",      cost=2400,   phase={1,2},     tags={"armor","vs_phys","buff","debuff"}},
     -- Magical defense
     {name="item_pipe",           display="Pipe of Insight",  cost=3475,   phase={2,3},     tags={"vs_magic","team","magic_resist","barrier"},
      triggers={"magic_burst"}},
     {name="item_glimmer_cape",   display="Glimmer Cape",     cost=1950,   phase={1,2},     tags={"vs_magic","save","invis"},
      triggers={"magic_burst","disable"}},
+    {name="item_shawl",          display="Shawl",            cost=450,    phase={1,2},     tags={"vs_magic","magic_resist"}},
+    {name="item_consecrated_wraps",display="Consecrated Wraps",cost=2450, phase={2,3},     tags={"vs_magic","save"}},
     {name="item_black_king_bar", display="BKB",              cost=4050,   phase={2,3},     tags={"vs_magic","magic_immune","vs_disable"},
      triggers={"disable","stun","silence","hex","magic_burst","doom"}},
     -- Anti-heal
@@ -2612,7 +2555,6 @@ local ITEM_DB = {
     {name="item_guardian_greaves",display="Guardian Greaves", cost=4950,   phase={2,3},     tags={"heal","team","dispel","armor","mana"},
      triggers={"disable","silence"}},
     {name="item_vladmir",        display="Vladmir's Offering",cost=2200,   phase={1,2},     tags={"team","aura","armor","mana","lifesteal"}},
-    {name="item_medallion_of_courage", display="Medallion",  cost=1025,   phase={1},       tags={"armor","armor_reduce"}},
     {name="item_holy_locket",    display="Holy Locket",      cost=2350,   phase={1,2},     tags={"heal","hp","save"}},
     {name="item_ultimate_scepter",display="Aghanim's Scepter",cost=4200, phase={2,3},     tags={"ultimate","stats"}},
     {name="item_aghanims_shard", display="Aghanim's Shard",  cost=1400,  phase={2,3},     tags={"ultimate","ability"}},
@@ -2620,6 +2562,9 @@ local ITEM_DB = {
     {name="item_dagon",          display="Dagon",            cost=2850,   phase={1,2},     tags={"magic_burst","int"}},
     {name="item_octarine_core",  display="Octarine Core",    cost=5275,   phase={3},       tags={"cd_reduction","hp","mana","int"}},
     {name="item_phylactery",     display="Phylactery",       cost=2400,   phase={1,2},     tags={"magic_burst","hp","int"}},
+    {name="item_chasm_stone",    display="Chasm Stone",      cost=800,    phase={1,2},     tags={"aoe","stats"}},
+    {name="item_angels_demise",   display="Angel's Demise",   cost=4950,   phase={2,3},     tags={"magic_burst","hp","int","slow"},
+     triggers={"magic_burst"}},
     {name="item_hand_of_midas",  display="Hand of Midas",    cost=2200,   phase={1},       tags={"farm","attack_speed"}},
 }
 
@@ -2647,6 +2592,10 @@ local NEUTRAL_DB = {
     {name="item_duelist_gloves",     display="Duelist Gloves",     tier=1, tags={"lifesteal","phys_dps","agi"}},
     {name="item_weighted_dice",      display="Weighted Dice",      tier=1, tags={"luck","gold","crit"}},
     {name="item_ash_legion_shield",  display="Ash Legion Shield",  tier=1, tags={"block","armor","vs_phys"}},
+    {name="item_dagger_of_ristul",   display="Dagger of Ristul",   tier=1, tags={"phys_dps","hp_cost"}},
+    {name="item_stonefeather_satchel",display="Stonefeather Satchel",tier=1, tags={"stats","mobility"}},
+    {name="item_foragers_kit",       display="Forager's Kit",       tier=1, tags={"farm","summons"}},
+    {name="item_possessed_mask",     display="Possessed Mask",     tier=1, tags={"lifesteal","stats"}},
     -- Tier 2 (15:00+)
     {name="item_essence_ring",       display="Essence Ring",       tier=2, tags={"hp","mana","sustain"}},
     {name="item_mana_draught",       display="Mana Draught",       tier=2, tags={"mana","sustain","int"}},
@@ -2654,13 +2603,18 @@ local NEUTRAL_DB = {
     {name="item_searing_signet",     display="Searing Signet",     tier=2, tags={"burn","magic_amp","int"}},
     {name="item_pogo_stick",         display="Pogo Stick",         tier=2, tags={"mobility","initiation"}},
     {name="item_defiant_shell",      display="Defiant Shell",      tier=2, tags={"armor","save","vs_phys"}},
+    {name="item_seeds_of_serenity",   display="Seeds of Serenity",   tier=2, tags={"heal","sustain"}},
+    {name="item_medallion_of_courage",display="Medallion",          tier=2, tags={"armor","armor_reduce"}},
     -- Tier 3 (25:00+)
     {name="item_serrated_shiv",      display="Serrated Shiv",      tier=3, tags={"armor_reduce","phys_dps","bleed"}},
     {name="item_gunpowder_gauntlets",display="Gunpowder Gauntlets",tier=3, tags={"phys_burst","attack_speed","aoe"}},
-    {name="item_whisper_of_the_dread", display="Whisper of the Dread", tier=3, tags={"silence","magic_burst","int"}},
     {name="item_jidi_pollen_bag",    display="Jidi Pollen Bag",    tier=3, tags={"slow","heal","mana"}},
     {name="item_psychic_headband",   display="Psychic Headband",   tier=3, tags={"int","mana","cd_reduction"}},
     {name="item_unrelenting_eye",    display="Unrelenting Eye",    tier=3, tags={"vision","attack_speed","true_strike"}},
+    {name="item_spellslinger",       display="Spellslinger",       tier=3, tags={"mana","spell_amp"}},
+    {name="item_partisans_brand",    display="Partisan's Brand",    tier=3, tags={"mana_burn","phys_dps"}},
+    {name="item_cloak_of_flames",    display="Cloak of Flames",    tier=3, tags={"burn","armor"}},
+    {name="item_stormcrafter",       display="Stormcrafter",       tier=3, tags={"magic_burst","mobility"}},
     -- Tier 4 (35:00+)
     {name="item_crippling_crossbow", display="Crippling Crossbow", tier=4, tags={"slow","phys_dps","armor_reduce"}},
     {name="item_giant_maul",         display="Giant Maul",         tier=4, tags={"phys_burst","stun","str"}},
@@ -2668,6 +2622,10 @@ local NEUTRAL_DB = {
     {name="item_idol_of_screeauk",   display="Idol of Scree'auk",  tier=4, tags={"save","dispel","magic_resist"}},
     {name="item_flayers_bota",       display="Flayer's Bota",      tier=4, tags={"mobility","agi","attack_speed"}},
     {name="item_metamorphic_mandible", display="Metamorphic Mandible", tier=4, tags={"stats","armor","hp"}},
+    {name="item_dandelion_amulet",   display="Dandelion Amulet",   tier=4, tags={"magic_block","save"}},
+    {name="item_enchanters_bauble",  display="Enchanter's Bauble", tier=4, tags={"cast_range","magic_amp"}},
+    {name="item_prophets_pendulum",  display="Prophet's Pendulum", tier=4, tags={"damage_delay","stats"}},
+    {name="item_conjurers_catalyst", display="Conjurer's Catalyst",tier=4, tags={"stats","cd_reduction"}},
     -- Tier 5 (60:00+)
     {name="item_desolator_2",        display="Desolator 2",        tier=5, tags={"armor_reduce","phys_dps"}},
     {name="item_fallen_sky",         display="Fallen Sky",         tier=5, tags={"initiation","stun","phys_burst"}},
@@ -2677,6 +2635,8 @@ local NEUTRAL_DB = {
     {name="item_riftshadow_prism",   display="Riftshadow Prism",   tier=5, tags={"magic_amp","int","mana"}},
     {name="item_dezun_bloodrite",    display="Dezun Bloodrite",    tier=5, tags={"heal","magic_burst","anti_heal"}},
     {name="item_divine_regalia",     display="Divine Regalia",     tier=5, tags={"stats","save","ultimate"}},
+    {name="item_harmonizer",         display="Harmonizer",         tier=5, tags={"mana_reduction","spell_amp"}},
+    {name="item_heavy_blade",        display="Heavy Blade",        tier=5, tags={"armor","phys_dps","slow"}},
 }
 
 --------------------------------------------------------------------------------
@@ -2971,32 +2931,41 @@ local function detectGameMode()
     local ok, mode = pcall(GameRules.GetGameMode)
     if not ok or mode == nil then return GAME_MODE.UNKNOWN end
 
-    -- Use Enum.GameMode values directly (RANKED_AP, TURBO, AP, CM, etc.)
-    local E = Enum.GameMode or {}
+    -- Safe lookup for Enum.GameMode values
+    local function GetMode(key, fallback)
+        local em = GetEnum("Enum.GameMode")
+        if em and em[key] then return em[key] end
+        return fallback
+    end
 
-    -- Ranked AP has its own enum — check FIRST (before generic AP)
-    if E.RANKED_AP and mode == E.RANKED_AP then return GAME_MODE.RANKED end
+    -- Ranked AP / All Pick
+    local rankedAp = GetMode("RANKED_AP", nil)
+    local ap = GetMode("AP", 1)
+    if mode == rankedAp then return GAME_MODE.RANKED end
+    if mode == ap then return GAME_MODE.ALL_PICK end
 
     -- Turbo
-    if E.TURBO and mode == E.TURBO then return GAME_MODE.TURBO end
+    local turbo = GetMode("TURBO", 23)
+    if mode == turbo then return GAME_MODE.TURBO end
 
-    -- All Pick (non-ranked)
-    if E.AP and mode == E.AP then return GAME_MODE.ALL_PICK end
+    -- Captains
+    local cm = GetMode("CM", 2)
+    local cd = GetMode("CD", 3)
+    if mode == cm or mode == cd then return GAME_MODE.CAPTAINS_MODE end
 
-    -- Captain's Mode / Captain's Draft
-    if (E.CM and mode == E.CM) or (E.CD and mode == E.CD) then return GAME_MODE.CAPTAINS_MODE end
+    -- Drafts
+    local sd = GetMode("SD", 4)
+    local rd = GetMode("RD", 5)
+    if mode == sd or mode == rd then return GAME_MODE.SINGLE_DRAFT end
 
-    -- Single Draft / Random Draft
-    if (E.SD and mode == E.SD) or (E.RD and mode == E.RD) then return GAME_MODE.SINGLE_DRAFT end
-
-    -- All Random / ARDM
-    if (E.AR and mode == E.AR) or (E.ARDM and mode == E.ARDM) then return GAME_MODE.ALL_RANDOM end
+    -- Random
+    local ar = GetMode("AR", 6)
+    local ardm = GetMode("ARDM", 22)
+    if mode == ar or mode == ardm then return GAME_MODE.ALL_RANDOM end
 
     -- Ability Draft
-    if (E.ABILITY_DRAFT and mode == E.ABILITY_DRAFT) or (E.AD and mode == E.AD) then return GAME_MODE.ABILITY_DRAFT end
-
-    -- Custom / sandbox (mode 15 in old numbering)
-    if E.CUSTOM and mode == E.CUSTOM then return GAME_MODE.UNKNOWN end
+    local ad = GetMode("AD", GetMode("ABILITY_DRAFT", 7))
+    if mode == ad then return GAME_MODE.ABILITY_DRAFT end
 
     return GAME_MODE.UNKNOWN
 end
@@ -5468,22 +5437,22 @@ end
 -- PANEL DRAG INPUT
 --------------------------------------------------------------------------------
 local function HandlePanelInput()
-    if not S.panelRect then return end
+    local pr = S.panelRect
+    if not pr then return end
 
     local cx, cy = getCursorPos2D()
     if not cx or not cy then return end
 
-    local pr = S.panelRect
     local headerH = sc(CFG.HEADER_H)
-    local isInHeader = cx >= pr.x and cx <= pr.x + pr.w and
-                       cy >= pr.y and cy <= pr.y + headerH
+    local isInHeader = (cx >= (pr.x or 0)) and (cx <= (pr.x or 0) + (pr.w or 0)) and
+                       (cy >= (pr.y or 0)) and (cy <= (pr.y or 0) + headerH)
 
     local mouseDown = Input.IsKeyDown(Enum.ButtonCode.KEY_MOUSE1)
 
     if isInHeader and mouseDown and not S.isDragging then
         S.isDragging = true
-        S.dragOffset.x = cx - S.panelPos.x
-        S.dragOffset.y = cy - S.panelPos.y
+        S.dragOffset.x = cx - (S.panelPos.x or 0)
+        S.dragOffset.y = cy - (S.panelPos.y or 0)
     end
 
     if S.isDragging then
@@ -5491,8 +5460,8 @@ local function HandlePanelInput()
             S.panelPos.x = cx - S.dragOffset.x
             S.panelPos.y = cy - S.dragOffset.y
             local sw, sh = screenSz()
-            local pw = S.panelRect and S.panelRect.w or sc(CFG.PW)
-            local ph = S.panelRect and S.panelRect.h or 400
+            local pw = pr.w or sc(CFG.PW)
+            local ph = pr.h or 400
             S.panelPos.x = clamp(S.panelPos.x, 0, sw - pw)
             S.panelPos.y = clamp(S.panelPos.y, 0, sh - ph)
         else
