@@ -23,6 +23,9 @@ local ABILITY_HOTEL = "ability_doorman_hotel"
 local AIM_MODE_PSILENT_ONLY = 0
 local AIM_MODE_HARD_LOCK_FALLBACK = 1
 
+local CALL_BELL_USE_COMBO = 0
+local CALL_BELL_USE_AUTO = 1
+
 local STATUS_READY = 0
 local STATUS_COOLDOWN = 2
 local STATUS_PASSIVE = 3
@@ -43,6 +46,11 @@ local STATE_NO_INCOMING_DAMAGE = (EModifierState and EModifierState.MODIFIER_STA
 local AIM_MODE_ITEMS = {
     "P-Silent Only",
     "Hard Lock Fallback",
+}
+
+local CALL_BELL_USE_ITEMS = {
+    "Combo",
+    "Auto",
 }
 
 local ICON_TAB = "\u{f562}"
@@ -133,6 +141,7 @@ local target_sticky_ms = combo_group:Slider("Sticky Target (ms)", 100, 400, 280,
 
 local call_bell_enabled = call_bell_group:Switch("Use Call Bell (1)", true, IMAGE_CALL_BELL)
 local call_bell_gear = call_bell_enabled:Gear("Call Bell Settings")
+local call_bell_usage_mode = call_bell_gear:Combo("Usage Mode", CALL_BELL_USE_ITEMS, CALL_BELL_USE_COMBO)
 local call_bell_mode = call_bell_gear:Combo("Aim Mode", AIM_MODE_ITEMS, AIM_MODE_HARD_LOCK_FALLBACK)
 local call_bell_fov = call_bell_gear:Slider("Aim FOV", 1, 180, 28, "%d")
 local call_bell_max_psilent = call_bell_gear:Slider("Max PSilent Degree", 1, 90, 24, "%d")
@@ -161,6 +170,7 @@ set_widget_icon(target_fov, ICON_FOV, false)
 set_widget_icon(target_max_distance_m, ICON_RANGE, false)
 set_widget_icon(target_sticky_ms, ICON_KEY, false)
 
+set_widget_icon(call_bell_usage_mode, ICON_KEY, false)
 set_widget_icon(call_bell_mode, "\u{f0f3}", false)
 set_widget_icon(call_bell_fov, ICON_FOV, false)
 set_widget_icon(call_bell_max_psilent, ICON_PSILENT, false)
@@ -187,7 +197,8 @@ combo_key:ToolTip("Hold to run the main combat sequence.")
 target_fov:ToolTip("Maximum FOV allowed for target selection.")
 target_max_distance_m:ToolTip("Maximum target distance used by combo target selection.")
 target_sticky_ms:ToolTip("Keep the current combo target for a short time before retargeting.")
-call_bell_enabled:ToolTip("Enable Call Bell automation inside combo.")
+call_bell_enabled:ToolTip("Enable Call Bell automation for the selected usage mode.")
+call_bell_usage_mode:ToolTip("Combo casts A1 only with the combo key. Auto casts it automatically when a valid target is in bell range.")
 luggage_enabled:ToolTip("Enable Luggage Cart automation inside combo.")
 hotel_enabled:ToolTip("Enable isolated target checks for Hotel Guest.")
 hotel_target_fov:ToolTip("Maximum FOV used by Hotel Guest target selection.")
@@ -1340,7 +1351,7 @@ callback.on_createmove:set(function(cmd)
             end
         end
 
-        if call_bell_enabled:Get() and a1 then
+        if call_bell_enabled:Get() and a1 and call_bell_usage_mode:Get() == CALL_BELL_USE_COMBO then
             local bell_casted, bell_reason = try_cast_call_bell(lp, cmd, combo_target, a1)
             if bell_casted or bell_reason == "aligning" then
                 return
@@ -1367,6 +1378,21 @@ callback.on_createmove:set(function(cmd)
 
             if hotel_target then
                 try_cast_hotel(lp, cmd, hotel_target, a4, hotel_target_fov:Get(), hotel_range)
+            end
+        end
+    end
+
+    if not combo_active
+        and call_bell_enabled:Get()
+        and call_bell_usage_mode:Get() == CALL_BELL_USE_AUTO
+        and a1 then
+        local bell_range = get_effective_cast_range(a1, to_units(call_bell_max_range_m:Get()))
+        local bell_target = get_best_target(lp, cmd, call_bell_fov:Get(), bell_range, 0)
+
+        if bell_target then
+            local bell_casted, bell_reason = try_cast_call_bell(lp, cmd, bell_target, a1)
+            if bell_casted or bell_reason == "aligning" then
+                return
             end
         end
     end
