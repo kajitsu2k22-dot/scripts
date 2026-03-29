@@ -3,8 +3,6 @@ local FALLBACK_JUNGLE_SPOTS = {
   -- Radiant jungle camps (patch 7.41, updated by user)
   {pos = Vector(-2024.9, -4744.7, 128.0), team = 2, type = 1, index = 1},
   {pos = Vector(-1464.9, -3301.2, 128.0), team = 2, type = 1, index = 2},
-  {pos = Vector(1852.9, -4030.5, 256.0), team = 2, type = 2, index = 3},
-  {pos = Vector(220.8, -5138.7, 136.0), team = 2, type = 3, index = 4},
   {pos = Vector(3968.7, -4945.3, 128.0), team = 2, type = 1, index = 5},
   {pos = Vector(4719.7, -3739.1, 128.0), team = 2, type = 2, index = 6},
   {pos = Vector(2777.7, -8362.7, 8.0), team = 2, type = 3, index = 7},
@@ -257,6 +255,9 @@ Config             = {
 }
 
 Config.AutoFarm:ToolTip(L("tooltip_autofarm"))
+if Config.ToFarm and Config.ToFarm.Icon then
+  Config.ToFarm:Icon("\u{f140}")
+end
 
 do
   local g                         = Config.AutoTurrets:Gear(L("gear_turrets_options"))
@@ -342,6 +343,34 @@ local function IsTreeBlinkLaneEnabled()
   end
   local c = ResolveBlinkMenuSwitch("trees")
   return c and c:Get() or false
+end
+
+local function IsFarmTargetEnabled(label)
+  if not Config or not Config.ToFarm or not label then return false end
+
+  if Config.ToFarm.Get then
+    local ok, value = pcall(function()
+      return Config.ToFarm:Get(label)
+    end)
+    if ok and type(value) == "boolean" then
+      return value
+    end
+  end
+
+  if Config.ToFarm.ListEnabled then
+    local ok, enabled = pcall(function()
+      return Config.ToFarm:ListEnabled()
+    end)
+    if ok and type(enabled) == "table" then
+      for _, name in ipairs(enabled) do
+        if name == label then
+          return true
+        end
+      end
+    end
+  end
+
+  return false
 end
 
 Constants = {
@@ -526,6 +555,13 @@ State = {
   FarmingSpotSince = 0,
   LastSpotSafetyCheck = 0,
   LastFarmingAction = 0,
+  LastAbortReason = nil,
+  LastTrackedPos = nil,
+  LastTrackedAt = 0,
+  HeroMoveDist = 0,
+  StuckAcc = 0,
+  HardDisableActive = false,
+  HardDisableReason = nil,
   StatusUI = {
     x = Render.ScreenSize().x / 1.35,
     y = Render.ScreenSize().y / 1.1,
@@ -1706,13 +1742,9 @@ end
 
 function Tinker.FindBestFarmSpot()
   local myPos                   = Entity.GetAbsOrigin(State.Hero)
-  local enabledTargets          = Config.ToFarm:ListEnabled() or {}
-  local wantAncient, wantNonAnc, wantLane = false, false, false
-  for _, name in ipairs(enabledTargets) do
-    if name == L("target_ancients") then wantAncient = true end
-    if name == L("target_non_ancients") then wantNonAnc = true end
-    if name == L("target_lane") then wantLane = true end
-  end
+  local wantAncient             = IsFarmTargetEnabled(L("target_ancients"))
+  local wantNonAnc              = IsFarmTargetEnabled(L("target_non_ancients"))
+  local wantLane                = IsFarmTargetEnabled(L("target_lane"))
   if not (wantAncient or wantNonAnc or wantLane) then return nil end
 
   local enemyPts  = Tinker.GetEnemyLastKnownPositions()
@@ -2466,13 +2498,22 @@ function Tinker.HandlePanic()
 end
 
 --- Проверяет, находится ли герой под жёстким контролем (стан, хекс, циклон, оцепенение)
+local function SafeNPCStateCheck(methodName, npc)
+  if not NPC or not npc then return false end
+  local fn = NPC[methodName]
+  if type(fn) ~= "function" then return false end
+
+  local ok, result = pcall(fn, npc)
+  return ok and result or false
+end
+
 local function IsHeroHardDisabled()
-  if not State.Hero then return true end
+  if not State.Hero then return true, "no_hero" end
   
   -- Используем встроенные методы API для надёжности
-  if NPC.IsStunned(State.Hero) then return true end
-  if NPC.IsRooted(State.Hero) then return true end
-  if NPC.IsSilenced(State.Hero) then return true end
+  if SafeNPCStateCheck("IsStunned", State.Hero) then return true, "stunned" end
+  if SafeNPCStateCheck("IsRooted", State.Hero) then return true, "rooted" end
+  if SafeNPCStateCheck("IsHexed", State.Hero) then return true, "hexed" end
   
   -- Дополнительные специфичные модификаторы (включая оцепенение Големов)
   local badMods = {
@@ -2480,25 +2521,94 @@ local function IsHeroHardDisabled()
     "modifier_cyclone",
     "modifier_rooted",
     "modifier_bashed",
+    "modifier_taunt",
     "modifier_petrified", -- Общий флаг оцепенения
     "modifier_rock_golem_petrify", -- Специфичный для мобов
     "modifier_medusa_stone_gaze",
     "modifier_eul_cyclone",
     "modifier_brewmaster_storm_cyclone",
+    "modifier_crystal_maiden_frostbite",
+    "modifier_treant_overgrowth",
+    "modifier_furion_sprout_entangle",
+    "modifier_dark_willow_bramble_maze",
+    "modifier_rod_of_atos_debuff",
+    "modifier_gungnir_debuff",
+    "modifier_naga_siren_ensnare",
     "modifier_shadow_shaman_voodoo",
     "modifier_lion_voodoo",
     "modifier_sheepstick_debuff"
   }
   
   for _, m in ipairs(badMods) do
-    if NPC.HasModifier(State.Hero, m) then return true end
+    if NPC.HasModifier(State.Hero, m) then return true, m end
   end
 
-  return false
+  return false, nil
 end
 
 --- Проверяет, провалился ли последний ТП (якорь умер, герой не долетел)
 --- Возвращает true если ТП провалился и нужно сбросить состояние
+local function PauseForHardDisable(reason)
+  if not State.Hero then return end
+  local now = GameRules.GetGameTime()
+  local myPos = Entity.GetAbsOrigin(State.Hero)
+
+  State.HardDisableActive = true
+  State.HardDisableReason = reason or "disabled"
+  State.LastTrackedPos    = myPos
+  State.LastTrackedAt     = now
+  State.HeroMoveDist      = 0
+  State.StuckAcc          = 0
+  State.LastFarmingAction = now
+
+  if State.MovingToSpotSince > 0 then
+    State.MovingToSpotSince = now
+  end
+  if State.FarmingSpotSince > 0 then
+    State.FarmingSpotSince = now
+  end
+  if State.PendingTPPos then
+    State.PendingTPSince = now
+  end
+end
+
+local function ResumeFromHardDisable()
+  if not State.HardDisableActive or not State.Hero then return end
+  local now = GameRules.GetGameTime()
+  local myPos = Entity.GetAbsOrigin(State.Hero)
+
+  State.HardDisableActive = false
+  State.HardDisableReason = nil
+  State.LastTrackedPos    = myPos
+  State.LastTrackedAt     = now
+  State.HeroMoveDist      = 0
+  State.StuckAcc          = 0
+  State.LastFarmingAction = now
+
+  if State.MovingToSpotSince > 0 then
+    State.MovingToSpotSince = now
+  end
+  if State.FarmingSpotSince > 0 then
+    State.FarmingSpotSince = now
+  end
+end
+
+local function ResetDisableAndMovementTracking()
+  State.PendingTPPos        = nil
+  State.PendingTPSince      = 0
+  State.PendingTPForce      = false
+  State.MovingAfterTeleport = false
+  State.RecalcAfterTP       = false
+  State.LastTeleportAnchor  = nil
+  State.BlockTPThisSpot     = false
+  State.HardDisableActive   = false
+  State.HardDisableReason   = nil
+  State.LastTrackedPos      = nil
+  State.LastTrackedAt       = 0
+  State.HeroMoveDist        = 0
+  State.StuckAcc            = 0
+end
+
 function Tinker.CheckTPFailure(spot)
   if not State.MovingAfterTeleport then return false end
   local now = GameRules.GetGameTime()
@@ -2546,6 +2656,7 @@ local function AbortToIdle(reason)
       false, false, false, true, false, false
     )
   end
+  State.LastAbortReason          = reason or "unknown"
   State.FarmState                = "IDLE"
   State.CurrentFarmSpot          = nil
   State.AfterMarchCheck          = nil
@@ -2553,10 +2664,6 @@ local function AbortToIdle(reason)
   State.SpotCommitUntil          = 0
   State.CurrentSpotMarchCasts    = 0
   State.CurrentSpotMarchRequired = nil
-  State.MovingAfterTeleport      = false
-  State.RecalcAfterTP            = false
-  State.LastTeleportAnchor       = nil
-  State.BlockTPThisSpot          = false
   State.MovingToSpotSince        = 0
   State.CachedBestSpot           = nil
   State.LastSpotScan             = 0
@@ -2566,6 +2673,7 @@ local function AbortToIdle(reason)
   State.LastTreeBlinkAt          = 0
   State.LastTreeBlinkHoldAt      = 0
   State.NextExtraToolTry         = 0
+  ResetDisableAndMovementTracking()
 end
 
 --- Проверяет, подошли ли враги к споту пока мы шли/ТП'хались
@@ -2590,7 +2698,13 @@ function Tinker.HandleFarming()
   if Tinker.HandlePanic() then return end
   if State.IsChanneling then return end
   -- Герой под жёстким контролем — не можем действовать
-  if IsHeroHardDisabled() then return end
+  local hardDisabled, disableReason = IsHeroHardDisabled()
+  if hardDisabled then
+    PauseForHardDisable(disableReason)
+    return
+  elseif State.HardDisableActive then
+    ResumeFromHardDisable()
+  end
   -- Guard: Rearm was just issued but channel hasn't registered yet
   if State.RearmBlinkHoldPending then return end
   if State.PendingTPPos then
@@ -2660,6 +2774,7 @@ function Tinker.HandleFarming()
 
     local bestSpot = Tinker.GetBestFarmSpotCached()
     if bestSpot then
+      State.LastAbortReason = nil
       if not Tinker.HasManaForFullCampCycle() then
         State.FarmState       = "RETURNING_TO_FOUNTAIN"
         State.CurrentFarmSpot = nil
@@ -2708,6 +2823,8 @@ function Tinker.HandleFarming()
       State.FarmState         = "MOVING_TO_SPOT"
       State.MovingToSpotSince = GameRules.GetGameTime()
       State.LastSpotSafetyCheck = GameRules.GetGameTime()
+    else
+      State.LastAbortReason = "no_valid_spot"
     end
   elseif State.FarmState == "MOVING_TO_SPOT" then
     local spot = State.CurrentFarmSpot
@@ -3190,8 +3307,10 @@ function Tinker.HandleFarming()
       local hp    = Entity.GetHealth(State.Hero) or 0
       local maxHP = Entity.GetMaxHealth(State.Hero) or 1
       local hpOK  = (hp / math.max(1, maxHP)) >= 0.85
-        -- Deploy Turrets removed from farm
+      if curMana >= need and hpOK then
         State.FarmState = "IDLE"
+        State.LastAbortReason = nil
+      end
       return
     end
 
@@ -3286,17 +3405,53 @@ local Theme = {
   tpAnchorPath = Color(230, 190, 255, 170),
 }
 
+local FONT_FLAGS = (Enum and Enum.FontCreate and Enum.FontCreate.FONTFLAG_ANTIALIAS) or 0
+
 local UI = {
-  fonts    = { regular = nil, small = nil, bold = nil },
+  fonts    = { regular = nil, small = nil, bold = nil, icon = nil },
   pad      = 10,
   rowH     = 18,
   rounding = 10,
 }
 
+local function LoadUIFont(fontName, weight, fallbackName)
+  local ok, handle = pcall(function()
+    return Render.LoadFont(fontName, FONT_FLAGS, weight)
+  end)
+
+  if ok and type(handle) == "number" and handle > 0 then
+    return handle
+  end
+
+  if fallbackName then
+    ok, handle = pcall(function()
+      return Render.LoadFont(fallbackName, FONT_FLAGS, weight)
+    end)
+    if ok and type(handle) == "number" and handle > 0 then
+      return handle
+    end
+  end
+
+  return nil
+end
+
 local function EnsureFonts()
-  if not UI.fonts.regular then UI.fonts.regular = Render.LoadFont("Tahoma", 0, 500) end
-  if not UI.fonts.small then UI.fonts.small = Render.LoadFont("Tahoma", 0, 450) end
-  if not UI.fonts.bold then UI.fonts.bold = Render.LoadFont("Tahoma", 0, 700) end
+  if not UI.fonts.regular then
+    UI.fonts.regular = LoadUIFont([[fonts\MuseoSansEx 500.ttf]], 600, "Verdana")
+      or LoadUIFont("Verdana", 600, "Tahoma")
+  end
+  if not UI.fonts.small then
+    UI.fonts.small = LoadUIFont([[fonts\MuseoSansEx 500.ttf]], 500, "Verdana")
+      or LoadUIFont("Verdana", 500, "Tahoma")
+  end
+  if not UI.fonts.bold then
+    UI.fonts.bold = LoadUIFont([[fonts\MuseoSansEx 500.ttf]], 700, "Verdana")
+      or LoadUIFont("Verdana", 700, "Tahoma")
+  end
+  if not UI.fonts.icon then
+    UI.fonts.icon = LoadUIFont([[fonts\FontAwesomeEx Solid.otf]], 700, [[fonts\MuseoSansEx 500.ttf]])
+      or UI.fonts.bold
+  end
   if not State.DebugFont then State.DebugFont = UI.fonts.regular end
 end
 
@@ -3313,6 +3468,208 @@ local function Chip(pos, text, colText, colBg)
   Render.FilledRect(s, e, colBg or Theme.bg2, 8)
   Render.Rect(s, e, Theme.border, 8, nil, 1.0)
   Render.Text(UI.fonts.small, 14, text, Vec2(pos.x + padX, pos.y + padY), colText or Theme.text)
+end
+
+local function ClampValue(v, minV, maxV)
+  if v < minV then return minV end
+  if v > maxV then return maxV end
+  return v
+end
+
+local function FitText(font, size, text, maxWidth)
+  local value = tostring(text or "")
+  if not font or maxWidth <= 0 then return value end
+  if Render.TextSize(font, size, value).x <= maxWidth then return value end
+
+  local ellipsis = "..."
+  if Render.TextSize(font, size, ellipsis).x > maxWidth then
+    return ellipsis
+  end
+
+  local out = value
+  while #out > 1 do
+    out = out:sub(1, #out - 1)
+    if Render.TextSize(font, size, out .. ellipsis).x <= maxWidth then
+      return out .. ellipsis
+    end
+  end
+
+  return ellipsis
+end
+
+local function ColorAlpha(col, alpha)
+  return Color(col.r or 255, col.g or 255, col.b or 255, ClampValue(alpha or col.a or 255, 0, 255))
+end
+
+local function MixColor(a, b, t, alphaOverride)
+  local w = ClampValue(t or 0, 0, 1)
+  local inv = 1 - w
+  local ar, ag, ab, aa = (a and a.r) or 255, (a and a.g) or 255, (a and a.b) or 255, (a and a.a) or 255
+  local br, bg, bb, ba = (b and b.r) or 255, (b and b.g) or 255, (b and b.b) or 255, (b and b.a) or 255
+  return Color(
+    math.floor(ar * inv + br * w + 0.5),
+    math.floor(ag * inv + bg * w + 0.5),
+    math.floor(ab * inv + bb * w + 0.5),
+    ClampValue(alphaOverride or math.floor(aa * inv + ba * w + 0.5), 0, 255)
+  )
+end
+
+local function GetGlassPalette()
+  local bg = Color(13, 18, 28, 220)
+  local surface = Color(20, 27, 40, 205)
+  local accent = Theme.accent
+  local accentSoft = MixColor(Theme.accent2, Color(255, 255, 255, 255), 0.14, 255)
+  local border = MixColor(Color(110, 130, 165, 255), accentSoft, 0.28, 108)
+  local header = MixColor(bg, accent, 0.20, 236)
+
+  return {
+    bg = bg,
+    surface = surface,
+    header = header,
+    border = border,
+    shadow = Color(0, 0, 0, 92),
+    accent = accent,
+    accentSoft = accentSoft,
+    accentGlow = ColorAlpha(accent, 92),
+    text = Color(244, 248, 255, 255),
+    subtext = Color(170, 184, 208, 220),
+    pill = Color(255, 255, 255, 18),
+    pillBorder = MixColor(border, accent, 0.26, 92),
+    divider = MixColor(accentSoft, Color(255, 255, 255, 255), 0.18, 96),
+    good = Theme.good,
+    warn = Theme.warn,
+    bad = Theme.bad
+  }
+end
+
+local function DrawGlassPill(s, e, palette, activeColor)
+  local fill = activeColor and ColorAlpha(MixColor(palette.surface, activeColor, 0.22, 255), 72) or palette.pill
+  local border = activeColor and ColorAlpha(MixColor(palette.pillBorder, activeColor, 0.55, 255), 118) or palette.pillBorder
+  Render.FilledRect(s, e, fill, 9)
+  Render.Rect(s, e, border, 9, nil, 1.0)
+end
+
+local function PrettyReason(reason)
+  if not reason or reason == "" then return nil end
+  local text = tostring(reason)
+  text = text:gsub("^modifier_", "")
+  text = text:gsub("_", " ")
+  text = text:gsub("%s+", " ")
+  text = text:gsub("^%s+", "")
+  text = text:gsub("%s+$", "")
+  text = text:gsub("(%a)([%w']*)", function(a, b)
+    return string.upper(a) .. string.lower(b)
+  end)
+  return text
+end
+
+local function CurrentSpotLabel()
+  local spot = State.CurrentFarmSpot
+  if not spot then return "No Spot" end
+  if spot.isLane then return "Lane Wave" end
+  if spot.single then return "Single Camp" end
+  return "Double Camp"
+end
+
+local function GetStatusSubtitle()
+  if State.HardDisableActive then
+    return "Paused by " .. (PrettyReason(State.HardDisableReason) or "Control")
+  end
+  if State.FarmState == "MOVING_TO_SPOT" then
+    return "Moving to " .. string.lower(CurrentSpotLabel())
+  end
+  if State.FarmState == "FARMING_SPOT" then
+    return "Farming " .. string.lower(CurrentSpotLabel())
+  end
+  if State.FarmState == "RETURNING_TO_FOUNTAIN" then
+    return "Returning for mana and hp"
+  end
+  if State.LastAbortReason then
+    return "Idle after " .. (PrettyReason(State.LastAbortReason) or "reset")
+  end
+  return "Scanning best farm target"
+end
+
+local function GetStatusMarkerKind(isOn)
+  if State.HardDisableActive then return "pause" end
+  if State.FarmState == "RETURNING_TO_FOUNTAIN" then return "circle" end
+  if State.FarmState == "FARMING_SPOT" then return "diamond" end
+  if State.FarmState == "MOVING_TO_SPOT" then return "arrow" end
+  return isOn and "play" or "stop"
+end
+
+local function DrawStatusMarker(center, size, color, kind)
+  local half = size * 0.5
+  kind = kind or "circle"
+
+  if kind == "pause" then
+    local gap = math.max(1, math.floor(size * 0.12))
+    local barW = math.max(2, math.floor(size * 0.22))
+    local barH = math.max(6, math.floor(size * 0.74))
+    local topY = center.y - barH * 0.5
+    Render.FilledRect(
+      Vec2(center.x - gap - barW, topY),
+      Vec2(center.x - gap, topY + barH),
+      color,
+      2
+    )
+    Render.FilledRect(
+      Vec2(center.x + gap, topY),
+      Vec2(center.x + gap + barW, topY + barH),
+      color,
+      2
+    )
+    return
+  end
+
+  if kind == "diamond" then
+    local top = Vec2(center.x, center.y - half)
+    local right = Vec2(center.x + half, center.y)
+    local bottom = Vec2(center.x, center.y + half)
+    local left = Vec2(center.x - half, center.y)
+    Render.FilledTriangle({ top, right, bottom }, color)
+    Render.FilledTriangle({ top, bottom, left }, color)
+    return
+  end
+
+  if kind == "arrow" then
+    local shaftH = math.max(3, math.floor(size * 0.22))
+    local shaftEnd = center.x + half * 0.10
+    Render.FilledRect(
+      Vec2(center.x - half, center.y - shaftH * 0.5),
+      Vec2(shaftEnd, center.y + shaftH * 0.5),
+      color,
+      2
+    )
+    Render.FilledTriangle({
+      Vec2(center.x - half * 0.05, center.y - half),
+      Vec2(center.x + half, center.y),
+      Vec2(center.x - half * 0.05, center.y + half)
+    }, color)
+    return
+  end
+
+  if kind == "play" then
+    Render.FilledTriangle({
+      Vec2(center.x - half * 0.55, center.y - half),
+      Vec2(center.x + half, center.y),
+      Vec2(center.x - half * 0.55, center.y + half)
+    }, color)
+    return
+  end
+
+  if kind == "stop" then
+    local sq = half * 0.68
+    Render.FilledRect(
+      Vec2(center.x - sq, center.y - sq),
+      Vec2(center.x + sq, center.y + sq),
+      color,
+      2
+    )
+    return
+  end
+
+  Render.FilledCircle(center, half, color)
 end
 
 local function WorldRing(center, radius, color, thickness, segments)
@@ -3492,31 +3849,43 @@ end
 
 local function DrawDockOverlay()
   EnsureFonts()
+  local palette    = GetGlassPalette()
+  local screen     = Render.ScreenSize()
+  local compact    = screen.x < 1600 or screen.y < 920
+  local margin     = compact and 12 or 18
+  local w          = ClampValue(compact and 316 or 336, 286, math.max(286, screen.x - margin * 2))
+  local pad        = compact and 10 or 11
+  local rowH       = compact and 22 or 24
+  local headerH    = compact and 44 or 48
+  local titleSize  = compact and 14 or 15
+  local textSize   = compact and 12 or 13
+  local subSize    = compact and 11 or 12
+  local buttonH    = compact and 22 or 24
+  local buttonSize = compact and 13 or 14
+  local loggerH    = compact and 16 or 18
+  local tNow       = GameRules.GetGameTime()
+  local lines      = {}
 
-  local w_base   = 340
-  local screen   = Render.ScreenSize()
-  local x        = screen.x - w_base - 24
-  local y        = 110
-  local pad      = UI.pad
-  local tNow     = GameRules.GetGameTime()
-  local lines    = {}
-
-  local stateCol = Theme.text
-  if State.FarmState == "FARMING_SPOT" then
-    stateCol = Theme.good
+  local stateCol = palette.accentSoft
+  if State.HardDisableActive then
+    stateCol = palette.warn
+  elseif State.FarmState == "FARMING_SPOT" then
+    stateCol = palette.good
   elseif State.FarmState == "RETURNING_TO_FOUNTAIN" then
-    stateCol = Theme.warn
+    stateCol = palette.warn
   end
 
-  table.insert(lines,
-    { "State", string.format("%s  (channeling: %s)", State.FarmState, tostring(State.IsChanneling)), stateCol })
+  local stateText = State.FarmState
+  if State.HardDisableActive then
+    stateText = stateText .. " | " .. (PrettyReason(State.HardDisableReason) or "Control")
+  end
+  table.insert(lines, { "State", stateText, stateCol })
 
   local tpLockRemain = math.max(0, (State.TeleportLockUntil or 0) - tNow)
-  table.insert(lines, { "TP lock",
-    string.format("movingAfterTP=%s  remain=%.1fs",
-      tostring(State.MovingAfterTeleport),
-      tpLockRemain),
-    (tpLockRemain > 0) and Theme.warn or Theme.dim
+  table.insert(lines, {
+    "TP",
+    string.format("lock %.1fs | %s", tpLockRemain, State.MovingAfterTeleport and "moving" or "ready"),
+    (tpLockRemain > 0) and palette.warn or palette.subtext
   })
 
   if State.CurrentFarmSpot then
@@ -3525,71 +3894,124 @@ local function DrawDockOverlay()
     local allowedMax = Constants.MARCH_CAST_RANGE * (spot.single and 1.0 or Constants.MARCH_PAIR_COVERAGE_FRAC)
     local fit        = castInfo.maxDist <= allowedMax
 
-    table.insert(lines, { "Spot",
-      string.format("key=%s  rem=%.1fs",
-        tostring(State.TargetSpotKey),
-        math.max(0, (State.SpotCommitUntil or 0) - tNow)),
-      Theme.dim })
+    table.insert(lines, {
+      "Spot",
+      string.format("%s | %.1fs", CurrentSpotLabel(), math.max(0, (State.SpotCommitUntil or 0) - tNow)),
+      palette.subtext
+    })
 
     if Config.Debug.Spot:Get() then
-      local spotTypeStr = spot.isLane and "lane" or (spot.single and "single" or "pair")
-      table.insert(lines, { "Type", spotTypeStr, spot.isLane and Theme.accent or Theme.dim })
-      table.insert(lines,
-        { "Cast Range", string.format("%.0f / %.0f", castInfo.maxDist, allowedMax), fit and Theme.good or Theme.bad })
+      table.insert(lines, {
+        "Range",
+        string.format("%.0f / %.0f", castInfo.maxDist, allowedMax),
+        fit and palette.good or palette.bad
+      })
     end
+
     local req = State.CurrentSpotMarchRequired or 0
     local have = State.CurrentSpotMarchCasts or 0
-    table.insert(lines, { "Marches", string.format("%d / %d", have, req), (have >= req and Theme.good or Theme.dim) })
+    table.insert(lines, {
+      "Marches",
+      string.format("%d / %d", have, req),
+      (have >= req and req > 0) and palette.good or palette.subtext
+    })
   end
 
-  -- Measure width
-  local labelW = 0
-  local valW   = 0
-  for _, r in ipairs(lines) do
-    local tsL = Render.TextSize(UI.fonts.small, 14, r[1])
-    local tsV = Render.TextSize(UI.fonts.small, 14, r[2])
-    if tsL.x > labelW then labelW = tsL.x end
-    if tsV.x > valW then valW = tsV.x end
-  end
-  labelW         = labelW + 12
-  local w        = math.max(w_base, labelW + valW + pad * 2 + 10)
+  if Config.Debug.Orders:Get() then
+    table.insert(lines, {
+      "Orders",
+      string.format("%d/s | pending %s | rearm %s",
+        State.OrdersPerSec or 0,
+        tostring(State.PendingTPPos ~= nil),
+        tostring(State.RearmBlinkHoldPending)),
+      palette.subtext
+    })
 
-  -- Camp Logger Section
-  local loggerH = 45
-  local contentH = #lines * UI.rowH + pad * 2 + loggerH
+    if State.LastOrderDebug then
+      local od = State.LastOrderDebug
+      table.insert(lines, {
+        "Order",
+        string.format("%s | %s | %s", od.order or "?", od.ability or "-", od.reason or "-"),
+        od.allowed and palette.good or palette.warn
+      })
+    end
 
-  local start    = Vec2(x, y)
-  local end_     = Vec2(x + w, y + contentH + 10)
-  Render.Shadow(start, end_, Theme.shadow, 20, UI.rounding)
-  Render.Blur(start, end_, 0.95, 0.98, UI.rounding)
-  Render.FilledRect(start, end_, Theme.bg, UI.rounding)
-  Render.Rect(start, end_, Theme.border, UI.rounding, nil, 1.25)
-
-  Chip(Vec2(x + pad, y - 22), "Umbrella - Tinker [Petals Edition]", Theme.text, Theme.accent)
-
-  local ry = y + pad + 6
-  for _, r in ipairs(lines) do
-    Render.Text(UI.fonts.small, 14, r[1], Vec2(x + pad, ry), Theme.dim)
-    Render.Text(UI.fonts.small, 14, r[2], Vec2(x + pad + labelW, ry), r[3])
-    ry = ry + UI.rowH
+    if State.LastAbortReason then
+      table.insert(lines, {
+        "Abort",
+        PrettyReason(State.LastAbortReason) or tostring(State.LastAbortReason),
+        palette.warn
+      })
+    end
   end
 
-  -- Draw Logger Buttons
-  ry = ry + 8
-  Render.Line(Vec2(x + pad, ry), Vec2(x + w - pad, ry), Theme.border, 1.0)
-  ry = ry + 12
-  Render.Text(UI.fonts.small, 13, "Camp Logger:", Vec2(x + pad, ry), Theme.accent2)
-  
+  local labelW      = compact and 66 or 74
+  local valueW      = w - pad * 2 - labelW - 18
+  local h           = headerH + pad + (#lines * rowH) + pad + loggerH + buttonH + pad + 6
+  local x           = math.max(margin, screen.x - w - margin)
+  local y           = ClampValue(94, margin, math.max(margin, screen.y - h - margin))
+  local start       = Vec2(x, y)
+  local end_        = Vec2(x + w, y + h)
+  local titleText    = FitText(UI.fonts.bold, titleSize, "Tinker Autofarm", w - pad * 2 - 86)
+  local subtitle     = FitText(UI.fonts.small, subSize, GetStatusSubtitle(), w - pad * 2 - 24)
+  local badgeText    = FitText(UI.fonts.small, textSize, State.FarmState, math.floor(w * 0.30))
+  local badgeMarker  = GetStatusMarkerKind(Config.AutoFarm:IsToggled())
+  local badgeMarkerS = textSize + 1
+  local badgeTextW   = Render.TextSize(UI.fonts.small, textSize, badgeText).x
+
+  Render.Blur(start, end_, 0.92, 0.98, 14)
+  Render.Shadow(start, end_, palette.shadow, 22, 14)
+  Render.FilledRect(start, end_, palette.bg, 14)
+  Render.Rect(start, end_, palette.border, 14, nil, 1.15)
+  Render.FilledRect(start, Vec2(x + w, y + headerH), palette.header, 14)
+  Render.FilledRect(Vec2(x, y + headerH - 2), Vec2(x + w, y + headerH + 1), palette.divider, 0)
+  Render.FilledRect(Vec2(x, y), Vec2(x + 4, y + h), palette.accent, 14)
+  Render.Shadow(Vec2(x + 4, y + 8), Vec2(x + 12, y + headerH - 8), palette.accentGlow, 12, 8)
+
+  DrawStatusMarker(Vec2(x + pad + 6, y + 18), compact and 10 or 11, palette.accentSoft, "diamond")
+  Render.Text(UI.fonts.bold, titleSize, titleText, Vec2(x + pad + 18, y + 9), palette.text)
+  Render.Text(UI.fonts.small, subSize, subtitle, Vec2(x + pad + 18, y + 26), palette.subtext)
+
+  local badgeEnd  = Vec2(x + w - pad, y + 30)
+  local badgeStart = Vec2(badgeEnd.x - badgeTextW - badgeMarkerS - 24, y + 11)
+  DrawGlassPill(badgeStart, badgeEnd, palette, stateCol)
+  DrawStatusMarker(Vec2(badgeStart.x + 8 + badgeMarkerS * 0.5, badgeStart.y + 9), badgeMarkerS, stateCol, badgeMarker)
+  Render.Text(UI.fonts.small, textSize, badgeText, badgeStart + Vec2(12 + badgeMarkerS, 4), stateCol)
+
+  local ry = y + headerH + pad
+  for _, row in ipairs(lines) do
+    local rowStart = Vec2(x + pad, ry)
+    local rowEnd   = Vec2(x + w - pad, ry + rowH - 2)
+    local labelText = FitText(UI.fonts.small, textSize, row[1], labelW - 12)
+    local valueText = FitText(UI.fonts.small, textSize, row[2], valueW)
+    DrawGlassPill(rowStart, rowEnd, palette, row[3] ~= palette.subtext and row[3] or nil)
+    Render.Text(UI.fonts.small, textSize, labelText, rowStart + Vec2(10, 4), palette.subtext)
+    Render.Text(UI.fonts.small, textSize, valueText, rowStart + Vec2(labelW, 4), row[3] or palette.text)
+    ry = ry + rowH
+  end
+
+  local loggerText = compact and "Logger" or "Camp Logger"
+  local loggerHint = compact and "F6-F9" or "Click or F6-F9"
+  Render.Text(UI.fonts.small, textSize, loggerText, Vec2(x + pad, ry + 1), palette.accentSoft)
+  Render.Text(
+    UI.fonts.small,
+    subSize,
+    FitText(UI.fonts.small, subSize, loggerHint, 86),
+    Vec2(x + w - pad - 86, ry + 2),
+    palette.subtext
+  )
+  ry = ry + loggerH + 5
+
   local btnW = (w - pad * 2 - 15) / 4
   local bx = x + pad
   local names = { "S", "M", "L", "A" }
   CampLogger.btnRects = {}
-  for i=1, 4 do
+  for i = 1, 4 do
     local over = false
     local active = (CampLogger.selectionType == i)
-    local s_ = Vec2(bx, ry + 18)
-    local e_ = Vec2(bx + btnW, ry + 38)
-    
+    local s_ = Vec2(bx, ry)
+    local e_ = Vec2(bx + btnW, ry + buttonH)
+
     if Input and Input.GetCursorPos then
       local mx, my = Input.GetCursorPos()
       if mx >= s_.x and mx <= e_.x and my >= s_.y and my <= e_.y then
@@ -3599,24 +4021,32 @@ local function DrawDockOverlay()
         end
       end
     end
-    
-    local col = active and Theme.accent or (over and Theme.accent2 or Theme.bg2)
-    Render.FilledRect(s_, e_, col, 4)
-    Render.Rect(s_, e_, Theme.border, 4, nil, 1.0)
-    Render.Text(UI.fonts.small, 13, names[i], Vec2(bx + btnW/2 - 5, ry + 20), active and Theme.bg or Theme.text)
+
+    local accentCol = active and palette.accent or (over and palette.accentSoft or nil)
+    DrawGlassPill(s_, e_, palette, accentCol)
+    if active then
+      Render.Shadow(s_, e_, palette.accentGlow, 10, 9)
+    end
+    local btnSizeVec = Render.TextSize(UI.fonts.bold, buttonSize, names[i])
+    Render.Text(
+      UI.fonts.bold,
+      buttonSize,
+      names[i],
+      Vec2(bx + (btnW - btnSizeVec.x) * 0.5, ry + (buttonH - btnSizeVec.y) * 0.5 - 1),
+      active and palette.text or (over and palette.text or palette.subtext)
+    )
     bx = bx + btnW + 5
   end
-  
+
   if CampLogger.selectionType then
     local wp = Input.GetWorldCursorPos()
     if wp then
-      WorldRing(wp, 100, Theme.accent, 2.0, 32)
+      WorldRing(wp, 100, palette.accent, 2.0, 32)
       local sp, vis = Render.WorldToScreen(wp)
       if vis then
-        Render.Text(UI.fonts.small, 14, "Click to Log Camp", sp + Vec2(15, -15), Theme.accent)
+        Chip(sp + Vec2(15, -18), "Click to Log Camp", palette.text, ColorAlpha(palette.header, 230))
       end
       if Input.IsKeyDown(Enum.ButtonCode.KEY_MOUSE1) and not CampLogger.mousePrevDown then
-        -- Check if we are clicking the UI
         local mx, my = Input.GetCursorPos()
         local inUI = (mx >= start.x and mx <= end_.x and my >= start.y and my <= end_.y)
         if not inUI then
@@ -3625,34 +4055,70 @@ local function DrawDockOverlay()
       end
     end
   end
-  
+
   CampLogger.mousePrevDown = Input.IsKeyDown(Enum.ButtonCode.KEY_MOUSE1)
 end
 local function DrawStatusOverlay()
   if not Config.StatusOverlay:Get() then return end
   EnsureFonts()
 
+  local palette = GetGlassPalette()
   local ui = State.StatusUI
-  local pos = Vec2(ui.x, ui.y)
+  local screen = Render.ScreenSize()
+  local compact = screen.x < 1600 or screen.y < 920
 
   local isOn = Config.AutoFarm:IsToggled()
-  local label = isOn and "AutoFarm: ON" or "AutoFarm: OFF"
-  local colBg = isOn and Theme.bg2
-  local colBar = isOn and Theme.good or Theme.bad
-  local colText = isOn and Theme.good or Theme.bad
-  local padX, padY = 10, 7
-  local ts = Render.TextSize(UI.fonts.bold, 15, label)
-  local w = math.max(150, ts.x + padX * 2 + 10)
-  local h = ts.y + padY * 2
+  local rawTitle = isOn and "Autofarm Enabled" or "Autofarm Disabled"
+  local rawSubtitle = GetStatusSubtitle()
+  local statusColor = isOn and palette.good or palette.bad
+  if State.HardDisableActive then
+    statusColor = palette.warn
+  elseif State.FarmState == "RETURNING_TO_FOUNTAIN" then
+    statusColor = palette.warn
+  elseif State.FarmState == "MOVING_TO_SPOT" then
+    statusColor = palette.accentSoft
+  end
+
+  local padX = compact and 10 or 12
+  local padY = compact and 8 or 9
+  local titleSizePx = compact and 13 or 14
+  local subSizePx = compact and 11 or 12
+  local iconSizePx = compact and 13 or 14
+  local iconPad = 16
+  local minW = compact and 210 or 224
+  local maxW = math.min(compact and 250 or 276, math.max(minW, screen.x - 20))
+  local title = FitText(UI.fonts.bold, titleSizePx, rawTitle, maxW - padX * 2 - iconPad - 10)
+  local subtitle = FitText(UI.fonts.small, subSizePx, rawSubtitle, maxW - padX * 2 - iconPad - 10)
+  local titleSize = Render.TextSize(UI.fonts.bold, titleSizePx, title)
+  local subSize = Render.TextSize(UI.fonts.small, subSizePx, subtitle)
+  local w = ClampValue(math.max(minW, math.max(titleSize.x, subSize.x) + padX * 2 + iconPad + 10), minW, maxW)
+  local h = titleSize.y + subSize.y + padY * 2 + 8
+  local markerKind = GetStatusMarkerKind(isOn)
+
+  ui.x = ClampValue(ui.x, 10, math.max(10, screen.x - w - 10))
+  ui.y = ClampValue(ui.y, 10, math.max(10, screen.y - h - 10))
+
+  local pos = Vec2(ui.x, ui.y)
   local s = pos
   local e = Vec2(pos.x + w, pos.y + h)
-  Render.Shadow(s, e, Theme.shadow, 14, 10)
-  Render.Blur(s, e, 0.85, 0.95, 10)
-  Render.FilledRect(s, e, Theme.bg, 10)
-  Render.Rect(s, e, Theme.border, 10, nil, 1.1)
-  local barW = 6
-  Render.FilledRect(s, Vec2(s.x + barW, e.y), colBar, 10)
-  Render.Text(UI.fonts.bold, 15, label, Vec2(pos.x + padX + barW + 6, pos.y + padY), colText)
+
+  Render.Blur(s, e, 0.88, 0.96, 12)
+  Render.Shadow(s, e, palette.shadow, 16, 12)
+  Render.FilledRect(s, e, palette.bg, 12)
+  Render.Rect(s, e, palette.border, 12, nil, 1.1)
+  Render.FilledRect(Vec2(s.x, s.y), Vec2(e.x, s.y + 4), palette.accent, 12)
+  Render.Shadow(Vec2(s.x + 8, s.y), Vec2(e.x - 8, s.y + 6), palette.accentGlow, 10, 8)
+  DrawStatusMarker(Vec2(s.x + 16, s.y + h * 0.5), iconSizePx, statusColor, markerKind)
+
+  Render.Text(UI.fonts.bold, titleSizePx, title, Vec2(pos.x + padX + iconPad, pos.y + padY - 1), statusColor)
+  Render.Text(
+    UI.fonts.small,
+    subSizePx,
+    subtitle,
+    Vec2(pos.x + padX + iconPad, pos.y + padY + titleSize.y),
+    palette.subtext
+  )
+
   if not Config.Status.Lock:Get() and Input and Input.GetCursorPos and Input.IsKeyDown then
     local x, y = Input.GetCursorPos()
     local inside = (x >= s.x and x <= e.x and y >= s.y and y <= e.y)
@@ -3748,6 +4214,7 @@ script.OnUpdate = function()
     State.LaneTreeBlinkDone        = false
     State.LaneWaveLaserDone        = false
     State.NextExtraToolTry         = 0
+    ResetDisableAndMovementTracking()
     return
   end
   if Entity.GetUnitName(State.Hero) ~= "npc_dota_hero_tinker" then return end
@@ -3762,6 +4229,7 @@ script.OnUpdate = function()
     State.PendingMarchVerify       = nil
     State.LaneWaveLaserDone        = false
     State.NextExtraToolTry         = 0
+    ResetDisableAndMovementTracking()
     return
   end
 
@@ -3792,6 +4260,7 @@ script.OnUpdate = function()
       end
     end
     State.AutoFarmWasOn = false
+    ResetDisableAndMovementTracking()
 
     -- Полностью сбрасываем внутреннее состояние фарма
     if State.FarmState ~= "IDLE" then
