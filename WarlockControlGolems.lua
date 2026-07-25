@@ -25,6 +25,7 @@ local MODIFIER_KILL = "modifier_kill"
 local ORDER_PREFIX = "warlock_control_golems."
 local ORDER_ATTACK = ORDER_PREFIX .. "attack"
 local ORDER_PUSH = ORDER_PREFIX .. "push"
+local HERO_CHASE_SECONDS = 2.5
 
 local ICON_ENABLE = "\u{f00c}"
 local ICON_FORCE = "\u{e1c1}"
@@ -118,6 +119,12 @@ local Persistent = {
 ---@field destX number|nil
 ---@field destY number|nil
 
+---@class WarlockGolemHeroChase
+---@field x number
+---@field y number
+---@field z number
+---@field expiresAt number
+
 ---@class WarlockGolemHudRow
 ---@field remain number|nil
 ---@field action string
@@ -126,6 +133,8 @@ local Runtime = {
     lastUpdateAt = -math.huge,
     ---@type table<integer, WarlockGolemOrderState>
     lastOrders = {},
+    ---@type table<integer, WarlockGolemHeroChase>
+    heroChase = {},
     ---@type userdata|nil
     enemyFort = nil,
     ---@type userdata|nil
@@ -251,6 +260,7 @@ end
 local function ResetRuntime()
     Runtime.lastUpdateAt = -math.huge
     Runtime.lastOrders = {}
+    Runtime.heroChase = {}
     Runtime.enemyFort = nil
     Runtime.allyFort = nil
     Runtime.pushDest = nil
@@ -348,13 +358,42 @@ local function IsValidEnemyHero(golem, hero, searchRange)
     if not hero or Entity.IsEntity(hero) ~= true then
         return false
     end
-    if Entity.IsAlive(hero) ~= true or NPC.IsIllusion(hero) == true then
+    if Entity.IsAlive(hero) ~= true
+        or Entity.IsDormant(hero) == true
+        or NPC.IsIllusion(hero) == true
+        or NPC.IsVisible(hero) ~= true
+    then
         return false
     end
     if Entity.IsSameTeam(golem, hero) == true then
         return false
     end
     return NPC.IsEntityInRange(golem, hero, searchRange) == true
+end
+
+local function RememberHeroChase(golemIndex, hero)
+    local pos = Entity.GetAbsOrigin(hero)
+    if not pos then
+        return
+    end
+    Runtime.heroChase[golemIndex] = {
+        x = pos.x,
+        y = pos.y,
+        z = pos.z,
+        expiresAt = GameRules.GetGameTime() + HERO_CHASE_SECONDS,
+    }
+end
+
+local function GetHeroChaseDest(golemIndex)
+    local chase = Runtime.heroChase[golemIndex]
+    if not chase then
+        return nil
+    end
+    if GameRules.GetGameTime() >= chase.expiresAt then
+        Runtime.heroChase[golemIndex] = nil
+        return nil
+    end
+    return Vector(chase.x, chase.y, chase.z)
 end
 
 local function PickLowestHpHero(golem, searchRange)
@@ -500,12 +539,6 @@ local function EnsurePushDest(me)
     return Runtime.pushDest
 end
 
-local function SameAttackOrder(state, target, kind)
-    return state
-        and state.kind == kind
-        and state.targetIndex == Entity.GetIndex(target)
-end
-
 local function SamePushOrder(state, dest)
     if not state or state.kind ~= "push" or not dest then
         return false
@@ -520,11 +553,8 @@ end
 
 local function IssueAttack(player, golem, target, kind)
     local golemIndex = Entity.GetIndex(golem)
-    local prev = Runtime.lastOrders[golemIndex]
-    if SameAttackOrder(prev, target, kind) then
-        return
-    end
-
+    -- Always refresh: after attack-move a golem can keep hitting creeps while
+    -- lastOrders still says the hero lock is active.
     Player.AttackTarget(player, golem, target, false, true, false, ORDER_ATTACK, false)
     Runtime.lastOrders[golemIndex] = {
         kind = kind,
@@ -565,17 +595,28 @@ end
 local function ControlGolem(player, me, golem, searchRange)
     local golemIndex = Entity.GetIndex(golem)
     local prev = Runtime.lastOrders[golemIndex]
+    local hero = nil
+
     if prev and prev.kind == "hero" and prev.targetIndex then
         local prevHero = Entity.Get(prev.targetIndex)
         if IsValidEnemyHero(golem, prevHero, searchRange) then
-            IssueAttack(player, golem, prevHero, "hero")
-            return
+            hero = prevHero
         end
     end
 
-    local hero = PickLowestHpHero(golem, searchRange)
+    if not hero then
+        hero = PickLowestHpHero(golem, searchRange)
+    end
+
     if hero then
+        RememberHeroChase(golemIndex, hero)
         IssueAttack(player, golem, hero, "hero")
+        return
+    end
+
+    local chaseDest = GetHeroChaseDest(golemIndex)
+    if chaseDest then
+        IssuePush(player, golem, chaseDest)
         return
     end
 
@@ -589,7 +630,9 @@ local function InvalidateGolemOrder(unit)
     if not unit or IsWarlockGolem(unit) ~= true then
         return
     end
-    Runtime.lastOrders[Entity.GetIndex(unit)] = nil
+    local golemIndex = Entity.GetIndex(unit)
+    Runtime.lastOrders[golemIndex] = nil
+    Runtime.heroChase[golemIndex] = nil
 end
 
 local function InvalidateGolemOrdersFromIssuer(npc)
@@ -618,11 +661,12 @@ local function UpdateFeature(me, player, controlActive)
     if #golems == 0 then
         Runtime.pushDest = nil
         Runtime.lastOrders = {}
+        Runtime.heroChase = {}
     end
 
     if controlActive ~= true then
-        -- Drop dedupe cache so the next resume re-issues attack/push.
         Runtime.lastOrders = {}
+        Runtime.heroChase = {}
         RefreshHud(golems, false)
         return
     end
