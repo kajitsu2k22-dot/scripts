@@ -1,4 +1,4 @@
-﻿--[[
+--[[
     Magnus — Harpoon + Blink + Reverse Polarity combo
     Hold combo key: approach → harpoon → blink behind cluster → RP
     Script by 花曇り hanagumori
@@ -10,8 +10,9 @@ local Script = {}
 
 local SCRIPT_NAME = "MagnusHarpoonBlinkRP"
 local DEBUG_PREFIX = "[" .. SCRIPT_NAME .. "] "
-local CONFIG_SECTION = "magnus_harpoon_blink_rp"
 local HERO_NAME = "npc_dota_hero_magnataur"
+local STATE_ROOTED = 0
+local STATE_MAGIC_IMMUNE = 9
 local HARPOON_NAME = "item_harpoon"
 local RP_NAME = "magnataur_reverse_polarity"
 local ORDER_ID = "magnus.harpoon_blink_rp"
@@ -53,9 +54,11 @@ local CLUSTER_MERGE_RATIO = 0.15
 local ANCHOR_FOCUS_BLEND = 0.40
 local APPROACH_MOVE_INTERVAL = 0.12
 local HARPOON_RETRY_DELAY = 0.12
+local HARPOON_CAST_GUARD = 0.28
 local LINK_BREAK_VERIFY = 0.35
 local LINK_BREAK_CAST_INTERVAL = 0.12
 local TARGET_RESOLVE_INTERVAL = 0.05
+local PREVIEW_RESOLVE_INTERVAL = 0.12
 local FORCE_PUSH_DISTANCE = 600
 local FORCE_SETTLE = 0.28
 local FORCE_FACE_MAX_TURN_TIME = 0.02
@@ -71,7 +74,7 @@ local CONFIG = {
     blinkBehind = true,
     requireBlinkRange = true,
     soloMode = false,
-    repeatWhileHeld = false,
+    repeatWhileHeld = true,
     popLinkens = true,
 }
 
@@ -95,7 +98,6 @@ local BLINK_SETTLE = {
 }
 
 local HARPOON_BLOCK_MODIFIERS = {
-    "modifier_item_sphere_target",
     "modifier_item_lotus_orb_channel",
     "modifier_antimage_spell_shield",
 }
@@ -122,9 +124,42 @@ local POP_ITEMS = {
 
 --#region State
 
-local State = {
-    menuReady = false,
-    _logger = nil,
+---@class MagnusHarpoonUI
+---@field Enabled CMenuSwitch|nil
+---@field ComboKey CMenuBind|nil
+---@field MinSep CMenuSliderInt|CMenuSliderFloat|nil
+---@field MinRPHits CMenuSliderInt|CMenuSliderFloat|nil
+---@field BehindDistance CMenuSliderInt|CMenuSliderFloat|nil
+---@field UseForce CMenuSwitch|nil
+---@field Debug CMenuSwitch|nil
+---@field DrawOverlay CMenuSwitch|nil
+local UI = {
+    Enabled = nil,
+    ComboKey = nil,
+    MinSep = nil,
+    MinRPHits = nil,
+    BehindDistance = nil,
+    UseForce = nil,
+    Debug = nil,
+    DrawOverlay = nil,
+}
+
+local Persistent = {
+    ---@type Logger|nil
+    logger = nil,
+    overlayFont = 0,
+    ---@type CMenuGroup|nil
+    menuGroup = nil,
+    ---@type CMenuGearAttachment|nil
+    menuGear = nil,
+    languageWidget = nil,
+    languageLookupAt = 0,
+    lastLanguage = nil,
+    languageCallbackSet = false,
+}
+
+---@class MagnusHarpoonRuntime
+local Runtime = {
     lastDebugHoldLog = -100,
     lastApproachMove = -100,
     comboDone = false,
@@ -145,7 +180,6 @@ local State = {
     overlayTargets = nil,
     overlayReason = "",
     overlayRpRadius = DEFAULT_RP_RADIUS,
-    overlayFont = 0,
     unitMotion = {},
     pendingBlinkName = nil,
     forcePending = false,
@@ -157,21 +191,7 @@ local State = {
 
 --#endregion
 
-local UI = {}
-
 --#region Localization
-
-local MenuNodes = {
-    group = nil,
-    gear = nil,
-}
-
-local LangState = {
-    languageWidget = nil,
-    languageLookupAt = 0,
-    lastLanguage = nil,
-    callbackSet = false,
-}
 
 local I = {
     enable  = "\u{f00c}", -- check (no background when passed to Switch)
@@ -279,18 +299,18 @@ local Locale = {
 
 local function GetLanguageWidget()
     local now = os.clock()
-    if LangState.languageWidget and now < LangState.languageLookupAt then
-        return LangState.languageWidget
+    if Persistent.languageWidget and now < Persistent.languageLookupAt then
+        return Persistent.languageWidget
     end
 
-    LangState.languageLookupAt = now + 1.0
-    LangState.languageWidget = Menu.Find("SettingsHidden", "", "", "", "Main", "Language")
-    return LangState.languageWidget
+    Persistent.languageLookupAt = now + 1.0
+    Persistent.languageWidget = Menu.Find("SettingsHidden", "", "", "", "Main", "Language")
+    return Persistent.languageWidget
 end
 
 local function GetLanguageCode()
     local widget = GetLanguageWidget()
-    local value = widget and widget.Get and widget:Get() or "en"
+    local value = widget and widget:Get() or "en"
 
     if type(value) == "number" then
         if value == 1 then
@@ -326,46 +346,27 @@ local function L(key)
     return entry[lang] or entry.en or tostring(key)
 end
 
-local function MenuIcon(widget, icon)
-    if not widget or not icon then
-        return
-    end
-
-    if widget.Icon then
-        local ok = pcall(widget.Icon, widget, icon)
-        if not ok then
-            pcall(widget.Icon, icon)
-        end
-    end
-end
-
-local function MenuImage(widget, imagePath)
-    if widget and widget.Image and imagePath then
-        widget:Image(imagePath)
-    end
-end
-
 local function MenuTip(widget, key)
-    if widget and widget.ToolTip then
+    if widget then
         widget:ToolTip(L(key))
     end
 end
 
 local function MenuLabel(widget, key)
-    if widget and widget.ForceLocalization then
+    if widget then
         widget:ForceLocalization(L(key))
     end
 end
 
 local function ApplyLocalization(force)
     local lang = GetLanguageCode()
-    if not force and LangState.lastLanguage == lang then
+    if not force and Persistent.lastLanguage == lang then
         return
     end
-    LangState.lastLanguage = lang
+    Persistent.lastLanguage = lang
 
-    MenuLabel(MenuNodes.group, "group_name")
-    MenuLabel(MenuNodes.gear, "gear_settings")
+    MenuLabel(Persistent.menuGroup, "group_name")
+    MenuLabel(Persistent.menuGear, "gear_settings")
 
     MenuLabel(UI.Enabled, "ui_enabled")
     MenuTip(UI.Enabled, "tip_enabled")
@@ -393,16 +394,16 @@ local function ApplyLocalization(force)
 end
 
 local function SetupLanguageCallback()
-    if LangState.callbackSet then
+    if Persistent.languageCallbackSet then
         return
     end
 
     local widget = GetLanguageWidget()
-    if not widget or not widget.SetCallback then
+    if not widget then
         return
     end
 
-    LangState.callbackSet = true
+    Persistent.languageCallbackSet = true
     local previous = widget:Get()
     widget:SetCallback(function(ctrl)
         local current = (ctrl or widget):Get()
@@ -410,56 +411,43 @@ local function SetupLanguageCallback()
             return
         end
         previous = current
-        LangState.lastLanguage = nil
+        Persistent.lastLanguage = nil
         ApplyLocalization(true)
     end)
 end
 
 --#endregion
 
---#region Helpers (core)
+--#region Helpers
 
-local function SafeCall(fn, ...)
-    if type(fn) ~= "function" then
-        return nil
-    end
-    local ok, result = pcall(fn, ...)
-    if ok then
-        return result
-    end
-    return nil
-end
+local ResetHoldState
 
 local function LogWrite(message)
     message = tostring(message)
-    if State._logger == nil then
-        State._logger = Logger and Logger(SCRIPT_NAME) or false
-    end
-    local logger = State._logger
-    if logger and logger.debug then
-        pcall(logger.debug, logger, message)
+    if Persistent.logger then
+        Persistent.logger:debug(message)
         return
     end
-    if Log and Log.Write then
-        Log.Write(DEBUG_PREFIX .. message)
+    Log.Write(DEBUG_PREFIX .. message)
+end
+
+local function Now()
+    return GlobalVars.GetCurTime() or 0
+end
+
+local function OnEnabledChanged(widget)
+    local enabled = widget:Get() == true
+    UI.ComboKey:Disabled(not enabled)
+    UI.MinSep:Disabled(not enabled)
+    UI.MinRPHits:Disabled(not enabled)
+    UI.BehindDistance:Disabled(not enabled)
+    UI.UseForce:Disabled(not enabled)
+    UI.Debug:Disabled(not enabled)
+    UI.DrawOverlay:Disabled(not enabled)
+    if not enabled then
+        ResetHoldState()
     end
 end
-
-local function SaveConfigInt(key, value)
-    SafeCall(Config.WriteInt, CONFIG_SECTION, key, value)
-end
-
-local function LoadConfigInt(key, defaultValue)
-    local stored = SafeCall(Config.ReadInt, CONFIG_SECTION, key, defaultValue)
-    if stored == nil then
-        return defaultValue
-    end
-    return stored
-end
-
---#endregion
-
---#region Menu
 
 local function InitializeUI()
     ---@type CMenuGroup|nil
@@ -468,7 +456,7 @@ local function InitializeUI()
 
     if not group then
         local mainSection = Menu.Find("Heroes", "Hero List", "Magnus", "Main Settings")
-        if mainSection and mainSection.Create then
+        if mainSection then
             group = mainSection:Create("Harpoon Combo")
         end
     end
@@ -481,101 +469,40 @@ local function InitializeUI()
         error(DEBUG_PREFIX .. "Failed to create menu group")
     end
 
-    MenuNodes.group = group
+    Persistent.menuGroup = group
 
-    local ui = {}
-    local enabledDefault = LoadConfigInt("enabled", 0) == 1
+    UI.Enabled = group:Switch("Enable", false, I.enable)
+    UI.ComboKey = group:Bind("Combo Key", Enum.ButtonCode.KEY_NONE, I.bind)
 
-    ui.Enabled = group:Switch("Enable", enabledDefault, I.enable)
-    ui.ComboKey = group:Bind("Combo Key", Enum.ButtonCode.KEY_NONE, I.bind)
+    local gear = UI.Enabled:Gear("Settings", I.gear, true)
+    Persistent.menuGear = gear
 
-    local gear = ui.Enabled:Gear("Settings", I.gear, true)
-    MenuNodes.gear = gear
+    UI.MinSep = gear:Slider("Min target separation", 200, 1200, 400, "%d")
+    UI.MinSep:Icon(I.sep)
 
-    ui.MinSep = gear:Slider("Min target separation", 200, 1200, LoadConfigInt("min_sep", 400), "%d")
-    MenuIcon(ui.MinSep, I.sep)
+    UI.MinRPHits = gear:Slider("Min RP hits", 1, 5, 2, "%d")
+    UI.MinRPHits:Icon(I.hits)
 
-    ui.MinRPHits = gear:Slider("Min RP hits", 1, 5, LoadConfigInt("min_rp_hits", 2), "%d")
-    MenuIcon(ui.MinRPHits, I.hits)
+    UI.BehindDistance = gear:Slider("Behind distance", 100, 500, 280, "%d")
+    UI.BehindDistance:Icon(I.ruler)
 
-    ui.BehindDistance = gear:Slider("Behind distance", 100, 500, LoadConfigInt("behind_dist", 280), "%d")
-    MenuIcon(ui.BehindDistance, I.ruler)
+    UI.UseForce = gear:Switch("Use Force Staff", false)
+    UI.UseForce:Image(FORCE_ICON)
 
-    ui.UseForce = gear:Switch("Use Force Staff", LoadConfigInt("use_force", 0) == 1)
-    MenuImage(ui.UseForce, FORCE_ICON)
+    UI.Debug = gear:Switch("Debug logs", false)
+    UI.Debug:Icon(I.bug)
 
-    ui.Debug = gear:Switch("Debug logs", LoadConfigInt("debug", 0) == 1)
-    MenuIcon(ui.Debug, I.bug)
+    UI.DrawOverlay = gear:Switch("Draw overlay", true)
+    UI.DrawOverlay:Icon(I.draw)
 
-    ui.DrawOverlay = gear:Switch("Draw overlay", LoadConfigInt("draw_overlay", 1) == 1)
-    MenuIcon(ui.DrawOverlay, I.draw)
-
-    local function UpdateControls()
-        local enabled = ui.Enabled:Get()
-
-        ui.ComboKey:Disabled(not enabled)
-        ui.MinSep:Disabled(not enabled)
-        ui.MinRPHits:Disabled(not enabled)
-        ui.BehindDistance:Disabled(not enabled)
-        ui.UseForce:Disabled(not enabled)
-        ui.Debug:Disabled(not enabled)
-        ui.DrawOverlay:Disabled(not enabled)
-    end
-
-    ui.Enabled:SetCallback(function()
-        SaveConfigInt("enabled", ui.Enabled:Get() and 1 or 0)
-        UpdateControls()
-    end, true)
-
-    ui.MinSep:SetCallback(function()
-        SaveConfigInt("min_sep", ui.MinSep:Get())
-    end, true)
-
-    ui.MinRPHits:SetCallback(function()
-        SaveConfigInt("min_rp_hits", ui.MinRPHits:Get())
-    end, true)
-
-    ui.BehindDistance:SetCallback(function()
-        SaveConfigInt("behind_dist", ui.BehindDistance:Get())
-    end, true)
-
-    ui.UseForce:SetCallback(function()
-        SaveConfigInt("use_force", ui.UseForce:Get() and 1 or 0)
-    end, true)
-
-    ui.Debug:SetCallback(function()
-        SaveConfigInt("debug", ui.Debug:Get() and 1 or 0)
-    end, true)
-
-    ui.DrawOverlay:SetCallback(function()
-        SaveConfigInt("draw_overlay", ui.DrawOverlay:Get() and 1 or 0)
-    end, true)
+    UI.Enabled:SetCallback(OnEnabledChanged, true)
 
     ApplyLocalization(true)
     SetupLanguageCallback()
-    UpdateControls()
-    return ui
 end
-
-local function EnsureMenu()
-    if State.menuReady then
-        return
-    end
-    if not Menu or not Menu.Find or not Menu.Create then
-        return
-    end
-
-    UI = InitializeUI()
-    State.menuReady = true
-    LogWrite("menu ready")
-end
-
---#endregion
-
---#region Debug
 
 local function Dbg(message, ...)
-    if not State.menuReady or not UI.Debug or not SafeCall(UI.Debug.Get, UI.Debug) then
+    if not UI.Debug or UI.Debug:Get() ~= true then
         return
     end
 
@@ -628,18 +555,22 @@ local function GetCastableDebug(ability, mana, label)
 end
 
 local function LogHoldState(reason, me, mana, harpoon, blink, blinkName, rp, targets, comboReady)
-    local now = GlobalVars.GetCurTime() or 0
-    if now - State.lastDebugHoldLog < DEBUG_HOLD_INTERVAL then
+    if not UI.Debug or UI.Debug:Get() ~= true then
         return
     end
 
-    State.lastDebugHoldLog = now
+    local now = Now()
+    if now - Runtime.lastDebugHoldLog < DEBUG_HOLD_INTERVAL then
+        return
+    end
+
+    Runtime.lastDebugHoldLog = now
 
     local harpBonus = NPC.GetCastRangeBonus(me) or 0
     local harpBase = harpoon and Ability.GetCastRange(harpoon) or 0
     local blinkBase = blink and Ability.GetCastRange(blink) or 0
 
-    Dbg(
+    LogWrite(string.format(
         "HOLD | %s | ready=%s | harpoon=%.0f blink=%.0f (%s) | %s | %s | %s | %s",
         reason,
         tostring(comboReady),
@@ -656,60 +587,40 @@ local function LogHoldState(reason, me, mana, harpoon, blink, blinkName, rp, tar
             targets.blinkPos.x,
             targets.blinkPos.y
         ) or "none"
-    )
+    ))
 end
 
---#endregion
-
---#region Helpers
-
 local function WorldToScreen(world)
-    if not Render or not Render.WorldToScreen then
-        return nil, false
-    end
-
-    local ok, screen, visible = pcall(Render.WorldToScreen, world)
-    if not ok then
-        return nil, false
-    end
-
+    local screen, visible = Render.WorldToScreen(world)
     return screen, visible
 end
 
 local function PauseComboTimer(now)
-    if State.harpoonAttempted and not State.comboPauseStarted then
-        State.comboPauseStarted = now
+    if Runtime.harpoonAttempted and not Runtime.comboPauseStarted then
+        Runtime.comboPauseStarted = now
     end
 end
 
 local function ResumeComboTimer(now)
-    if State.comboPauseStarted then
-        State.comboAttemptTime = State.comboAttemptTime + (now - State.comboPauseStarted)
-        State.comboPauseStarted = nil
+    if Runtime.comboPauseStarted then
+        Runtime.comboAttemptTime = Runtime.comboAttemptTime + (now - Runtime.comboPauseStarted)
+        Runtime.comboPauseStarted = nil
     end
 end
 
 local function IsBlinkPositionTraversable(from, pos)
-    if not from or not pos or not GridNav then
+    if not from or not pos then
         return true
     end
 
-    if GridNav.IsTraversableFromTo then
-        return SafeCall(GridNav.IsTraversableFromTo, from, pos, false, nil) == true
-    end
-
-    if GridNav.IsTraversable then
-        return SafeCall(GridNav.IsTraversable, pos, 0x1, 0x002) == true
-    end
-
-    return true
+    return GridNav.IsTraversableFromTo(from, pos, false, nil) == true
 end
 
 local function IsValidHero(unit)
     return unit
-        and SafeCall(Entity.IsAlive, unit)
-        and not SafeCall(Entity.IsDormant, unit)
-        and not SafeCall(NPC.IsIllusion, unit)
+        and Entity.IsAlive(unit) == true
+        and Entity.IsDormant(unit) ~= true
+        and NPC.IsIllusion(unit) ~= true
 end
 
 local function IsMagicImmuneForRP(unit)
@@ -717,12 +628,12 @@ local function IsMagicImmuneForRP(unit)
         return true
     end
 
-    if SafeCall(NPC.HasState, unit, Enum.ModifierState.MODIFIER_STATE_MAGIC_IMMUNE) then
+    if NPC.HasState(unit, STATE_MAGIC_IMMUNE) then
         return true
     end
 
     for _, modifierName in ipairs(MAGIC_IMMUNE_MODIFIERS) do
-        if SafeCall(NPC.HasModifier, unit, modifierName) then
+        if NPC.HasModifier(unit, modifierName) then
             return true
         end
     end
@@ -735,33 +646,25 @@ local function IsEnemyVisibleForCombo(enemy)
         return false
     end
 
-    if SafeCall(NPC.IsVisible, enemy) == false then
+    if NPC.IsVisible(enemy) == false then
         return false
     end
 
-    local pos = SafeCall(Entity.GetAbsOrigin, enemy)
-    if pos and FogOfWar and FogOfWar.IsPointVisible then
-        return SafeCall(FogOfWar.IsPointVisible, pos) ~= false
+    local pos = Entity.GetAbsOrigin(enemy)
+    if not pos then
+        return true
     end
 
-    return true
+    return FogOfWar.IsPointVisible(pos) ~= false
 end
 
 local function GetUnitStatusResistance(unit)
-    if not unit or not NPC.GetModifierPropertyHighest then
+    if not unit then
         return 0
     end
 
-    local base = SafeCall(
-        NPC.GetModifierPropertyHighest,
-        unit,
-        Enum.ModifierFunction.MODIFIER_PROPERTY_STATUS_RESISTANCE
-    ) or 0
-    local stacking = SafeCall(
-        NPC.GetModifierPropertyHighest,
-        unit,
-        Enum.ModifierFunction.MODIFIER_PROPERTY_STATUS_RESISTANCE_STACKING
-    ) or 0
+    local base = NPC.GetModifierPropertyHighest(unit, Enum.ModifierFunction.MODIFIER_PROPERTY_STATUS_RESISTANCE) or 0
+    local stacking = NPC.GetModifierPropertyHighest(unit, Enum.ModifierFunction.MODIFIER_PROPERTY_STATUS_RESISTANCE_STACKING) or 0
 
     return math.min(0.85, math.max(0, base + stacking))
 end
@@ -771,12 +674,12 @@ local function GetEffectiveRPRadius(unit, baseRadius)
 end
 
 local function TargetNeedsLinkBreak(target)
-    return target and SafeCall(NPC.HasModifier, target, "modifier_item_sphere_target")
+    return target and NPC.IsLinkensProtected(target) == true
 end
 
 local function GetPopCastRange(me, item, itemName)
-    local range = item and SafeCall(Ability.GetCastRange, item) or 0
-    range = range + (SafeCall(NPC.GetCastRangeBonus, me) or 0)
+    local range = item and Ability.GetCastRange(item) or 0
+    range = range + (NPC.GetCastRangeBonus(me) or 0)
     if range > 0 then
         return range
     end
@@ -794,8 +697,8 @@ local function FindPopItem(me, target, mana)
         return nil, nil
     end
 
-    local myPos = SafeCall(Entity.GetAbsOrigin, me)
-    local targetPos = SafeCall(Entity.GetAbsOrigin, target)
+    local myPos = Entity.GetAbsOrigin(me)
+    local targetPos = Entity.GetAbsOrigin(target)
     if not myPos or not targetPos then
         return nil, nil
     end
@@ -804,8 +707,8 @@ local function FindPopItem(me, target, mana)
     local bestItem, bestName, bestRange = nil, nil, -1
 
     for _, itemName in ipairs(POP_ITEMS) do
-        local item = SafeCall(NPC.GetItem, me, itemName, true)
-        if item and SafeCall(Ability.IsCastable, item, mana) then
+        local item = NPC.GetItem(me, itemName, true)
+        if item and Ability.IsCastable(item, mana) then
             local range = GetPopCastRange(me, item, itemName)
             if dist <= range and range > bestRange then
                 bestItem = item
@@ -821,6 +724,10 @@ end
 local function HasHarpoonBlock(unit)
     if not IsValidHero(unit) then
         return false
+    end
+
+    if NPC.IsLinkensProtected(unit) == true or NPC.IsMirrorProtected(unit) == true then
+        return true
     end
 
     for _, modifierName in ipairs(HARPOON_BLOCK_MODIFIERS) do
@@ -852,16 +759,13 @@ local function CanAct(me)
         return false
     end
 
-    return not SafeCall(NPC.IsStunned, me)
-        and not SafeCall(NPC.IsSilenced, me)
-        and not SafeCall(NPC.HasState, me, Enum.ModifierState.MODIFIER_STATE_ROOTED)
+    return NPC.IsStunned(me) ~= true
+        and NPC.IsSilenced(me) ~= true
+        and NPC.HasState(me, STATE_ROOTED) ~= true
 end
 
 local function IsComboKeyHeld()
-    return State.menuReady
-        and UI.ComboKey
-        and UI.ComboKey.IsDown
-        and SafeCall(UI.ComboKey.IsDown, UI.ComboKey)
+    return UI.ComboKey ~= nil and UI.ComboKey:IsDown() == true
 end
 
 local function GetBlink(me)
@@ -882,15 +786,13 @@ local function GetBlinkSettleTime(blinkName)
 end
 
 local function IsUseForceEnabled()
-    return State.menuReady
-        and UI.UseForce
-        and SafeCall(UI.UseForce.Get, UI.UseForce) == true
+    return UI.UseForce ~= nil and UI.UseForce:Get() == true
 end
 
 local function GetForceItem(me, mana)
     for _, name in ipairs(FORCE_ITEMS) do
-        local item = SafeCall(NPC.GetItem, me, name, true)
-        if item and SafeCall(Ability.IsCastable, item, mana) then
+        local item = NPC.GetItem(me, name, true)
+        if item and Ability.IsCastable(item, mana) then
             return item, name
         end
     end
@@ -903,7 +805,7 @@ local function CanPlanWithForce(me)
     end
 
     for _, name in ipairs(FORCE_ITEMS) do
-        if SafeCall(NPC.GetItem, me, name, true) then
+        if NPC.GetItem(me, name, true) then
             return true
         end
     end
@@ -916,16 +818,16 @@ local function UpdateUnitMotionCache(units, now)
         return
     end
 
-    now = now or SafeCall(GlobalVars.GetCurTime) or 0
+    now = now or Now()
 
     for _, unit in ipairs(units) do
-        local idx = SafeCall(Entity.GetIndex, unit)
-        local pos = SafeCall(Entity.GetAbsOrigin, unit)
+        local idx = Entity.GetIndex(unit)
+        local pos = Entity.GetAbsOrigin(unit)
         if not idx or not pos then
             goto continue_motion
         end
 
-        local entry = State.unitMotion[idx]
+        local entry = Runtime.unitMotion[idx]
         if entry and entry.time and now > entry.time then
             local dt = now - entry.time
             if dt > 0 and dt <= 0.75 then
@@ -948,7 +850,7 @@ local function UpdateUnitMotionCache(units, now)
             entry.z = pos.z
             entry.time = now
         else
-            State.unitMotion[idx] = {
+            Runtime.unitMotion[idx] = {
                 x = pos.x,
                 y = pos.y,
                 z = pos.z,
@@ -965,8 +867,8 @@ local function PredictUnitPos(unit, basePos, leadTime)
         return basePos
     end
 
-    local idx = SafeCall(Entity.GetIndex, unit)
-    local motion = idx and State.unitMotion[idx]
+    local idx = Entity.GetIndex(unit)
+    local motion = idx and Runtime.unitMotion[idx]
     if not motion or not motion.vx or not motion.vy then
         return basePos
     end
@@ -984,7 +886,7 @@ local function PredictUnitPos(unit, basePos, leadTime)
 end
 
 local function GetPredictedEnemyPos(unit, leadTime)
-    local pos = SafeCall(Entity.GetAbsOrigin, unit)
+    local pos = Entity.GetAbsOrigin(unit)
     if not pos then
         return nil
     end
@@ -1019,75 +921,79 @@ local function EffectiveMinSep(enemyCount, minSep)
     if enemyCount <= 2 then
         return math.min(minSep, TWO_ENEMY_MAX_SEP)
     end
+    -- 3-man fights: slightly softer sep so cluster blink still finds an anchor.
+    if enemyCount == 3 then
+        return math.min(minSep, math.max(TWO_ENEMY_MAX_SEP, math.floor(minSep * 0.70)))
+    end
     return minSep
 end
 
-local function ResetHoldState()
-    State.comboDone = false
-    State.harpoonAttempted = false
-    State.blinkRpSent = false
-    State.blinkPending = false
-    State.blinkPendingTime = 0
-    State.linkBreakPending = false
-    State.linkBreakAttemptTime = 0
-    State.comboAttemptTime = 0
-    State.comboFinishTime = 0
-    State.comboPauseStarted = nil
-    State.harpoonCastPos = nil
-    State.lastApproachMove = -100
-    State.lastTargetResolve = -100
-    State.lastLinkBreakCast = -100
-    State.lockedHarpoonTarget = nil
-    State.lockedTargets = nil
-    State.overlayTargets = nil
-    State.overlayReason = ""
-    State.unitMotion = {}
-    State.pendingBlinkName = nil
-    State.forcePending = false
-    State.forcePendingTime = 0
-    State.forceUsed = false
-    State.forceFaceStarted = false
-    State.forceFaceOkSince = nil
+ResetHoldState = function()
+    Runtime.comboDone = false
+    Runtime.harpoonAttempted = false
+    Runtime.blinkRpSent = false
+    Runtime.blinkPending = false
+    Runtime.blinkPendingTime = 0
+    Runtime.linkBreakPending = false
+    Runtime.linkBreakAttemptTime = 0
+    Runtime.comboAttemptTime = 0
+    Runtime.comboFinishTime = 0
+    Runtime.comboPauseStarted = nil
+    Runtime.harpoonCastPos = nil
+    Runtime.lastApproachMove = -100
+    Runtime.lastTargetResolve = -100
+    Runtime.lastLinkBreakCast = -100
+    Runtime.lockedHarpoonTarget = nil
+    Runtime.lockedTargets = nil
+    Runtime.overlayTargets = nil
+    Runtime.overlayReason = ""
+    Runtime.unitMotion = {}
+    Runtime.pendingBlinkName = nil
+    Runtime.forcePending = false
+    Runtime.forcePendingTime = 0
+    Runtime.forceUsed = false
+    Runtime.forceFaceStarted = false
+    Runtime.forceFaceOkSince = nil
 end
 
 local function PartialResetForRepeat()
-    State.comboDone = false
-    State.harpoonAttempted = false
-    State.blinkRpSent = false
-    State.blinkPending = false
-    State.blinkPendingTime = 0
-    State.linkBreakPending = false
-    State.linkBreakAttemptTime = 0
-    State.comboAttemptTime = 0
-    State.comboPauseStarted = nil
-    State.harpoonCastPos = nil
-    State.lastApproachMove = -100
-    State.lastTargetResolve = -100
-    State.lockedHarpoonTarget = nil
-    State.lockedTargets = nil
-    State.unitMotion = {}
-    State.pendingBlinkName = nil
-    State.forcePending = false
-    State.forcePendingTime = 0
-    State.forceUsed = false
-    State.forceFaceStarted = false
-    State.forceFaceOkSince = nil
+    Runtime.comboDone = false
+    Runtime.harpoonAttempted = false
+    Runtime.blinkRpSent = false
+    Runtime.blinkPending = false
+    Runtime.blinkPendingTime = 0
+    Runtime.linkBreakPending = false
+    Runtime.linkBreakAttemptTime = 0
+    Runtime.comboAttemptTime = 0
+    Runtime.comboPauseStarted = nil
+    Runtime.harpoonCastPos = nil
+    Runtime.lastApproachMove = -100
+    Runtime.lastTargetResolve = -100
+    Runtime.lockedHarpoonTarget = nil
+    Runtime.lockedTargets = nil
+    Runtime.unitMotion = {}
+    Runtime.pendingBlinkName = nil
+    Runtime.forcePending = false
+    Runtime.forcePendingTime = 0
+    Runtime.forceUsed = false
+    Runtime.forceFaceStarted = false
+    Runtime.forceFaceOkSince = nil
 end
 
 local function FinishComboCycle(now)
-    State.comboFinishTime = now
+    Runtime.comboFinishTime = now
     if CONFIG.repeatWhileHeld and IsComboKeyHeld() then
         PartialResetForRepeat()
         Dbg("combo cycle done | repeat while held")
         return
     end
-    State.comboDone = true
+    Runtime.comboDone = true
 end
 
-local function ResetAllState()
+local function ResetRuntime()
     ResetHoldState()
-    State.lastDebugHoldLog = -100
-    State.overlayRpRadius = DEFAULT_RP_RADIUS
+    Runtime.lastDebugHoldLog = -100
+    Runtime.overlayRpRadius = DEFAULT_RP_RADIUS
 end
 
 --#endregion
@@ -1114,11 +1020,11 @@ end
 
 local function ResolveHarpoonTarget(me, debugReason)
     if CONFIG.targetLock then
-        if not State.lockedHarpoonTarget then
-            State.lockedHarpoonTarget = GetHarpoonTargetUnderCursor(me, nil)
+        if not Runtime.lockedHarpoonTarget then
+            Runtime.lockedHarpoonTarget = GetHarpoonTargetUnderCursor(me, nil)
         end
 
-        local locked = State.lockedHarpoonTarget
+        local locked = Runtime.lockedHarpoonTarget
         if not locked or not CanHarpoonTarget(locked) then
             if debugReason then
                 debugReason[1] = locked and HasHarpoonBlock(locked)
@@ -1143,8 +1049,8 @@ local function GetHarpoonCastRange(me, harpoon)
 end
 
 local function GetHarpoonApproachPosition(me, harpoonTarget, harpoon)
-    local myPos = SafeCall(Entity.GetAbsOrigin, me)
-    local targetPos = SafeCall(Entity.GetAbsOrigin, harpoonTarget)
+    local myPos = Entity.GetAbsOrigin(me)
+    local targetPos = Entity.GetAbsOrigin(harpoonTarget)
     if not myPos or not targetPos then
         return targetPos
     end
@@ -1192,17 +1098,15 @@ local function GetHarpoonForceReach(me, harpoon)
 end
 
 local function GetFacingAngleTo(me, pos)
-    if NPC.FindRotationAngle then
-        local angle = SafeCall(NPC.FindRotationAngle, me, pos)
-        if angle ~= nil then
-            return math.abs(math.deg(angle))
-        end
+    local angle = NPC.FindRotationAngle(me, pos)
+    if angle ~= nil then
+        return math.abs(math.deg(angle))
     end
     return 999
 end
 
 local function GetForwardDotTo(me, targetPos)
-    local myPos = SafeCall(Entity.GetAbsOrigin, me)
+    local myPos = Entity.GetAbsOrigin(me)
     if not myPos or not targetPos then
         return -1, 999
     end
@@ -1215,7 +1119,7 @@ local function GetForwardDotTo(me, targetPos)
     end
     toX, toY = toX / toLen, toY / toLen
 
-    local forward = SafeCall(Entity.GetForwardPosition, me, 250)
+    local forward = Entity.GetForwardPosition(me, 250)
     if not forward then
         return -1, 999
     end
@@ -1238,17 +1142,16 @@ local function GetForwardDotTo(me, targetPos)
     return dot, math.deg(math.acos(dot))
 end
 
---- Strict facing gate: rotation angle AND forward vector must both point at the enemy.
---- GetTimeToFace alone is too loose and was allowing sideways Force pushes.
+--- Facing gate: rotation + forward must both aim at the enemy (GetTimeToFace alone is too loose).
 local function GetHarpoonFacingInfo(me, harpoonTarget, targetPos)
     local rotAngle = GetFacingAngleTo(me, targetPos)
     local forwardDot, forwardAngle = GetForwardDotTo(me, targetPos)
 
     local timeToFace = 999.0
-    if NPC.GetTimeToFace and harpoonTarget then
-        timeToFace = tonumber(SafeCall(NPC.GetTimeToFace, me, harpoonTarget)) or 999.0
-    elseif NPC.GetTimeToFacePosition and targetPos then
-        timeToFace = tonumber(SafeCall(NPC.GetTimeToFacePosition, me, targetPos)) or 999.0
+    if harpoonTarget then
+        timeToFace = tonumber(NPC.GetTimeToFace(me, harpoonTarget)) or 999.0
+    elseif targetPos then
+        timeToFace = tonumber(NPC.GetTimeToFacePosition(me, targetPos)) or 999.0
     end
 
     local facing = rotAngle <= FORCE_FACE_MAX_ANGLE
@@ -1258,26 +1161,24 @@ local function GetHarpoonFacingInfo(me, harpoonTarget, targetPos)
     return facing, rotAngle, forwardAngle, timeToFace
 end
 
---- Force/Pike on self to enter Harpoon cast range.
---- Returns true while facing / casting / settling. Casts only when facing the enemy.
 local function TryForceForHarpoonGap(me, harpoon, harpoonTarget, mana, now)
     if not harpoonTarget or not CanAct(me) then
         return false
     end
 
-    if State.forcePending then
-        if now >= State.forcePendingTime + FORCE_SETTLE then
-            State.forcePending = false
-            State.forceUsed = true
-            State.forceFaceStarted = false
-            State.forceFaceOkSince = nil
+    if Runtime.forcePending then
+        if now >= Runtime.forcePendingTime + FORCE_SETTLE then
+            Runtime.forcePending = false
+            Runtime.forceUsed = true
+            Runtime.forceFaceStarted = false
+            Runtime.forceFaceOkSince = nil
             Dbg("approach force settle done")
             return false
         end
         return true
     end
 
-    if State.forceUsed or not IsUseForceEnabled() then
+    if Runtime.forceUsed or not IsUseForceEnabled() then
         return false
     end
 
@@ -1296,28 +1197,28 @@ local function TryForceForHarpoonGap(me, harpoon, harpoonTarget, mana, now)
 
     -- Too far for one Force push to enter range — keep walking until within forceReach.
     if dist > forceReach then
-        State.forceFaceOkSince = nil
+        Runtime.forceFaceOkSince = nil
         return false
     end
 
     -- Already close enough that Force is unnecessary / would overshoot badly.
     if dist <= harpoonRange then
-        State.forceFaceOkSince = nil
+        Runtime.forceFaceOkSince = nil
         return false
     end
 
-    local targetPos = SafeCall(Entity.GetAbsOrigin, harpoonTarget)
+    local targetPos = Entity.GetAbsOrigin(harpoonTarget)
     if not targetPos then
         return false
     end
 
     local facing, rotAngle, forwardAngle, timeToFace = GetHarpoonFacingInfo(me, harpoonTarget, targetPos)
     if not facing then
-        State.forceFaceOkSince = nil
-        if now - State.lastApproachMove >= APPROACH_MOVE_INTERVAL then
-            State.lastApproachMove = now
+        Runtime.forceFaceOkSince = nil
+        if now - Runtime.lastApproachMove >= APPROACH_MOVE_INTERVAL then
+            Runtime.lastApproachMove = now
             NPC.MoveTo(me, targetPos, false, false, false, true, ORDER_ID .. ".force_harpoon_face", false)
-            State.forceFaceStarted = true
+            Runtime.forceFaceStarted = true
             Dbg(
                 "approach force wait face | rot=%.0f fwd=%.0f ttf=%.3f dist=%.0f",
                 rotAngle,
@@ -1330,10 +1231,10 @@ local function TryForceForHarpoonGap(me, harpoon, harpoonTarget, mana, now)
     end
 
     -- Hold facing briefly so we don't cast mid-turn when angle flickers into range.
-    if not State.forceFaceOkSince then
-        State.forceFaceOkSince = now
-        if now - State.lastApproachMove >= APPROACH_MOVE_INTERVAL then
-            State.lastApproachMove = now
+    if not Runtime.forceFaceOkSince then
+        Runtime.forceFaceOkSince = now
+        if now - Runtime.lastApproachMove >= APPROACH_MOVE_INTERVAL then
+            Runtime.lastApproachMove = now
             NPC.MoveTo(me, targetPos, false, false, false, true, ORDER_ID .. ".force_harpoon_face", false)
         end
         Dbg(
@@ -1345,14 +1246,14 @@ local function TryForceForHarpoonGap(me, harpoon, harpoonTarget, mana, now)
         return true
     end
 
-    if now - State.forceFaceOkSince < FORCE_FACE_STABLE then
+    if now - Runtime.forceFaceOkSince < FORCE_FACE_STABLE then
         return true
     end
 
     -- Re-check on the cast tick — facing can drift while we waited.
     facing, rotAngle, forwardAngle, timeToFace = GetHarpoonFacingInfo(me, harpoonTarget, targetPos)
     if not facing then
-        State.forceFaceOkSince = nil
+        Runtime.forceFaceOkSince = nil
         Dbg(
             "approach force face lost | rot=%.0f fwd=%.0f ttf=%.3f",
             rotAngle,
@@ -1362,12 +1263,12 @@ local function TryForceForHarpoonGap(me, harpoon, harpoonTarget, mana, now)
         return true
     end
 
-    SafeCall(Ability.CastTarget, force, me, false, true, true, OrderTag("approach", forceName or "force"))
-    State.forcePending = true
-    State.forcePendingTime = now
-    State.forceFaceStarted = false
-    State.forceFaceOkSince = nil
-    State.forceUsed = true
+    Ability.CastTarget(force, me, false, true, true, OrderTag("approach", forceName or "force"))
+    Runtime.forcePending = true
+    Runtime.forcePendingTime = now
+    Runtime.forceFaceStarted = false
+    Runtime.forceFaceOkSince = nil
+    Runtime.forceUsed = true
     Dbg(
         "CAST approach | %s self | facing ok rot=%.0f fwd=%.0f | dist=%.0f harpoon=%.0f",
         forceName or "force",
@@ -1384,7 +1285,7 @@ local function TryApproachHarpoonTarget(me, harpoon, harpoonTarget, now, mana, f
         return false
     end
 
-    if State.forcePending then
+    if Runtime.forcePending then
         return TryForceForHarpoonGap(me, harpoon, harpoonTarget, mana, now)
     end
 
@@ -1396,11 +1297,11 @@ local function TryApproachHarpoonTarget(me, harpoon, harpoonTarget, now, mana, f
         return false
     end
 
-    if now - State.lastApproachMove < APPROACH_MOVE_INTERVAL then
+    if now - Runtime.lastApproachMove < APPROACH_MOVE_INTERVAL then
         return true
     end
 
-    State.lastApproachMove = now
+    Runtime.lastApproachMove = now
     local movePos = GetHarpoonApproachPosition(me, harpoonTarget, harpoon)
     if not movePos then
         return true
@@ -1417,9 +1318,7 @@ local function TryApproachHarpoonTarget(me, harpoon, harpoonTarget, now, mana, f
 end
 
 local function GetEnemyHeroes(me, scanRadius, now)
-    local team = Entity.GetTeamNum(me)
-    local myPos = Entity.GetAbsOrigin(me)
-    local raw = Heroes.InRadius(myPos, scanRadius, team, Enum.TeamType.TEAM_ENEMY, true, true) or {}
+    local raw = Entity.GetHeroesInRadius(me, scanRadius, Enum.TeamType.TEAM_ENEMY, true, true) or {}
     local enemies = {}
 
     for _, enemy in ipairs(raw) do
@@ -1473,14 +1372,14 @@ end
 local function BuildActualPullPredicted(harpoonTarget, enemies, leadTime)
     leadTime = leadTime or PREDICT_LEAD_RECOVERY
     local predicted = {}
-    local pulledPos = GetPredictedEnemyPos(harpoonTarget, leadTime) or SafeCall(Entity.GetAbsOrigin, harpoonTarget)
+    local pulledPos = GetPredictedEnemyPos(harpoonTarget, leadTime) or Entity.GetAbsOrigin(harpoonTarget)
     if not pulledPos then
         return predicted
     end
 
     for _, enemy in ipairs(enemies) do
         if IsValidHero(enemy) then
-            local pos = GetPredictedEnemyPos(enemy, leadTime) or SafeCall(Entity.GetAbsOrigin, enemy)
+            local pos = GetPredictedEnemyPos(enemy, leadTime) or Entity.GetAbsOrigin(enemy)
             if pos then
                 if enemy == harpoonTarget then
                     predicted[#predicted + 1] = { unit = enemy, pos = pulledPos }
@@ -1671,7 +1570,7 @@ local function EvaluateBlinkPlan(me, harpoonTarget, enemies, blinkOrigin, focusU
     if not focusPos then
         focusPos = GetPredictedPosForUnit(predicted, focusUnit, harpoonPos)
         if not CONFIG.predictPull and focusUnit then
-            focusPos = SafeCall(Entity.GetAbsOrigin, focusUnit) or harpoonPos
+            focusPos = Entity.GetAbsOrigin(focusUnit) or harpoonPos
         end
     end
 
@@ -1784,11 +1683,6 @@ local function FindBestBlinkTarget(me, harpoonTarget, enemies, blinkRange, rpRad
         end
 
         if fallbackAnchor then
-            Dbg(
-                "blink fallback cluster plan | hits=%d sep=%.0f",
-                clusterPlan.rpHits,
-                fallbackSep
-            )
             best = {
                 enemy = fallbackAnchor,
                 blinkPos = clusterPlan.blinkPos,
@@ -1812,8 +1706,8 @@ local function RefreshRecoveryTargets(me, locked, harpoon, blink, rp, mana, now)
         return nil
     end
 
-    local myPos = SafeCall(Entity.GetAbsOrigin, me)
-    local harpoonPos = SafeCall(Entity.GetAbsOrigin, harpoonTarget)
+    local myPos = Entity.GetAbsOrigin(me)
+    local harpoonPos = Entity.GetAbsOrigin(harpoonTarget)
     if not myPos or not harpoonPos then
         return locked
     end
@@ -1822,7 +1716,7 @@ local function RefreshRecoveryTargets(me, locked, harpoon, blink, rp, mana, now)
     local rpRadius = GetRPRadius(rp)
     local scanRadius = GetHarpoonCastRange(me, harpoon) + blinkRange + rpRadius + SCAN_RADIUS_BUFFER
     local enemies = GetEnemyHeroes(me, scanRadius, now)
-    local minRPHits = SafeCall(UI.MinRPHits.Get, UI.MinRPHits) or 2
+    local minRPHits = UI.MinRPHits:Get() or 2
     local blinkOrigin = myPos
     local focusUnit = locked.blinkTarget
     local sepDist = locked.sepDist or 0
@@ -1910,16 +1804,16 @@ local function RefreshRecoveryTargets(me, locked, harpoon, blink, rp, mana, now)
 end
 
 local function TryRefreshMidComboTargets(me, harpoon, blink, rp, mana, now)
-    local locked = State.lockedTargets
-    if not locked or not State.harpoonAttempted or State.blinkRpSent then
+    local locked = Runtime.lockedTargets
+    if not locked or not Runtime.harpoonAttempted or Runtime.blinkRpSent then
         return nil
     end
 
-    if now - State.lastTargetResolve < TARGET_RESOLVE_INTERVAL then
+    if now - Runtime.lastTargetResolve < TARGET_RESOLVE_INTERVAL then
         return nil
     end
 
-    State.lastTargetResolve = now
+    Runtime.lastTargetResolve = now
 
     local harpoonTarget = locked.harpoonTarget
     if not harpoonTarget or not IsValidHero(harpoonTarget) then
@@ -2025,19 +1919,23 @@ end
 local function IsComboReady(me, mana, harpoon, blink, rp, targets)
     return targets
         and CanAct(me)
-        and SafeCall(Ability.IsCastable, harpoon, mana)
-        and SafeCall(Ability.IsCastable, blink, mana)
-        and SafeCall(Ability.IsCastable, rp, mana)
+        and Ability.IsCastable(harpoon, mana) == true
+        and Ability.IsCastable(blink, mana) == true
+        and Ability.IsCastable(rp, mana) == true
 end
 
 local function IsHarpoonConfirmed(harpoonTarget, harpoon, mana)
-    if not SafeCall(Ability.IsCastable, harpoon, mana) then
+    if Ability.IsInAbilityPhase(harpoon) then
+        return false
+    end
+
+    if Ability.IsCastable(harpoon, mana) ~= true then
         return true
     end
 
-    if State.harpoonCastPos and harpoonTarget then
-        local pos = SafeCall(Entity.GetAbsOrigin, harpoonTarget)
-        if pos and (pos - State.harpoonCastPos):Length2D() >= HARPOON_CONFIRM_MIN_MOVE then
+    if Runtime.harpoonCastPos and harpoonTarget then
+        local pos = Entity.GetAbsOrigin(harpoonTarget)
+        if pos and (pos - Runtime.harpoonCastPos):Length2D() >= HARPOON_CONFIRM_MIN_MOVE then
             return true
         end
     end
@@ -2047,14 +1945,14 @@ end
 
 local function TryPopLinkens(me, target, mana, now)
     if not CONFIG.popLinkens or not TargetNeedsLinkBreak(target) then
-        State.linkBreakPending = false
+        Runtime.linkBreakPending = false
         return false
     end
 
-    if State.linkBreakPending then
-        if now - State.linkBreakAttemptTime >= LINK_BREAK_VERIFY then
+    if Runtime.linkBreakPending then
+        if now - Runtime.linkBreakAttemptTime >= LINK_BREAK_VERIFY then
             if not TargetNeedsLinkBreak(target) then
-                State.linkBreakPending = false
+                Runtime.linkBreakPending = false
                 Dbg("linken's popped")
                 return false
             end
@@ -2062,7 +1960,7 @@ local function TryPopLinkens(me, target, mana, now)
         return true
     end
 
-    if now - State.lastLinkBreakCast < LINK_BREAK_CAST_INTERVAL then
+    if now - Runtime.lastLinkBreakCast < LINK_BREAK_CAST_INTERVAL then
         return true
     end
 
@@ -2071,20 +1969,21 @@ local function TryPopLinkens(me, target, mana, now)
         return false
     end
 
-    SafeCall(Ability.CastTarget, popItem, target, false, true, true, OrderTag("linkbreak", popName or "pop"))
-    State.linkBreakPending = true
-    State.linkBreakAttemptTime = now
-    State.lastLinkBreakCast = now
+    Ability.CastTarget(popItem, target, false, true, true, OrderTag("linkbreak", popName or "pop"))
+    Runtime.linkBreakPending = true
+    Runtime.linkBreakAttemptTime = now
+    Runtime.lastLinkBreakCast = now
     Dbg("CAST link break | %s", popName or "pop")
     return true
 end
 
-local function ResolveComboTargetsThrottled(me, harpoon, blink, rp, debugReason, now, force)
-    if not force and State.harpoonAttempted and now - State.lastTargetResolve < TARGET_RESOLVE_INTERVAL then
-        return State.lockedTargets
+local function ResolveComboTargetsThrottled(me, harpoon, blink, rp, debugReason, now, force, interval)
+    interval = interval or TARGET_RESOLVE_INTERVAL
+    if not force and now - Runtime.lastTargetResolve < interval then
+        return Runtime.lockedTargets or Runtime.overlayTargets
     end
 
-    State.lastTargetResolve = now
+    Runtime.lastTargetResolve = now
     return ResolveComboTargets(me, harpoon, blink, rp, debugReason, now)
 end
 
@@ -2093,8 +1992,8 @@ end
 --#region Casting
 
 local function CastHarpoonStep(targets, harpoon)
-    State.harpoonCastPos = SafeCall(Entity.GetAbsOrigin, targets.harpoonTarget)
-    SafeCall(Ability.CastTarget, harpoon, targets.harpoonTarget, false, true, true, OrderTag("harpoon", "cast"))
+    Runtime.harpoonCastPos = Entity.GetAbsOrigin(targets.harpoonTarget)
+    Ability.CastTarget(harpoon, targets.harpoonTarget, false, true, true, OrderTag("harpoon", "cast"))
     Dbg(
         "CAST harpoon | hits=%d dist=%.0f",
         targets.hitCount,
@@ -2103,41 +2002,36 @@ local function CastHarpoonStep(targets, harpoon)
 end
 
 local function CastBlinkStep(targets, blink, tag, now, blinkName)
-    State.pendingBlinkName = blinkName
-    SafeCall(
-        Ability.CastPosition,
-        blink,
-        targets.blinkPos,
-        false,
-        true,
-        true,
-        OrderTag(tag, "blink"),
-        true
-    )
-    State.blinkPending = true
-    State.blinkPendingTime = now
+    Runtime.pendingBlinkName = blinkName
+    Ability.CastPosition(blink, targets.blinkPos, false, true, true, OrderTag(tag, "blink"), true)
+    Runtime.blinkPending = true
+    Runtime.blinkPendingTime = now
     Dbg("CAST %s | blink setup | hits=%d pos=(%.0f,%.0f)", tag, targets.hitCount, targets.blinkPos.x, targets.blinkPos.y)
 end
 
 local function TryChainRPAfterBlink(targets, rp, mana, now, tag)
-    if not State.blinkPending then
+    if not Runtime.blinkPending then
         return false
     end
 
-    if now < State.blinkPendingTime + GetBlinkSettleTime(State.pendingBlinkName) then
+    if now < Runtime.blinkPendingTime + GetBlinkSettleTime(Runtime.pendingBlinkName) then
         return true
     end
 
-    if SafeCall(Ability.IsCastable, rp, mana) then
-        SafeCall(Ability.CastNoTarget, rp, false, true, true, OrderTag(tag, "rp"))
-        State.blinkPending = false
-        State.blinkRpSent = true
+    if Ability.IsInAbilityPhase(rp) then
+        return true
+    end
+
+    if Ability.IsCastable(rp, mana) == true then
+        Ability.CastNoTarget(rp, false, true, true, OrderTag(tag, "rp"))
+        Runtime.blinkPending = false
+        Runtime.blinkRpSent = true
         Dbg("CAST %s | rp after blink | hits=%d", tag, targets.hitCount)
         return true
     end
 
-    if now - State.blinkPendingTime > COMBO_BLINK_RP_TIMEOUT then
-        State.blinkPending = false
+    if now - Runtime.blinkPendingTime > COMBO_BLINK_RP_TIMEOUT then
+        Runtime.blinkPending = false
         Dbg("%s | rp after blink timeout", tag)
         return false
     end
@@ -2156,12 +2050,12 @@ local function CanAttemptRecovery(elapsed, allowLate)
 end
 
 local function TryFinishCombo(me, activeTargets, harpoon, blink, rp, mana, elapsed, tag, now, blinkName)
-    if State.blinkRpSent then
+    if Runtime.blinkRpSent then
         return false
     end
 
-    if State.blinkPending then
-        local targets = State.lockedTargets or activeTargets
+    if Runtime.blinkPending then
+        local targets = Runtime.lockedTargets or activeTargets
         if TryChainRPAfterBlink(targets, rp, mana, now, tag) then
             return true
         end
@@ -2176,42 +2070,42 @@ local function TryFinishCombo(me, activeTargets, harpoon, blink, rp, mana, elaps
         return false
     end
 
-    local blinkReady = SafeCall(Ability.IsCastable, blink, mana)
-    local rpReady = SafeCall(Ability.IsCastable, rp, mana)
-    local baseTargets = State.lockedTargets or activeTargets
+    local blinkReady = Ability.IsCastable(blink, mana) == true
+    local rpReady = Ability.IsCastable(rp, mana) == true
+    local baseTargets = Runtime.lockedTargets or activeTargets
     local targets = RefreshRecoveryTargets(me, baseTargets, harpoon, blink, rp, mana, now) or baseTargets
 
     if targets ~= baseTargets then
-        State.lockedTargets = targets
+        Runtime.lockedTargets = targets
     end
 
     if not blinkReady and not rpReady then
         Dbg("%s skipped | full combo landed", tag)
-        State.blinkRpSent = true
-        State.blinkPending = false
+        Runtime.blinkRpSent = true
+        Runtime.blinkPending = false
         return true
     end
 
-    if blinkReady and rpReady and not State.blinkPending then
+    if blinkReady and rpReady and not Runtime.blinkPending then
         CastBlinkStep(targets, blink, tag, now, blinkName)
         return true
     end
 
     if rpReady and not blinkReady then
-        State.blinkRpSent = true
-        SafeCall(Ability.CastNoTarget, rp, false, true, true, OrderTag(tag .. "-rp", "rp"))
+        Runtime.blinkRpSent = true
+        Ability.CastNoTarget(rp, false, true, true, OrderTag(tag .. "-rp", "rp"))
         Dbg("CAST %s | rp only", tag)
         return true
     end
 
-    if blinkReady and not rpReady and not State.blinkPending then
-        State.blinkRpSent = true
+    if blinkReady and not rpReady and not Runtime.blinkPending then
+        Runtime.blinkRpSent = true
         CastBlinkStep(targets, blink, tag .. "-blink", now, blinkName)
         Dbg("CAST %s | blink only", tag)
         return true
     end
 
-    return State.blinkPending
+    return Runtime.blinkPending
 end
 
 --#endregion
@@ -2229,28 +2123,24 @@ local OverlayTheme = {
 }
 
 local function EnsureOverlayFont()
-    if State.overlayFont ~= 0 or not Render or not Render.LoadFont then
+    if Persistent.overlayFont ~= 0 then
         return
     end
 
-    State.overlayFont = SafeCall(Render.LoadFont, "Segoe UI", Enum.FontCreate.FONTFLAG_ANTIALIAS, 500) or 0
-    if State.overlayFont == 0 then
-        State.overlayFont = SafeCall(Render.LoadFont, "Arial", Enum.FontCreate.FONTFLAG_ANTIALIAS, 500) or 0
+    Persistent.overlayFont = Render.LoadFont("Segoe UI", Enum.FontCreate.FONTFLAG_ANTIALIAS, 500) or 0
+    if Persistent.overlayFont == 0 then
+        Persistent.overlayFont = Render.LoadFont("Arial", Enum.FontCreate.FONTFLAG_ANTIALIAS, 500) or 0
     end
 end
 
 local function DrawOverlayLine(from, to, coreColor, glowColor, coreWidth, glowWidth)
     if glowWidth and glowWidth > 0 then
-        SafeCall(Render.Line, from, to, glowColor, glowWidth)
+        Render.Line(from, to, glowColor, glowWidth)
     end
-    SafeCall(Render.Line, from, to, coreColor, coreWidth or 2)
+    Render.Line(from, to, coreColor, coreWidth or 2)
 end
 
 local function DrawWorldRing(worldPos, radius, color, segments)
-    if not Render or not Render.WorldToScreen then
-        return
-    end
-
     segments = segments or 24
     local prevScreen, prevVisible = nil, false
 
@@ -2272,86 +2162,84 @@ end
 
 local function DrawOverlayMarker(screen, color, pulse, radius)
     local ring = radius + math.sin(pulse) * 1.5
-    SafeCall(Render.Circle, screen, ring + 6, Color(color.r, color.g, color.b, 40), 2)
-    SafeCall(Render.Circle, screen, ring, color, 2)
-    SafeCall(Render.FilledCircle, screen, math.max(3, radius * 0.35), Color(color.r, color.g, color.b, 220))
+    Render.Circle(screen, ring + 6, Color(color.r, color.g, color.b, 40), 2)
+    Render.Circle(screen, ring, color, 2)
+    Render.FilledCircle(screen, math.max(3, radius * 0.35), Color(color.r, color.g, color.b, 220))
 end
 
 local function DrawOverlayPill(screen, text, pulse)
-    if not Render or not Render.Text or State.overlayFont == 0 then
+    if Persistent.overlayFont == 0 then
         return
     end
 
-    local textSize = SafeCall(Render.TextSize, State.overlayFont, 13, text) or Vec2(72, 16)
+    local textSize = Render.TextSize(Persistent.overlayFont, 13, text) or Vec2(72, 16)
     local padX, padY = 10, 5
     local width = textSize.x + padX * 2
     local height = textSize.y + padY * 2
     local topLeft = Vec2(screen.x + 18, screen.y - height * 0.5 - 8)
     local bottomRight = Vec2(topLeft.x + width, topLeft.y + height)
 
-    SafeCall(Render.FilledRect, topLeft, bottomRight, OverlayTheme.pillBg, 6)
-    SafeCall(Render.Rect, topLeft, bottomRight, OverlayTheme.pillBorder, 6, 0, 1)
-    SafeCall(
-        Render.FilledRect,
-        topLeft,
-        Vec2(topLeft.x + width, topLeft.y + 2),
-        Color(OverlayTheme.route.r, OverlayTheme.route.g, OverlayTheme.route.b, math.floor(55 + 25 * math.sin(pulse * 1.2))),
-        6
-    )
-    SafeCall(Render.Text, State.overlayFont, 13, text, Vec2(topLeft.x + padX, topLeft.y + padY - 1), OverlayTheme.text)
+    Render.FilledRect(topLeft, bottomRight, OverlayTheme.pillBg, 6)
+    Render.Rect(topLeft, bottomRight, OverlayTheme.pillBorder, 6, 0, 1)
+    Render.FilledRect(topLeft, Vec2(topLeft.x + width, topLeft.y + 2), Color(OverlayTheme.route.r, OverlayTheme.route.g, OverlayTheme.route.b, math.floor(55 + 25 * math.sin(pulse * 1.2))), 6)
+    Render.Text(Persistent.overlayFont, 13, text, Vec2(topLeft.x + padX, topLeft.y + padY - 1), OverlayTheme.text)
 end
 
 --#endregion
 
---#region Script callbacks
+--#region Lifecycle
 
-function Script:OnScriptsLoaded()
-    EnsureMenu()
-    LogWrite("script loaded")
+function Script.OnScriptsLoaded()
+    Persistent.logger = Logger(SCRIPT_NAME)
+    InitializeUI()
+    LogWrite(string.format(
+        "loaded | enable=%s debug=%s key=%s",
+        tostring(UI.Enabled and UI.Enabled:Get()),
+        tostring(UI.Debug and UI.Debug:Get()),
+        tostring(UI.ComboKey and UI.ComboKey:Get())
+    ))
 end
 
-function Script:OnPrepareUnitOrders(data, player, order, target, position, ability, orderIssuer, npc, queue, showEffects)
+function Script.OnPrepareUnitOrders(data, player, order, target, position, ability, orderIssuer, npc, queue, showEffects)
     local dataTable = type(data) == "table" and data or nil
     local identifier = dataTable and dataTable.identifier or nil
     local isScriptOrder = type(identifier) == "string" and identifier:find(ORDER_ID, 1, true) == 1
 
-    if State.menuReady and SafeCall(UI.Debug.Get, UI.Debug) and ability then
+    if UI.Debug and UI.Debug:Get() == true and ability then
         local abilityName = GetAbilityName(ability)
-        local isRelevant = IsComboDebugAbility(abilityName)
-
-        if isRelevant then
-            local targetName = target and SafeCall(Entity.GetUnitName, target) or "nil"
+        if IsComboDebugAbility(abilityName) then
+            local targetName = target and Entity.GetUnitName(target) or "nil"
             Dbg(
                 "order=%s ability=%s queue=%s script=%s combo=%s pending=%s pos=%s target=%s id=%s",
                 tostring(order),
                 abilityName,
                 tostring(queue),
                 tostring(isScriptOrder),
-                tostring(State.harpoonAttempted),
-                tostring(State.blinkPending),
+                tostring(Runtime.harpoonAttempted),
+                tostring(Runtime.blinkPending),
                 position and string.format("(%.0f,%.0f)", position.x, position.y) or "nil",
                 targetName,
                 tostring(identifier)
             )
         end
     end
+
+    return true
 end
 
-function Script:OnUpdate()
-    EnsureMenu()
-    if not State.menuReady then
+function Script.OnUpdate()
+    if not UI.Enabled or UI.Enabled:Get() ~= true then
         return
     end
 
-    local now = GlobalVars.GetCurTime() or 0
-
-    if not SafeCall(Engine.IsInGame) or not SafeCall(UI.Enabled.Get, UI.Enabled) then
-        ResetHoldState()
+    if not Engine.IsInGame() then
         return
     end
 
-    if Input.IsInputCaptured and SafeCall(Input.IsInputCaptured) then
-        if State.harpoonAttempted then
+    local now = Now()
+
+    if Input.IsInputCaptured() then
+        if Runtime.harpoonAttempted then
             PauseComboTimer(now)
         end
         return
@@ -2363,12 +2251,12 @@ function Script:OnUpdate()
     end
 
     local me = Heroes.GetLocal()
-    if not me or SafeCall(NPC.GetUnitName, me) ~= HERO_NAME then
+    if not me or NPC.GetUnitName(me) ~= HERO_NAME then
         return
     end
 
     if not CanAct(me) then
-        if State.harpoonAttempted then
+        if Runtime.harpoonAttempted then
             PauseComboTimer(now)
         end
         return
@@ -2376,39 +2264,47 @@ function Script:OnUpdate()
 
     ResumeComboTimer(now)
 
-    local mana = SafeCall(NPC.GetMana, me) or 0
-    local harpoon = SafeCall(NPC.GetItem, me, HARPOON_NAME, true)
+    local mana = NPC.GetMana(me) or 0
+    local harpoon = NPC.GetItem(me, HARPOON_NAME, true)
     local blink, blinkName = GetBlink(me)
-    local rp = SafeCall(NPC.GetAbility, me, RP_NAME)
+    local rp = NPC.GetAbility(me, RP_NAME)
 
     if not harpoon or not blink or not rp then
-        State.overlayTargets = nil
-        State.overlayReason = "missing items/ability"
+        Runtime.overlayTargets = nil
+        Runtime.overlayReason = "missing items/ability"
+        Dbg("missing items/ability | harpoon=%s blink=%s rp=%s", tostring(harpoon ~= nil), tostring(blink ~= nil), tostring(rp ~= nil))
         return
     end
 
+    local forceResolve = not Runtime.harpoonAttempted and not Runtime.comboDone
+    local resolveInterval = (Runtime.comboDone or Ability.IsCastable(harpoon, mana) ~= true)
+        and PREVIEW_RESOLVE_INTERVAL
+        or TARGET_RESOLVE_INTERVAL
+
     local debugReason = { "" }
-    local targets = ResolveComboTargetsThrottled(me, harpoon, blink, rp, debugReason, now, not State.harpoonAttempted)
+    local targets = ResolveComboTargetsThrottled(
+        me, harpoon, blink, rp, debugReason, now, forceResolve, resolveInterval
+    )
     local comboReady = IsComboReady(me, mana, harpoon, blink, rp, targets)
     local rpRadius = GetRPRadius(rp)
 
-    State.overlayTargets = State.lockedTargets or targets
-    State.overlayReason = debugReason[1]
-    State.overlayRpRadius = rpRadius
+    Runtime.overlayTargets = Runtime.lockedTargets or targets
+    Runtime.overlayReason = debugReason[1]
+    Runtime.overlayRpRadius = rpRadius
 
     LogHoldState(debugReason[1], me, mana, harpoon, blink, blinkName, rp, targets, comboReady)
 
-    if State.comboDone then
+    if Runtime.comboDone then
         return
     end
 
-    if State.comboFinishTime > 0
+    if Runtime.comboFinishTime > 0
         and CONFIG.repeatWhileHeld
-        and now - State.comboFinishTime < COMBO_REPEAT_COOLDOWN then
+        and now - Runtime.comboFinishTime < COMBO_REPEAT_COOLDOWN then
         return
     end
 
-    local activeTargets = State.lockedTargets or targets
+    local activeTargets = Runtime.lockedTargets or targets
 
     if not activeTargets then
         local harpoonTarget = ResolveHarpoonTarget(me, nil)
@@ -2418,37 +2314,43 @@ function Script:OnUpdate()
         return
     end
 
-    if State.harpoonAttempted then
-        local elapsed = now - State.comboAttemptTime
+    if Runtime.harpoonAttempted then
+        local elapsed = now - Runtime.comboAttemptTime
 
-        if not State.blinkRpSent and not State.blinkPending then
+        if Ability.IsInAbilityPhase(harpoon) or Ability.IsInAbilityPhase(blink) or Ability.IsInAbilityPhase(rp) then
+            return
+        end
+
+        if not Runtime.blinkRpSent and not Runtime.blinkPending then
             local refreshed = TryRefreshMidComboTargets(me, harpoon, blink, rp, mana, now)
             if refreshed == false then
                 FinishComboCycle(now)
                 return
             elseif refreshed then
-                State.lockedTargets = refreshed
+                Runtime.lockedTargets = refreshed
                 activeTargets = refreshed
-                State.overlayTargets = refreshed
+                Runtime.overlayTargets = refreshed
             end
         end
 
-        if State.blinkPending then
+        if Runtime.blinkPending then
             TryChainRPAfterBlink(activeTargets, rp, mana, now, "recovery")
         end
 
-        if not State.forcePending
-            and not State.blinkPending
-            and SafeCall(Ability.IsCastable, harpoon, mana)
-            and elapsed >= HARPOON_RETRY_DELAY then
+        if not Runtime.forcePending
+            and not Runtime.blinkPending
+            and elapsed >= HARPOON_RETRY_DELAY
+            and elapsed >= HARPOON_CAST_GUARD
+            and Ability.IsCastable(harpoon, mana) == true
+            and not IsHarpoonConfirmed(activeTargets.harpoonTarget, harpoon, mana) then
             Dbg(
                 "harpoon retry | dist=%.0f inRange=%s",
                 GetHarpoonDist(me, activeTargets.harpoonTarget),
                 tostring(IsHarpoonInCastRange(me, activeTargets.harpoonTarget, harpoon))
             )
             if CanCastHarpoonNow(me, activeTargets.harpoonTarget, harpoon, mana) then
-                State.harpoonAttempted = true
-                State.comboAttemptTime = now
+                Runtime.harpoonAttempted = true
+                Runtime.comboAttemptTime = now
                 CastHarpoonStep(activeTargets, harpoon)
             else
                 TryApproachHarpoonTarget(me, harpoon, activeTargets.harpoonTarget, now, mana, false)
@@ -2456,19 +2358,19 @@ function Script:OnUpdate()
             return
         end
 
-        if not State.blinkRpSent then
+        if not Runtime.blinkRpSent then
             TryFinishCombo(me, activeTargets, harpoon, blink, rp, mana, elapsed, "recovery", now, blinkName)
         end
 
-        if State.blinkRpSent then
+        if Runtime.blinkRpSent then
             FinishComboCycle(now)
-        elseif not SafeCall(Ability.IsCastable, blink, mana) and not SafeCall(Ability.IsCastable, rp, mana) then
+        elseif Ability.IsCastable(blink, mana) ~= true and Ability.IsCastable(rp, mana) ~= true then
             FinishComboCycle(now)
         elseif elapsed > COMBO_RECOVERY_TIME then
-            if not State.blinkRpSent then
+            if not Runtime.blinkRpSent then
                 TryFinishCombo(me, activeTargets, harpoon, blink, rp, mana, elapsed, "late-recovery", now, blinkName)
             end
-            if State.blinkRpSent or not State.blinkPending then
+            if Runtime.blinkRpSent or not Runtime.blinkPending then
                 FinishComboCycle(now)
             end
         end
@@ -2493,30 +2395,35 @@ function Script:OnUpdate()
     end
 
     if targets then
-        State.lockedTargets = targets
+        Runtime.lockedTargets = targets
         activeTargets = targets
     end
 
-    State.harpoonAttempted = true
-    State.comboAttemptTime = now
+    Runtime.harpoonAttempted = true
+    Runtime.comboAttemptTime = now
     CastHarpoonStep(activeTargets, harpoon)
 end
 
-function Script:OnDraw()
-    if not State.menuReady or not SafeCall(UI.Enabled.Get, UI.Enabled) or not SafeCall(UI.DrawOverlay.Get, UI.DrawOverlay) then
+function Script.OnDraw()
+    if not UI.Enabled or UI.Enabled:Get() ~= true then
         return
     end
-
-    if not SafeCall(Engine.IsInGame) or not Render or not IsComboKeyHeld() then
+    if not UI.DrawOverlay or UI.DrawOverlay:Get() ~= true then
+        return
+    end
+    if Menu.VisualsIsEnabled() ~= true then
+        return
+    end
+    if not Engine.IsInGame() or not IsComboKeyHeld() then
         return
     end
 
     local me = Heroes.GetLocal()
-    if not me or SafeCall(NPC.GetUnitName, me) ~= HERO_NAME then
+    if not me or NPC.GetUnitName(me) ~= HERO_NAME then
         return
     end
 
-    local targets = State.overlayTargets
+    local targets = Runtime.overlayTargets
     if not targets or not targets.blinkPos then
         return
     end
@@ -2524,13 +2431,13 @@ function Script:OnDraw()
     EnsureOverlayFont()
 
     local pulse = os.clock() * 3.2
-    local myPos = SafeCall(Entity.GetAbsOrigin, me)
+    local myPos = Entity.GetAbsOrigin(me)
     local blinkPos = targets.blinkPos
     if not myPos then
         return
     end
 
-    DrawWorldRing(blinkPos, State.overlayRpRadius, OverlayTheme.rpRing, 28)
+    DrawWorldRing(blinkPos, Runtime.overlayRpRadius, OverlayTheme.rpRing, 28)
 
     local myScreen, myVisible = WorldToScreen(myPos)
     local blinkScreen, blinkVisible = WorldToScreen(blinkPos)
@@ -2544,13 +2451,13 @@ function Script:OnDraw()
         local label = string.format(
             "RP hits: %d | %s",
             targets.hitCount or 0,
-            State.overlayReason or ""
+            Runtime.overlayReason or ""
         )
         DrawOverlayPill(blinkScreen, label, pulse)
     end
 
     if targets.harpoonTarget then
-        local harpoonPos = SafeCall(Entity.GetAbsOrigin, targets.harpoonTarget)
+        local harpoonPos = Entity.GetAbsOrigin(targets.harpoonTarget)
         local harpoonScreen, harpoonVisible = WorldToScreen(harpoonPos)
         if harpoonVisible then
             DrawOverlayMarker(harpoonScreen, OverlayTheme.route, pulse + 1.1, 4)
@@ -2558,12 +2465,8 @@ function Script:OnDraw()
     end
 end
 
-function Script:OnGameEnd()
-    ResetAllState()
-    State.menuReady = false
-    State._logger = nil
-    State.overlayFont = 0
-    UI = {}
+function Script.OnGameEnd()
+    ResetRuntime()
 end
 
 --#endregion
